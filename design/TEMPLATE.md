@@ -33,3 +33,7 @@ and future maintainability.]
 [A description of the steps in the implementation, who will do them, and when.
 This should include a discussion of how the work fits into [Go's release cycle](https://golang.org/wiki/Go-Release-Cycle).]
 
+## Open issues (if applicable)
+
+[A discussion of issues relating to this proposal for which the author does not
+know the solution. This section may be omitted if there are none.]
