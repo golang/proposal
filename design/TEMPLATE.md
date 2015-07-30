@@ -25,8 +25,7 @@ Last updated: [Date]
 ## Compatibility
 
 [A discussion of the change with regard to the
-[compatibility guidelines](https://golang.org/doc/go1compat)
-and future maintainability.]
+[compatibility guidelines](https://golang.org/doc/go1compat).]
 
 ## Implementation
 
