@@ -85,10 +85,10 @@ If you have not received a reply to your email within 48 hours, or have not
 heard from the security team for the past five days, please contact the
 following members of the Go security team directly:
 
-* Contact the primary security coordinator - [TBD](mailto:TBD) - [public key]
-(TBD)  directly.
-* Contact the secondary coordinator - [TBD](mailto:TDB) - [public key](TBD)
-directly.
+* Contact the primary security coordinator - [Andrew Gerrand]
+(mailto:adg@golang.org) - directly.
+* Contact the secondary coordinator - [Adam Langley](mailto:agl@google.com) -
+[public key](https://www.imperialviolet.org/key.asc) directly.
 * Post a message to [golang-dev@golang.org](mailto:golang-dev@golang.org) or
 [golang-dev web interface]
 (https://groups.google.com/forum/#!forum/golang-dev).
@@ -115,7 +115,9 @@ This person will coordinate the fix and release process.
 determined.
 1. Code will be audited to find any potential similar problems.
 1. If it is determined, in consultation with the submitter, that a CVE-ID is
-required the primary handler will be responsible for obtaining it.
+required the primary handler will be responsible for obtaining via email
+to the [oss-distros]
+(http://oss-security.openwall.org/wiki/mailing-lists/distros) list.
 1. Fixes will be prepared for the current stable release and the head/master
 revision. These fixes will not be committed to the public repository.
 1. Details of the issue and patch files will be sent to the
@@ -126,6 +128,8 @@ mailing list.
 applied to the [public repository](https://go.googlesource.com/go) and new
 builds deployed to [https://golang.org/dl](https://golang.org/dl)
 1. On the date that the fixes are applied, announcements will be sent to
+[golang-announce]
+(https://groups.google.com/forum/#!forum/golang-announce),
 [golang-dev@golang.org](https://groups.google.com/forum/#!forum/golang-dev),
 [golang-nuts@golang.org](https://groups.google.com/forum/#!forum/golang-nuts)
 and the [oss-security@openwall](http://www.openwall.com/lists/oss-security/).
@@ -147,31 +151,85 @@ as well as the [National Vulnerability Disclosure site]
 
 ### Receiving Security Updates
 
-The best way to receive security announcements is to subscribe to the [golang-
-dev@golang.org](https://groups.google.com/forum/#!forum/golang-dev) mailing
-list. Any messages pertaining to a security issue will be prefixed with
-`[security]`.
-
+The best way to receive security announcements is to subscribe to the
+[golang-announce]
+(https://groups.google.com/forum/#!forum/golang-announce)
+mailing list. Any messages pertaining to a security issue will be prefixed
+with `[security]`.
 
 ### Comments on This Policy
 
 If you have any suggestions to improve this policy, please send an email to
 [golang-dev@golang.org](mailto:golang-dev@golang.org) for discussion.
 
-### Plaintext PGP Key
+### Plaintext PGP Key for [security@golang.org](mailto:security@golang.org)
 
-``` ===== pgp key to be inserted here ==== ```
+```
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+Comment: GPGTools - https://gpgtools.org
+
+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
+UDrmjf9pr7o00hC7lCHFzw==
+=WE0r
+-----END PGP PUBLIC KEY BLOCK-----
+
+```
 
 ## Rationale
 
 ### Early Disclosure
 
-The Go security policy does not contain a provision for
-the early disclosure of vulnerabilities to a small set of "trusted" partners.
-The Xen and WebKit policies do contain provisions for this. According to
-several members of the security response team at Google (Ben Laurie, Adam
-Langly), it is incredibly difficult to retain secrecy of embargoed issues once
-they have been shared with even a small number of partners.
+The Go security policy does not contain a provision for the early disclosure
+of vulnerabilities to a small set of "trusted" partners. The Xen and WebKit
+policies do contain provisions for this. According to several members of the
+security response team at Google (Ben Laurie, Adam Langley), it is incredibly
+difficult to retain secrecy of embargoed issues once they have been shared
+with even a small number of partners.
 
 ### Security Review Team Membership
 
