@@ -89,9 +89,12 @@ examples of recent language changes.)
 	- It is expected that the design doc may go through multiple checked-in revisions.
 	- New design doc authors may be paired with a design doc "shepherd" to help work
 	  on the doc.
-	- If the author is a committer, each revision can be self-+2'ed.
-	- Comments by others can be made on the Gerrit CLs or on the GitHub issue,
-	  whatever makes sense.
+	- For ease of review with Gerrit, design documents should be wrapped around the
+          80 column mark. [Each sentence should start on a new line](http://rhodesmill.org/brandon/2012/one-sentence-per-line/)
+          so that comments can be made accurately and the diff kept shorter.
+	- Comments on Gerrit CLs should be restricted to grammar, spelling, or
+          procedural errors related to the preparation of the proposal itself.
+          All other comments should be addressed to the related GitHub issue.
 
 - Once comments and revisions on the design doc wind down, there is a final
   discussion about the proposal.
