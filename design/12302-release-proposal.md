@@ -1,17 +1,17 @@
-# Proposal: A minimal release process for Go projects
+# Proposal: A minimal release process for Go repositories
 
 Author: Dave Cheney &lt;dave@cheney.net&gt;
 
-Last updated: 2 September 2015
+Last updated: 8 September 2015
 
 ## Abstract
 
 In the same way that gofmt defines a single recommended way to format Go source
-code, this proposal establishes a single recommended procedure for releasing
-Go projects.
+code, this proposal establishes a single recommended procedure for releasing the
+source code for Go programs and libraries.
 
 This is intended to be a light weight process to facilitate tools that automate
-the creation and consumption of released versions of Go projects.
+the creation and consumption of this release information.
 
 ## Background
 
@@ -33,54 +33,52 @@ system (VCS) or development team.
 
 ## Proposal
 
-This proposal describes a minimal procedure for releasing Go projects by
-tagging the repository which holds the project's source.
+This proposal describes a minimal release procedure of tagging a repository
+which holds the source of one or more Go packages.
 
 ### Release process
 
-This proposal recommends that Go projects adopt the
+This proposal recommends that repository owners adopt the
 [Semantic Versioning 2.0 standard](http://SemVer.org/spec/v2.0.0.html) (SemVer)
 for their numbering scheme.
 
-Go projects are released by tagging (eg. `git tag`) the project's VCS repository
-with a string representing the SemVer compatible version number of that release.
+Source code is released by tagging (eg. `git tag`) the VCS repository with a
+string representing a SemVer compatible version number for that release.
 
-This proposal is not restricted to git, any project stored in a VCS that has
-the facility to assign a tag like entity to a revision is supported.
-
-A tag, and thus a version number, once assigned must not be reused.
+This proposal is not restricted to git, any VCS that has the facility to assign
+a tag-like entity to a revision is supported.
 
 ### Tag format
 
 The format of the VCS tag is as follows:
-
 ```
 v<SemVer>
 ```
-
 That is, the character `v`, U+0075, followed directly by a string which is
-compliant with the
-[Semantic Versioning 2.0 standard](http://SemVer.org/spec/v2.0.0.html).
+compliant with the [Semantic Versioning 2.0 standard](http://SemVer.org/spec/v2.0.0.html).
 
-When inspecting a project's repository, tags which do not fit the format
-described above must be ignored for the purpose of determining which versions
-of a Go project are released.
+When inspecting a repository, tags which do not fit the format described above
+must be ignored for the purpose of determining the available release versions.
+
+SemVer requires that a once a version number has been assigned, it must not
+change, thus a tag, once assigned must not be reused.
 
 ## Rationale
 
-Go projects do not have version numbers in the way it is commonly understood
-by our counterparts in other languages communities.
-This is because there is no formalised notion of releasing a Go project.
+Go libraries and programs do not have version numbers in the way it is commonly
+understood by our counterparts in other languages communities.
+This is because there is no formalised notion of releasing Go source code.
 There is no recognised process of taking an arbitrary VCS commit hash and
 assigning it a version number that is meaningful for both humans and machines.
 
 Additionally, operating system distributors such as Debian and Ubuntu strongly
-prefer to package released versions of a project, and are currently reduced to
+prefer to package released versions of a library or application, and are
+currently reduced to
 [doing things like this](https://ftp-master.debian.org/new/golang-github-odeke-em-command_0.0~git20150727.0.cf17ee2-1.html).
 
-In the spirit of doing less and enabling more, this proposal establishes a the
-minimum required by humans and tools to identify released versions of Go
-projects by inspecting their source code repositories.
+In the spirit of doing less and enabling more, this proposal establishes the
+minimum required for humans and tools to identify released versions by inspecting
+source code repositories.
 It is informed by the broad support for semantic versioning across our
 contemporaries like node.js (npm), rust (cargo), javascript (bower), and ruby
 (rubygems), thereby allowing Go programmers to benefit from the experiences of
@@ -88,21 +86,21 @@ these other communities' dependency management ecosystems.
 
 ### Who benefits from adopting this proposal ?
 
-This proposal will immediately benefit the downstream consumers of Go projects.
-For example:
+This proposal will immediately benefit the downstream consumers of Go libraries
+and programs. For example:
 
 - The large ecosystem of tools like godeps, glide, govendor, gb, the
   vendor-spec proposal and dozens more, that can use this information to
   provide, for example, a command that will let users upgrade between minor
   versions, or update to the latest patch released of their dependencies rather
-  than just the latest HEAD of the project.
+  than just the latest HEAD of the repository.
 - Operating system distributions such as Debian, Fedora, Ubuntu, Homebrew, rely
   on released versions of software for their packaging policies.
   They don't want to pull random git hashes into their archives, they want to
   pull released versions of the code and have release numbers that give them a
-  sense of how compatible new versions are with the current version.
+  sense of how compatible new versions are with previous version.
   For example, Ubuntu have a policy that we only accept patch releases into our
-  LTS distribution, no major version changes, no minor version changes that
+  LTS distribution; no major version changes, no minor version changes that
   include new features, only bug fixes.
 - godoc.org could show users the documentation for the version of the package
   they were using, not just whatever is at HEAD.
@@ -138,7 +136,7 @@ The recommendation to include the `v` prefix is for compatibility with the
 three largest Go projects, Docker, Kubernetes, and CoreOS, who have already
 adopted this form.
 
-Permitting the `v` prefix to be optional would mean some projects adopt it, and
+Permitting the `v` prefix to be optional would mean some authors adopt it, and
 others do not, which is a poor position for a standard.
 In the spirit of gofmt, mandating the `v` prefix across the board means there
 is exactly one tag form for implementations to parse, and outweighs the
@@ -146,8 +144,22 @@ personal choice of an optional prefix.
 
 ## Compatibility
 
-There is no impact on the
-[compatibility guidelines](https://golang.org/doc/go1compat) from this proposal.
+There is no impact on the [compatibility guidelines](https://golang.org/doc/go1compat)
+from this proposal.
+
+However, in the past, members of the Go team have advocated that when a libraries'
+API changes in an incompatible way, the import path of the library should be
+changed, usually including a version number as a component of the import path.
+This proposal deprecates this recommendation.
+
+Authors of Go libraries should follow these two maxims:
+
+# Packages which are the same, must share the same import path. This proposal
+  provides the mechanism for consumers to identify a specific release version
+  without the requirement to encode that information in the import path.
+# Packages which are not the same, must not have the same import path. A clone or
+  fork of a library or project is not the same as its parent, so it should have
+  a new name -- a new import path.
 
 ## Implementation
 
@@ -155,16 +167,15 @@ A summary of this proposal, along with examples and a link to this proposal,
 will be added to the [How to write Go Code)(http://golang.org/doc/code.html#remote)
 section of the [golang.org](https://golang.org) website.
 
-Authors of Go projects who wish to release of their projects must tag their
-software using a tag in the form described above. An example would be:
+Authors who wish to release their software must use a tag in the form described
+above. An example would be:
 ```
 % git tag -a v1.0.0 -m "release version 1.0.0"
 % git push --tags
 ```
-Projects are not prohibited from using other methods of releasing their
-software, but should be aware that if those methods do not conform to the
-format described above, those releases may be invisible to tools confirming to
-this proposal.
+Authors are not prohibited from using other methods of releasing their software,
+but should be aware that if those methods do not conform to the format described
+above, those releases may be invisible to tools confirming to this proposal.
 
 There is no impact on the Go release cycle, this proposal is not bound by a
 deliverable in the current release cycle.
@@ -173,8 +184,8 @@ deliverable in the current release cycle.
 
 The following items are out of scope of this proposal:
 
-- How Go projects can declare the version numbers or ranges for projects they
-  depend on.
+- How libraries and applications can declare the version numbers or ranges for
+  their dependencies.
 - How go get may be changed to consume this version information.
 
 Additionally, this proposal not seek to change the release process, or version
