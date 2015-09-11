@@ -1,6 +1,7 @@
 # Proposal: Enhanced Table-Driven Test Support
 
 Author: Marcel van Lohuizen
+
 _With input from Sameer Ajmani, Austin Clements, Damien Neil, and Bryan Mills._
 
 
@@ -37,32 +38,36 @@ command line.
 
 T gets the following method:
 
-    // Run runs f as a subtest of t called name. It panics if name is not unique
-    // among t's subtests and reports whether f succeeded.
-    // Run will block until all its parallel subtests have completed.
-    func (t *T) Run(name string, f func(t *testing.T)) bool
+```go
+// Run runs f as a subtest of t called name. It panics if name is not unique
+// among t's subtests and reports whether f succeeded.
+// Run will block until all its parallel subtests have completed.
+func (t *T) Run(name string, f func(t *testing.T)) bool
+```
 
 Several methods get further clarification on their behavior for subfunctions.
 Changes inbetween square brackets:
 
 
-    // Fail marks the function [and its calling functions] as having failed but
-    // continues execution.
-    func (c *common) Fail()
+```go
+// Fail marks the function [and its calling functions] as having failed but
+// continues execution.
+func (c *common) Fail()
 
-    // FailNow marks the function as having failed, stops its execution
-    // [and aborts pending parallel subtests].
-    // Execution will continue at the next test or benchmark.
-    // FailNow must be called from the goroutine running the
-    // test or benchmark function, not from other goroutines
-    // created during the test. Calling FailNow does not stop
-    // those other goroutines.
-    func (c *common) FailNow()
+// FailNow marks the function as having failed, stops its execution
+// [and aborts pending parallel subtests].
+// Execution will continue at the next test or benchmark.
+// FailNow must be called from the goroutine running the
+// test or benchmark function, not from other goroutines
+// created during the test. Calling FailNow does not stop
+// those other goroutines.
+func (c *common) FailNow()
 
-    // SkipNow marks the test as having been skipped, stops its execution
-    // [and aborts pending parallel subtests].
-    // ... (analoguous to FailNow)
-    func (c *common) SkipNow()
+// SkipNow marks the test as having been skipped, stops its execution
+// [and aborts pending parallel subtests].
+// ... (analoguous to FailNow)
+func (c *common) SkipNow()
+```
 
 A NumFailed method might be useful as well.
 
@@ -70,23 +75,25 @@ A NumFailed method might be useful as well.
 
 A typical use case:
 
-    tests := []struct {
-         A, B int
-         Sum  int
-    }{
-        { 1, 2, 3 },
-        { 1, 1, 2 },
-        { 2, 1, 3 },
+```go
+tests := []struct {
+     A, B int
+     Sum  int
+}{
+    { 1, 2, 3 },
+    { 1, 1, 2 },
+    { 2, 1, 3 },
+}
+func TestSum(t *testing.T) {
+    for _, tc := range tests {
+        t.Run(fmt.Sprint(tc.A, "+", tc.B), func(t *testing.T) {
+            if got := tc.A + tc.B; got != tc.Sum {
+                t.Errorf("got %d; want %d", got, tc.Sum)
+            }
+        })
     }
-    func TestSum(t *testing.T) {
-        for _, tc := range tests {
-            t.Run(fmt.Sprint(tc.A, "+", tc.B), func(t *testing.T) {
-                if got := tc.A + tc.B; got != tc.Sum {
-                    t.Errorf("got %d; want %d", got, tc.Sum)
-                }
-            })
-        }
-    }
+}
+```
 
 Note that we write `t.Errorf("got %d; want %d")` instead of something like
 `t.Errorf("%d+%d = %d; want %d")`: the subtest name already uniquely identifies
@@ -94,7 +101,7 @@ the test.
 
 Selected (sub)tests from the command line using -test.run:
 
-```
+```go
 go test --run=TestFoo,1+2  # selects the first test in TestFoo
 go test --run=TestFoo,1+   # selects tests for which A == 1 in TestFoo
 go test --run=,1+          # for any top-level test, select subtests matching ”1+”
@@ -102,7 +109,7 @@ go test --run=,1+          # for any top-level test, select subtests matching �
 
 Skipping a subtest will not terminate subsequent tests in the calling test:
 
-```
+```go
 func TestFail(t *testing.T) {
     for i, tc := range tests {
         t.Run(fmt.Sprint(tc.A, "+", tc.B), func(t *testing.T) {
@@ -142,7 +149,7 @@ Run teardown code after a few tests:
 
 Run teardown code after parallel tests:
 
-```
+```go
 func TestTeardownParallel(t *testing.T) {
     // By definition, this Run will not return until the parallel tests finish.
     t.Run("block", func(t *testing.T) {
@@ -230,22 +237,24 @@ See the Rational section for an explanation.
 ### Example
 The following code shows the use of two levels of subbenchmarks.
 
-    func BenchmarkMethod(b *testing.B) {
-        for _, tt := range allMethods {
-            b.Run(tt.name, func(b *testing.B) {
-                for _, d := range smallSet {
-                    s := []byte(d.Data)
-                    fn := tt.f(NFC, s) // initialize the test.
-                    b.Run(d.Name, func(b *testing.B) {
-                        b.SetBytes(int64(len(s)))
-                        for i := 0; i < b.N; i++ {
-                            fn()
-                        }
-                    })
-                }
-            })
-        }
+```go
+func BenchmarkMethod(b *testing.B) {
+    for _, tt := range allMethods {
+        b.Run(tt.name, func(b *testing.B) {
+            for _, d := range smallSet {
+                s := []byte(d.Data)
+                fn := tt.f(NFC, s) // initialize the test.
+                b.Run(d.Name, func(b *testing.B) {
+                    b.SetBytes(int64(len(s)))
+                    for i := 0; i < b.N; i++ {
+                        fn()
+                    }
+                })
+            }
+        })
     }
+}
+```
 
 Note that there is some initialization code above the second Run.
 Because it is outside of Run, there is no need to call ResetTimer.
@@ -282,7 +291,6 @@ This format is compatible with tools like benchstats.
 
 Logs for tests are printed hierarchically. Example:
 
-```
     --- FAIL: TestFoo  (0.03s)
         display_test.go:75: setup issue
         --- FAIL: TestFoo,{Alpha:1_Beta:1}  (0.01s)
@@ -304,7 +312,6 @@ Logs for tests are printed hierarchically. Example:
             display_test.go:75: Foo(Beta) = 5; want 6
         --- FAIL: TestFoo,{Alpha:1_Beta:9}  (0.03s)
             display_test.go:75: Foo(Beta) = 5; want 6
-```
 
 For each header, we include the full name, thereby repeating the name of the parent.
 This makes it easier to identify the specific test from within the local context
@@ -550,12 +557,14 @@ Using Parallel in combination with closures is prone  to the “forgetting to
 capture a range variable” problem.
 We could define a Go method analogous to Run, defined as follows:
 
-    func (t *T) Go(name string, f func(t *T)) {
-        t.Run(name, func(t *T) {
-            t.Parallel()
-            f(t)
-        }
+```go
+func (t *T) Go(name string, f func(t *T)) {
+    t.Run(name, func(t *T) {
+        t.Parallel()
+        f(t)
     }
+}
+```
 
 This suffers from the same problem, but at least would make it a) more explicit
 that a range variable requires capturing and b) makes it easier to detect misuse
@@ -574,22 +583,27 @@ parallel tests.
 Thought not difficult, it is a bit clumsy.
 We could at some point add the following method to make this easier:
 
-    // Wait blocks until all parallel subtests have finished. It will Skip
-    // the current test if more than n subtests have failed. If n < 0 it will
-    // wait for all subtests to complete.
-    func (t *T) Wait(n numFailures)
+
+```go
+// Wait blocks until all parallel subtests have finished. It will Skip
+// the current test if more than n subtests have failed. If n < 0 it will
+// wait for all subtests to complete.
+func (t *T) Wait(n numFailures)
+```
 
 The documentation in Run would have to be slightly changed to say that Run will
 call Wait(-1) before returning.
 The parallel teardown example could than be written as:
 
-    func TestTeardownParallel(t *testing.T) {
-        t.Go("Test1", parallelTest1)
-        t.Go("Test2", parallelTest2)
-        t.Go("Test3", parallelTest3)
-        t.Wait(-1)
-        // teardown code.
-    }
+```go
+func TestTeardownParallel(t *testing.T) {
+    t.Go("Test1", parallelTest1)
+    t.Go("Test2", parallelTest2)
+    t.Go("Test3", parallelTest3)
+    t.Wait(-1)
+    // teardown code.
+}
+```
 
 This could be added later if there seems to be a need for it.
 The introduction of Wait would only require a minimal and backward compatible
