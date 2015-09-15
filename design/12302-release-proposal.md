@@ -2,7 +2,7 @@
 
 Author: Dave Cheney &lt;dave@cheney.net&gt;
 
-Last updated: 8 September 2015
+Last updated: 15 September 2015
 
 ## Abstract
 
@@ -74,7 +74,7 @@ assigning it a version number that is meaningful for both humans and machines.
 Additionally, operating system distributors such as Debian and Ubuntu strongly
 prefer to package released versions of a library or application, and are
 currently reduced to
-[doing things like this](https://ftp-master.debian.org/new/golang-github-odeke-em-command_0.0~git20150727.0.cf17ee2-1.html).
+[doing things like this](https://packages.debian.org/stretch/golang-github-odeke-em-command-dev).
 
 In the spirit of doing less and enabling more, this proposal establishes the
 minimum required for humans and tools to identify released versions by inspecting
@@ -154,12 +154,12 @@ This proposal deprecates this recommendation.
 
 Authors of Go libraries should follow these two maxims:
 
-# Packages which are the same, must share the same import path. This proposal
-  provides the mechanism for consumers to identify a specific release version
-  without the requirement to encode that information in the import path.
-# Packages which are not the same, must not have the same import path. A clone or
-  fork of a library or project is not the same as its parent, so it should have
-  a new name -- a new import path.
+1. Packages which are the same, must share the same import path. This proposal
+   provides the mechanism for consumers to identify a specific release version
+   without the requirement to encode that information in the import path.
+2. Packages which are not the same, must not have the same import path. A clone or
+   fork of a library or project is not the same as its parent, so it should have
+   a new name -- a new import path.
 
 ## Implementation
 
