@@ -236,16 +236,17 @@ See the Rational section for an explanation.
 
 ### Example
 The following code shows the use of two levels of subbenchmarks.
+It is based on a possible rewrite of
+golang.org/x/text/unicode/norm/normalize_test.go.
 
 ```go
 func BenchmarkMethod(b *testing.B) {
     for _, tt := range allMethods {
         b.Run(tt.name, func(b *testing.B) {
-            for _, d := range smallSet {
-                s := []byte(d.Data)
-                fn := tt.f(NFC, s) // initialize the test.
-                b.Run(d.Name, func(b *testing.B) {
-                    b.SetBytes(int64(len(s)))
+            for _, d := range textdata {
+                fn := tt.f(NFC, []byte(d.data)) // initialize the test
+                b.Run(d.name, func(b *testing.B) {
+                    b.SetBytes(int64(len(d.data)))
                     for i := 0; i < b.N; i++ {
                         fn()
                     }
@@ -253,6 +254,31 @@ func BenchmarkMethod(b *testing.B) {
             }
         })
     }
+}
+
+var allMethods = []struct {
+    name string
+    f    func(to Form, b []byte) func()
+}{{"Transform", func(f Form, b []byte) func() {
+    buf := make([]byte, 4*len(b))
+    return func() {
+        f.Transform(buf, b, true)
+    }
+}, {"Iter", func(f Form, b []byte) func() {
+    iter := Iter{}
+    return func() {
+        for iter.Init(f, b); !iter.Done(); iter.Next() {
+        }
+    }
+}, {
+    ...
+}}
+
+var textdata = []struct { name, data string }{
+    {"small_change", "No\u0308rmalization"},
+    {"small_no_change", "nörmalization"},
+    {"ascii", ascii},
+    {"all", txt_all},
 }
 ```
 
@@ -365,6 +391,42 @@ printed for "parent" benchmarks.
 
 
 ## Rationale
+
+### Alternative
+One alternative to the given proposal is to define variants of tests as
+top-level tests or benchmarks that call helper functions.
+For example, the use case explained above could be written as:
+
+```go
+func doSum(t *testing.T, a, b, sum int) {
+    if got := a + b; got != sum {
+        t.Errorf("got %d; want %d", got, sum)
+    }
+}
+
+func TestSumA1B2(t *testing.T) { doSum(t, 1, 2, 3) }
+func TestSumA1B1(t *testing.T) { doSum(t, 1, 1, 2) }
+func TestSumA2B1(t *testing.T) { doSum(t, 2, 1, 3) }
+```
+
+This approach can work well for smaller sets, but starts to get tedious for
+larger sets.
+Some disadvantages of this approach:
+
+1. considerably more typing for larger test sets (less code, much larger test cases),
+1. duplication of information in test name and test values,
+1. may get unwieldy if a Cartesian product of multiple tables is used as source,
+1. doesn't work well with dynamic table sources,
+1. does not allow for the same flexibility of inserting setup and teardown code
+   as using Run,
+1. does not allow for the same flexibility in parallelism as using Run,
+1. no ability to terminate early a subgroup of tests.
+
+Some of these objections can be addressed by generating the test cases.
+It seems, though, that addressing anything beyond point 1 and 2 with generation
+would require more complexity than the addition of Run introduces.
+Overall, it seems that the benefits of the proposed addition outweigh the
+benefits of an approach using generation as well as expanding tests by hand.
 
 ### Subtest semantics
 A _subtest_ refers to a call to Run and a _test function_ refers to the function
