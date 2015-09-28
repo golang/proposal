@@ -189,7 +189,11 @@ const letter = `
 {{msg "Closing of a letter, followed by name (f)"}}Best wishes,{{end}}
 Josie
 `
+```
+
 and
+
+```go
 func main() {
 	// Create a new template and parse the letter into it.
 	t := template.Must(template.New("letter").Parse(letter))
@@ -212,10 +216,10 @@ It is associated with exactly one normal template, which we call its base templa
 
 1. A Lookup of an associated template will find the first non-empty result of
    a Lookup on:
-	a. the language-specific template itself,
-	a. recursively, the result of Lookup on the template for the parent language
+	1. the language-specific template itself,
+	1. recursively, the result of Lookup on the template for the parent language
 	   (as defined by language.Tag.Parent) associated with its base template, or
-	a. the base template.
+	1. the base template.
 1. Any template obtained from a lookup on a language-specific template will itself
    be a language-specific template for the same language.
    The same lookup algorithm applies for such templates.
@@ -268,7 +272,7 @@ group of people in the list, the determination of which varies per language).
 
 The feature.Select struct defines a mapping of selectors to variants.
 In practice, it is created by a feature-specific, high-level wrapper.
-For the example above, such a definition may look like:
+For the above example, such a definition may look like:
 
 ```go
 message.SetSelect(language.French, "%s went to %s",
@@ -337,19 +341,19 @@ This is a non-exhaustive list of value type that support localized rendering:
 Each type maps to a separate package that roughly provides the same types:
 
 * Value: encapsulates a value and implements fmt.Formatter.
-For example, for currency.Value encapsulates the amount, the currency, and
+For example, currency.Value encapsulates the amount, the currency, and
 whether it should be rendered as cash, accounting, etc.
 * Formatter: a func of the form func(x interface{}) Value that creates or wraps
 a Value to be rendered according to the Formatter's purpose.
 
 Since a Formatter leaves the actual printing to the implementation of
-fmt.Formatter, the value is not printed until after it is passed to on of the
+fmt.Formatter, the value is not printed until after it is passed to one of the
 print methods.
 This allows formatting flags, as well as other context information to influence
 the rendering.
 
 The State object passed to Format needs to provide more information than
-what is passed by fmt.State:
+what is passed by fmt.State, namely:
 
 * a `language.Tag`,
 * locale settings that a user may override relative to the user locale setting
@@ -425,7 +429,7 @@ needed for number.SpellOut and currency.SpellOut are only linked in when
 the respective formatters are called.
 
 #### Example: units
-Units are like currencies, but have the added complexity that the amount and
+Units are like currencies but have the added complexity that the amount and
 unit may change per locale.
 The Formatter and Value types are analogous to those of Currency.
 It defines "constructors" for a selection of unit types.
@@ -541,10 +545,10 @@ Formatted printing in the message package differs from the equivalent in the
 fmt package in various ways:
 
 * An argument may be used solely for its features, or may be unused for
-  specific variants
+  specific variants.
   It is therefore possible to have a format string that has no
   substitutions even in the presence of arguments.
-* Package message dynamically selects a format string variant based on the
+* Package message dynamically selects a variant based on the
   arguments’ features and the configured language.
   The format string passed to a formatted print method is mostly used as a
   reference or key.
@@ -552,12 +556,12 @@ fmt package in various ways:
   (see the section on package feature).
   It seems unnatural to refer to these by position.
   We contemplate the usage of named arguments for such variables: `%[name]s`.
-* Rendered text is always natural language and values rendering accordingly.
+* Rendered text is always natural language and values render accordingly.
   For example, `[]int{1, 2, 3}` will be rendered, in English, as `"1, 2 and 3"`,
   instead of  `"[1 2 3]"`.
 * Formatters may use information about sentence context.
-  The message package must analyze the variant or allow translators to annotate
-  with meta data.
+  Such meta data must be derived by automated analysis or supplied by a
+  translator.
 
 Considering the differences with fmt we expect package message to do its own
 parsing.
@@ -856,13 +860,13 @@ Comparison:
 in ICU’s plural select and the "#" for substituting offsets).
 We can solve this with pipelines in templates and special interpretation for
 flag and verb types for the Format implementation of lists.
-* ICU does not support ‘<’ and ‘>’ selectors.
+* ICU's algorithm seems to prohibit the user of ‘<’ and ‘>’ selectors.
 
 #### Comparison to OS X
 
 OS X recently introduced support for handling plurals and prepared for support
 for gender.
-The data for selecting variants is stored in the a stringsdict file.
+The data for selecting variants is stored in the stringsdict file.
 This example from the referenced link shows how to vary sentences for
 "number of files selected" in English:
 
@@ -962,7 +966,7 @@ func NewPrinter(t language.Tag) *message.Printer {
 	cat := message.NewCatalog()
 	d := json.NewDecoder(r)
 	for {
-		var msg struct{ Key string; Value []*msgdef.Value }
+		var msg struct{ Key string; Value []feature.Value }
 		if err := d.Decode(&msg); err == io.EOF {
 			break
 		} else if err != nil {
@@ -973,9 +977,6 @@ func NewPrinter(t language.Tag) *message.Printer {
 	return cat.NewPrinter(t)
 }
 ```
-
-where `msgdef` is the package containing structs for selectors, vars and message
-runtime data (TBD).
 
 ## Compatibility
 
