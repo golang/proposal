@@ -1,0 +1,7 @@
+#!/bin/sh
+
+set -e
+
+for base in sparse dense sweep-flow mark-flow plan; do
+    inkscape --export-png=$base.png $base.svg
+done
