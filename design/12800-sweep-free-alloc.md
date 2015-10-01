@@ -57,8 +57,8 @@ with `-benchmem 1024`. These represent a range of CPU-intensive and
 allocation-intensive benchmarks. In all cases, GOMAXPROCS is 4. The
 CPU time breaks down as follows:
 
-|   | go1 (all) | BinaryTree17 | garbage 1GB |
-| - | ---------:| ------------:| -----------:|
+|     | go1 (all) | BinaryTree17 | garbage 1GB |
+| --- | ---------:| ------------:| -----------:|
 | CPU in mark                                       |  2.8% |  4.0% | 34.7% |
 | CPU in sweep                                      |  3.3% | 20.6% |  5.2% |
 | CPU in mallocgc (excl. sweep, GC)                 |  6.8% | 39.0% | 15.8% |
@@ -90,7 +90,7 @@ figure 1. It also makes it difficult (albeit not impossible) to
 maintain two sets of mark bits on word-sized objects, which is
 necessary for sweep-free allocation.
 
-![](/12800/sparse.png)
+![](12800/sparse.png)
 
 **Figure 1.** In Go 1.5, mark bits are sparse and irregularly strided.
 
@@ -134,7 +134,7 @@ reasonably large chunks (e.g., 64K) and bulk zero it. Likewise, any
 span that transitions from free to in-use during this time will also
 be allocated a mark bitmap.
 
-![](/12800/dense.png)
+![](12800/dense.png)
 
 **Figure 2.** Proposed arena allocation of dense mark bitmaps. For
 illustrative purposes, bitmaps are shown allocated without alignment
@@ -215,7 +215,7 @@ needs to be done incrementally and simultaneously with sweeping the
 marks. The flow of information in the current sweeper is shown in
 figure 3.
 
-![](/12800/sweep-flow.png)
+![](12800/sweep-flow.png)
 
 **Figure 3.** Go 1.5 flow of free object information.
 
@@ -227,7 +227,7 @@ allocates and bulk zeroes the mark bitmap for the next mark phase. The
 flow of information about free objects in this design is shown in
 figure 4.
 
-![](/12800/mark-flow.png)
+![](12800/mark-flow.png)
 
 **Figure 4.** Proposed flow of free object information.
 
@@ -276,7 +276,7 @@ during the Go 1.6 development cycle.
 Figure 5 shows the components of this proposal and the dependencies
 between implementing them.
 
-![](/12800/plan.png)
+![](12800/plan.png)
 
 **Figure 5.** Implementation dependency diagram.
 
