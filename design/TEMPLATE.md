@@ -6,6 +6,8 @@ Author(s): [Author Name, Co-Author Name]
 
 Last updated: [Date]
 
+Discussion at https://golang.org/issue/NNNNN.
+
 ## Abstract
 
 [A short summary of the proposal.]
