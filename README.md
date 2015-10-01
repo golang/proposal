@@ -83,6 +83,8 @@ examples of recent language changes.)
 	- The design doc should be checked in to [the proposal repository](https://github.com/golang/proposal/) as `design/NNNN-shortname.md`,
 	  where `NNNN` is the GitHub issue number and `shortname` is a short name
 	  (a few dash-separated words at most).
+	  Clone this repository with `git clone https://go.googlesource.com/proposal`
+	  and follow the usual [Gerrit workflow for Go](https://golang.org/doc/contribute.html#Code_review).
 	- The design doc should follow [the template](design/TEMPLATE.md).
 	- The design doc should address any specific issues asked for during the
 	  initial discussion.
