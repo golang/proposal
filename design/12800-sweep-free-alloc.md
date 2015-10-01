@@ -6,6 +6,8 @@ Author: Austin Clements
 
 Last updated: 2015-09-30
 
+Discussion at https://golang.org/issue/12800.
+
 ## Abstract
 
 This document proposes a change to memory allocation to eliminate the

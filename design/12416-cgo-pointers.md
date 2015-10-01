@@ -3,6 +3,8 @@
 Author: Ian Lance Taylor
 Last updated: August, 2015
 
+Discussion at https://golang.org/issue/12416.
+
 ## Abstract
 
 List specific rules for when it is safe to pass pointers between Go

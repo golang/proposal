@@ -4,6 +4,8 @@ Author: Dave Cheney &lt;dave@cheney.net&gt;
 
 Last updated: 15 September 2015
 
+Discussion at https://golang.org/issue/12302.
+
 ## Abstract
 
 In the same way that gofmt defines a single recommended way to format Go source

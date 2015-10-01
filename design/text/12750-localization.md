@@ -1,5 +1,6 @@
 # Proposal: Localization support in Go
 
+Discussion at https://golang.org/issue/12750.
 
 ## Abstract
 This proposal gives a big-picture overview of localization support for

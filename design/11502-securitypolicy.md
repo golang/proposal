@@ -4,6 +4,8 @@ Author(s): Jason Buberel
 
 Last updated: 2015-07-31
 
+Discussion at https://golang.org/issue/11502.
+
 ## Abstract
 
 Go programs are being deployed as part of security-critical applications.

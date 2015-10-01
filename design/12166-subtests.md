@@ -7,6 +7,8 @@ _With input from Sameer Ajmani, Austin Clements, Damien Neil, and Bryan Mills._
 
 Last updated: September 2, 2015
 
+Discussion at https://golang.org/issue/12166.
+
 ## Abstract
 Enhanced table-driven support in the testing package by means of
 a Run method for starting subtests and subbenchmarks.
