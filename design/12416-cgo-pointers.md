@@ -1,7 +1,7 @@
 # Proposal: Rules for passing pointers between Go and C
 
 Author: Ian Lance Taylor
-Last updated: August, 2015
+Last updated: October, 2015
 
 Discussion at https://golang.org/issue/12416.
 
@@ -56,33 +56,31 @@ I propose the following rules:
 
 * Go code may pass a Go pointer to C provided that the Go memory to
   which it points does not contain any Go pointers.
-  That rule must be preserved during C execution, in that the program
-  must not store any Go pointers into that memory.
-  When passing a pointer to a field in struct, the Go memory in
-  question is the memory occupied by the field, not the entire struct.
+  * The rule must be preserved during C execution: the C code must not
+    store any Go pointers into that memory.
+  * When passing a pointer to a field in a struct, the Go memory in
+    question is the memory occupied by the field, not the entire
+    struct.
+  * When passing a pointer to an element in an array or slice, the Go
+    memory in question is the entire array or the entire backing array
+    of the slice.
 
-* C code may otherwise use the Go pointer and the Go memory to which
-  it points freely during the call.
-  However, C code may not keep a copy of the Go pointer after the call
-  returns.
-  C code may not modify the Go pointer to point outside of the Go
-  memory (a pointer just past the end is permissible, as is usual in
-  C).
+* C code may not keep a copy of a Go pointer after the call returns.
 
 * If Go code passes a Go pointer to a C function, the C function must
   return.
-  While there are no documented time limits, a C function that simply
-  blocks holding a Go pointer while other goroutines are running may
-  eventually cause the program to run out of memory and fail.
+  * While there are no documented time limits, a C function that simply
+    blocks holding a Go pointer while other goroutines are running may
+    eventually cause the program to run out of memory and fail.
 
 * A Go function called by C code may not return a Go pointer.
-  A Go function called by C code may take C pointers as arguments, and
-  it may store non-pointer or C pointer data through those pointers,
-  but it may not store a Go pointer into memory pointed to by a C
-  pointer.
-  A Go function called by C code may take a Go pointer as an argument,
-  but it must preserve the property that the Go memory to which it
-  points does not contain any Go pointers.
+  * A Go function called by C code may take C pointers as arguments,
+    and it may store non-pointer or C pointer data through those
+    pointers, but it may not store a Go pointer into memory pointed to
+    by a C pointer.
+  * A Go function called by C code may take a Go pointer as an
+    argument, but it must preserve the property that the Go memory to
+    which it points does not contain any Go pointers.
 
 ### Examples
 
@@ -136,15 +134,16 @@ through Go memory, from Go roots.
 
 We can help programmers on the Go side, by implementing restrictions
 within the cgo program.
-Every value passed to a C function has a C type.
-We can make it difficult for those C types to hold Go pointers.
-We can not make it impossible for people to pass Go memory containing
-Go pointers to C, but we can make it hard.
+We propose two different kinds of checks: a cheap static check that is
+always enabled, and a more expensive dynamic check that may be enabled
+upon request.
+The intent is that if your cgo-using program crashes due to a memory
+error, you can run the expensive dynamic check to make sure you are
+passing memory safely to C.
 
-We do this by modifying cgo to prohibit any type conversion from a Go
-pointer type to a C pointer type, except as a direct argument to a C
-function call.
-Any such type conversion is an error in cgo.
+The static check is a change to the cgo program: we propose modifying
+cgo to prohibit any type conversion from a Go pointer type to a C
+pointer type, except as a direct argument to a C function call.
 Even within a direct function call, we prohibit type conversions if
 the Go pointer type points to a type that itself contains pointers.
 
@@ -153,12 +152,15 @@ which may be called from C code.
 Such a function must not return any Go pointer type.
 It may not have any parameters that are Go pointer types.
 
+The intent of these restrictions is to separate pointers by type: Go
+pointers will have a Go type, and C pointers will have a C type.
+
 The following example is OK because Go type `[]byte` does not itself
 contain any pointers (that is, there are no pointers in the underlying
 array), and type conversion is permitted in a direct function call:
 
     var b []byte
-    C.memcpy(C.voidp(&b[0]), C.voidp(&b[10]), 10)
+    C.memcpy(C.voidp(unsafe.Pointer(&b[0])), C.voidp(unsafe.Pointer(&b[10])), 10)
 
 This is OK because `s` is a C type:
 
@@ -168,13 +170,13 @@ This is OK because `s` is a C type:
 This is not OK, because it converts a Go pointer type to a C pointer type:
 
     var s C.struct_addrinfo
-    s.ai_canonname = C.charp(&b[0])
+    s.ai_canonname = C.charp(unsafe.Pointer(&b[0]))
 
 Likewise:
 
-    s := &C.struct_addrinfo{ai_canonname: C.charp(&b[0])}
+    s := &C.struct_addrinfo{ai_canonname: C.charp(unsafe.Pointer(&b[0]))}
 
-This proposal is imperfect.  It does not catch a case like this:
+This static checking is imperfect.  It does not catch a case like this:
 
     x := &C.X{}
     x.y = &C.Y{}
@@ -182,32 +184,52 @@ This proposal is imperfect.  It does not catch a case like this:
 
 In this example we store a Go pointer into `x.y`, but there is no type
 conversion from a Go pointer type to a C pointer type.
-We may be able to add an additional prohibition: you may not take the
-address of a value of C type (including a composite literal of C type)
-except in a direct function call.
-I’m not sure we can get away with that, but maybe we can.
 
-We may want to modify cgo to dynamically check pointers.
-If they are Go pointers, cgo could call code that uses the type
-descriptor to verify that the memory does not contain any Go pointers.
-That would provide a further check, at some additional runtime cost.
-It would catch cases like the last example above.
-It would not catch cases where the Go pointer was converted to uintptr
-or some other non-pointer type.
+In practice, we must permit converting from C pointer types to Go
+pointer types, so that a Go function can call C code and then return
+the results to other code that does not use cgo.  That means that this
+static check does not catch cases like this:
 
-This cgo restriction is stricter than what the proposal above actually
-requires.
-However, it can be implemented and it can be understood.
-It can be worked around via the unsafe package but otherwise will mostly
-enforce the required rules on the Go side.
+    x := (*C.X)(unsafe.Pointer(C.malloc(10)))
+    g := (*X)(unsafe.Pointer(x))
+    g.y = &y{}
+    C.Foo(x)
 
-This restriction does not make code safe.
-For example, it is still possible to write C code that stores a Go
-pointer into Go memory, which can fail in an unpleasant manner.
-It may be possible for cgo to detect this by examining values upon
-function return.
-I don't know that it's worth it, because of course it is possible for
-C to store a Go pointer into C memory, and that is undetectable.
+In this example we convert the C pointer to a Go type, then set a
+field to a Go pointer, then pass the original C pointer, now pointing
+to memory that holds a Go pointer, to C.
+
+In order to catch all Go code that violates the cgo rules, we
+introduce a dynamic checker.
+This checker is more expensive, and we do not expect people to run it
+all the time.
+Think of it as similar to the race detector.
+
+The dynamic checker will be turned on via a new option to go build:
+-checkcgo.
+The dynamic checker will have the following effects:
+
+* We will turn on the write barrier at all times.
+  Whenever a pointer is written to memory, we will check whether the
+  pointer is a Go pointer.
+  If it is, we will check whether we are writing it to Go memory.
+  If we are not, we will report an error.
+
+* We will change cgo to add code to check the pointer fields of any
+  value passed to a C function, and any value returned by an exported
+  Go function.
+  If any of them are Go pointers, we will report an error.
+
+* We will add a timeout to any C function that takes a Go pointer as a
+  value.
+  If the C function does not return within 1 minute, we will report an
+  error.
+
+These checks should detect all violations of the cgo rules on the Go
+side.
+It is still possible to violate the cgo rules on the C side.
+There is little we can do about this (in the long run we could imagine
+writing a Go specific memory sanitizer to catch errors.)
 
 A particular unsafe area is C code that wants to hold on to Go func
 and pointer values for future callbacks from C to Go.
@@ -253,6 +275,7 @@ We can not enforce the rules in C code, but we can attempt to do so in
 Go code.
 The proposal tries to catch most cases at build time, by introducing
 additional type checking rules implemented in cgo.
+It tries to catch all cases at run time, by introducing dynamic checks.
 
 If we adopt these rules, we can not change them later, except to
 loosen them.
@@ -270,17 +293,13 @@ The implementation of the rules requires adding documentation to the
 cgo command.
 
 The implementation of the enforcement mechanism requires changes to
-the cgo tool.  The changes should not be extensive.
+the cgo tool and the go tool.
+The changes should not be extensive.
 
 The goal is to get agreement on this proposal and to complete the work
 before the 1.6 freeze date.
 
 ## Open issues
-
-Should we dynamically check pointers in the cgo runtime?
-
-Should we permit taking the address of a value of C type outside of a
-direct function call?
 
 Can and should we provide library support for certain operations, like
 passing a token for a Go value through C to Go functions called from
