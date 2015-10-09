@@ -60,7 +60,10 @@ I propose the following user-visible changes:
     *   Add `func Test(f func(*T)) TestResult`
         to be consistent with `func Benchmark(f func(*B)) BenchmarkResult`.
         This is not required for JSON output.
-    *   Add `Name`, `Output` and `Procs` fields to `BenchmarkResult`.
+    *   Add `Name`, `Log` and `Procs` fields to `BenchmarkResult`.
+    *   Add `type CoverageResult`.
+    *   In type `Cover`, change `CoveredPackages` field type from `string` to
+        `[]string`. This type is not covered by Go 1 compatibility guidelines.
 
 Type definitions and details below.
 
@@ -78,23 +81,33 @@ const (
     SKIP
 )
 
-// The results of a test run.
+// The results of a test or an example.
 type TestResult struct {
-    Name     string
-    State    TestState
-    T        time.Duration // The total time taken.
-    Output   string        // The log created by calling (*T).Log and (*T).Logf.
+    Name  string
+    State TestState
+    T     time.Duration // The total time taken.
+    Log   string        // The log created by calling (*T).Log and (*T).Logf.
 }
 
 // Test runs a test function and returns results.
 func Test(f func(*T)) TestResult
 
 type BenchmarkResult struct {
-    Name   string
-    Procs  int    // The value of runtime.GOMAXPROCS for this benchmark run.
-    Output string // The log created by calling (*B).Log and (*B).Logf.
+    Name  string
+    Procs int    // The value of runtime.GOMAXPROCS for this benchmark run.
+    Log   string // The log created by calling (*B).Log and (*B).Logf.
 
     // existing fields
+}
+
+// CoverageResult is aggregated code coverage info.
+// It is used for `go test` JSON output.
+// To get full coverage info, use -coverprofile flag in go test.
+type CoverageResult struct {
+    Mode             string
+    TotalStatements  int64
+    ActiveStatements int64
+    CoveredPackages  []string
 }
 
 // result is used for test binary JSON output format.
@@ -105,6 +118,7 @@ type BenchmarkResult struct {
 type result struct {
   Test      *TestResult      `json:",omitempty"`
   Benchmark *BenchmarkResult `json:",omitempty"`
+  Coverage  *CoverageResult  `json:",omitempty"`
 }
 ```
 
@@ -125,11 +139,18 @@ Random string written directly to os.Stdout.
         "Name": "TestBar",
         "State": "PASS",
         "T": 1000000,
-        "Output": "some test output\n"
+        "Log": "some test output\n"
     }
 }
 {
-    "Benchmark":  {
+    "Test": {
+        "Name": "Example1",
+        "State": "PASS",
+        "T": 1000000,
+    }
+}
+{
+    "Benchmark": {
         "Name": "BenchmarkBar",
         "State": "PASS",
         "T": 1000000,
@@ -137,6 +158,16 @@ Random string written directly to os.Stdout.
         "Bytes": 0,
         "MemAllocs": 0,
         "MemBytes": 0
+    }
+}
+{
+    "Coverage": {
+        "Mode": "set",
+        "TotalStatements":  1000,
+        "ActiveStatements": 900,
+        "CoveredPackages": [
+            "example.com/foobar"
+        ]
     }
 }
 ```
@@ -152,6 +183,7 @@ type TestResult struct {
 
   Test      *TestResult      `json:",omitempty"`
   Benchmark *BenchmarkResult `json:",omitempty"`
+  Coverage  *CoverageResult  `json:",omitempty"`
   Stdout    string           `json:",omitempty"` // Unrecognized stdout of the test binary.
   Stderr    string           `json:",omitempty"` // Stderr output line of the test binary.
 }
@@ -179,7 +211,15 @@ Example `go test -json` output
         "Name": "TestBar",
         "State": "PASS",
         "T": 1000000,
-        "Output": "some test output\n"
+        "Log": "some test output\n"
+    }
+}
+{
+    "Package": "example.com/foobar",
+    "Test": {
+        "Name": "Example1",
+        "State": "PASS",
+        "T": 1000000,
     }
 }
 {
@@ -194,6 +234,18 @@ Example `go test -json` output
         "MemBytes": 0
     }
 }
+{
+    "Package": "example.com/foobar",
+    "Coverage": {
+        "Mode": "set",
+        "TotalStatements":  1000,
+        "ActiveStatements": 900,
+        "CoveredPackages": [
+            "example.com/foobar"
+        ]
+    }
+}
+
 ```
 
 ## Rationale
@@ -236,7 +288,9 @@ Trade offs:
 
 ## Compatibility
 
-The API changes are fully backwards compatible.
+The only backwards incompatibility is changing `testing.Cover.CoveredPackages`
+field type, but `testing.Cover` is not covered by Go 1 compatibility
+guidelines.
 
 ## Implementation
 
@@ -249,9 +303,9 @@ Implementation steps:
 1.  Add `type TestResult`, `type TestStatus` and
     `func Test(f func(*T)) TestResult` to package `testing`.
     Modify `testing.tRunner` to create `TestResult`.
-1.  Add `-test.json` flag to the `testing` package.
-    Modify `testing.(*T).report` and `testing.RunBenchmarks` functions
-    to print JSON if `-test.json` is specified.
+1.  Add `-test.json` flag and `type CoverageResult` to the `testing` package.
+    Modify `(*T).report`, `RunBenchmarks`, `coverReport` and `runExample`
+    functions to print JSON if `-test.json` is specified.
     If `-test.verbose` is specified, print verbose messages to stderr.
 1.  Add `-json` flag to `go test`.
     If specified, pass `-test.json` to test binaries.
