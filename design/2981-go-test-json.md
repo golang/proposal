@@ -56,14 +56,12 @@ I propose the following user-visible changes:
     *   `-json -n`: not supported
     *   `-json -x`: not supported
 *   In `testing` package
-    *   Add `type TestResult` and `type TestState`.
-    *   Add `func Test(f func(*T)) TestResult`
-        to be consistent with `func Benchmark(f func(*B)) BenchmarkResult`.
-        This is not required for JSON output.
-    *   Add `Name`, `Log` and `Procs` fields to `BenchmarkResult`.
+    *   Add `type State` which is enum (`PASS`, `FAIL`, `SKIP`).
+    *   Add `Name`, `Log`, `State` and `Procs` fields to `BenchmarkResult`.
     *   Add `type CoverageResult`.
     *   In type `Cover`, change `CoveredPackages` field type from `string` to
         `[]string`. This type is not covered by Go 1 compatibility guidelines.
+    *   Add `type JSONResult` for JSON output.
 
 Type definitions and details below.
 
@@ -71,33 +69,24 @@ Type definitions and details below.
 
 ```go
 
-// TestState is one of terminal test states.
+// State is one of test/benchmark execution states.
 // Implements fmt.Stringer, json.Marshaler and json.Unmarshaler.
-type TestState int
+type State int
 
 const (
-    PASS TestState = iota
+    PASS State = iota
     FAIL
     SKIP
 )
 
-// The results of a test or an example.
-type TestResult struct {
-    Name  string
-    State TestState
-    T     time.Duration // The total time taken.
-    Log   string        // The log created by calling (*T).Log and (*T).Logf.
-}
-
-// Test runs a test function and returns results.
-func Test(f func(*T)) TestResult
-
 type BenchmarkResult struct {
     Name  string
+    State State
     Procs int    // The value of runtime.GOMAXPROCS for this benchmark run.
     Log   string // The log created by calling (*B).Log and (*B).Logf.
 
     // existing fields
+    // make them `json:",omitempty"`
 }
 
 // CoverageResult is aggregated code coverage info.
@@ -110,14 +99,15 @@ type CoverageResult struct {
     CoveredPackages  []string
 }
 
-// result is used for test binary JSON output format.
-// It is not added to the public API.
+// JSONResult is used for test binary JSON output format.
 //
 // Each time a test/benchmark completes, the test binary emits one result
 // in unindented JSON format to stdout, surrounded by '\n'.
-type result struct {
-  Test      *TestResult      `json:",omitempty"`
-  Benchmark *BenchmarkResult `json:",omitempty"`
+type JSONResult struct {
+  // BenchmarkResult contains fields used by both benchmarks and tests,
+  // such as Name and State.
+  BenchmarkResult
+
   Coverage  *CoverageResult  `json:",omitempty"`
 }
 ```
@@ -127,38 +117,30 @@ convenience of the reader. It will be unindented in fact):
 
 ```json
 {
-    "Test": {
-        "Name": "TestFoo",
-        "State": "PASS",
-        "T": 1000000
-    }
+    "Name": "TestFoo",
+    "State": "PASS",
+    "T": 1000000
 }
 Random string written directly to os.Stdout.
 {
-    "Test": {
-        "Name": "TestBar",
-        "State": "PASS",
-        "T": 1000000,
-        "Log": "some test output\n"
-    }
+    "Name": "TestBar",
+    "State": "PASS",
+    "T": 1000000,
+    "Log": "some test output\n"
 }
 {
-    "Test": {
-        "Name": "Example1",
-        "State": "PASS",
-        "T": 1000000,
-    }
+    "Name": "Example1",
+    "State": "PASS",
+    "T": 1000000,
 }
 {
-    "Benchmark": {
-        "Name": "BenchmarkBar",
-        "State": "PASS",
-        "T": 1000000,
-        "N": 1000,
-        "Bytes": 0,
-        "MemAllocs": 0,
-        "MemBytes": 0
-    }
+    "Name": "BenchmarkBar",
+    "State": "PASS",
+    "T": 1000000,
+    "N": 1000,
+    "Bytes": 100,
+    "MemAllocs": 10,
+    "MemBytes": 10
 }
 {
     "Coverage": {
@@ -181,11 +163,9 @@ Random string written directly to os.Stdout.
 type TestResult struct {
   Package string // package of the test binary.
 
-  Test      *TestResult      `json:",omitempty"`
-  Benchmark *BenchmarkResult `json:",omitempty"`
-  Coverage  *CoverageResult  `json:",omitempty"`
-  Stdout    string           `json:",omitempty"` // Unrecognized stdout of the test binary.
-  Stderr    string           `json:",omitempty"` // Stderr output line of the test binary.
+  Result    *testing.JSONResult  `json:",omitempty"`
+  Stdout    string               `json:",omitempty"` // Unrecognized stdout of the test binary.
+  Stderr    string               `json:",omitempty"` // Stderr output line of the test binary.
 }
 ```
 
@@ -195,7 +175,7 @@ Example `go test -json` output
 ```json
 {
     "Package": "example.com/foobar",
-    "Test": {
+    "Result": {
         "Name": "TestFoo",
         "State": "PASS",
         "T": 1000000
@@ -207,7 +187,7 @@ Example `go test -json` output
 }
 {
     "Package": "example.com/foobar",
-    "Test": {
+    "Result": {
         "Name": "TestBar",
         "State": "PASS",
         "T": 1000000,
@@ -216,16 +196,17 @@ Example `go test -json` output
 }
 {
     "Package": "example.com/foobar",
-    "Test": {
+    "Result": {
         "Name": "Example1",
         "State": "PASS",
-        "T": 1000000,
+        "T": 1000000
     }
 }
 {
     "Package": "example.com/foobar",
-    "Benchmark": {
+    "Result": {
         "Name": "BenchmarkBar",
+        "State": "PASS",
         "Procs": 8,
         "T": 1000000,
         "N": 1000,
@@ -236,13 +217,15 @@ Example `go test -json` output
 }
 {
     "Package": "example.com/foobar",
-    "Coverage": {
-        "Mode": "set",
-        "TotalStatements":  1000,
-        "ActiveStatements": 900,
-        "CoveredPackages": [
-            "example.com/foobar"
-        ]
+    "Result": {
+        "Coverage": {
+            "Mode": "set",
+            "TotalStatements":  1000,
+            "ActiveStatements": 900,
+            "CoveredPackages": [
+                "example.com/foobar"
+            ]
+        }
     }
 }
 
@@ -250,8 +233,9 @@ Example `go test -json` output
 
 ## Rationale
 
-*   A test binary surrounds `testing.result` JSON with `\n` to handle situation
-    when a string without a trailing `\n` is printed directly to `os.Stdout`.
+*   A test binary surrounds `testing.JSONResult` JSON with `\n` to handle the
+    situation when a string without a trailing `\n` is printed directly to
+    `os.Stdout`.
 *   A test binary always streams results so we don't loose them if the binary
     panics.
 
@@ -262,6 +246,24 @@ Alternatives:
     by moving the burden of output parsing to third party programs.
 
 Trade offs:
+
+*   `testing.JSONResult` is used for tests, examples and benchmarks.
+    A third party tool would have to determine the type of the result by the
+    prefix of `"Name"` property, e.g. tests always start with `"Test"`.
+    This is a trade off for simplicity of `testing` package API.
+
+    Alternatives:
+
+    *   add `type TestResult`, which together with
+        `BenchmarkResult` would have duplicated fields, such as `Name`,
+        `Status`, `Procs`, `T`, `Log`.
+        We cannot add `type CommonResult` with common fields and embed it in
+        `TestResult` and `BenchmarkResult` because it would break backwards
+        compatibility of `BenchmarkResult`.
+    *   Duplicate fields in `TestResult` but make `TestResult` and any other
+        JSON-output-related types internal.
+        The problem is that third party tool authors would have to write structs
+        for JSON parsing themselves.
 
 *   I propose to make `-json` mutually exclusive with `-n` and `-x` flags.
     This is a trade off for `go test` output format simplicity.
@@ -298,12 +300,10 @@ Most of the work would be done by the author of this proposal.
 
 Implementation steps:
 
-1.  Add new fields to `testing.BenchmarkResult`.
+1.  Add `type Status` and add new fields to `testing.BenchmarkResult`.
     Modify `testing.(*B).launch` to fill the new fields.
-1.  Add `type TestResult`, `type TestStatus` and
-    `func Test(f func(*T)) TestResult` to package `testing`.
-    Modify `testing.tRunner` to create `TestResult`.
-1.  Add `-test.json` flag and `type CoverageResult` to the `testing` package.
+1.  Add `-test.json` flag, `type CoverageResult` and `type JSONResult` to the
+    `testing` package.
     Modify `(*T).report`, `RunBenchmarks`, `coverReport` and `runExample`
     functions to print JSON if `-test.json` is specified.
     If `-test.verbose` is specified, print verbose messages to stderr.
@@ -311,7 +311,7 @@ Implementation steps:
     If specified, pass `-test.json` to test binaries.
 
     For each line in a test binary output, try to parse it as
-    `"cmd/go".TestResult` in JSON format, and print a JSON object.
+    `testing.JSONResult`, and print a `TestResult`.
 
 The goal is to get agreement on this proposal and to complete the work
 before the 1.6 freeze date.
