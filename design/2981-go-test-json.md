@@ -4,7 +4,7 @@ Author(s): Nodir Turakulov &lt;nodir@google.com&gt;
 
 _With initial input by Russ Cox, Caleb Spare, Andrew Gerrand and Minux Ma._
 
-Last updated: 2015-10-07
+Last updated: 2015-10-16
 
 Discussion at https://golang.org/issue/2981.
 
@@ -278,8 +278,7 @@ Trade offs:
     to print to stdout, so we can avoid the problem for now.
 
     If we add more output to `build.go` in future, we can add
-    `BuildOutput string` field to `TestResult` in `cmd/go/test.go` for arbitrary
-    `build.go` output.
+    `BuildOutput string` field to `TestResult` for arbitrary `build.go` output.
 
     I propose not to add `BuildOutput` now because `-n` affects `go test` too.
     For example, `go test -n` prints a command to run the test binary, which
