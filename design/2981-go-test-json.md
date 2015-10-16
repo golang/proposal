@@ -42,13 +42,14 @@ This proposal differs from the original:
 * supports streaming
 * `go test` JSON output contains unrecognized test binary output.
 * minimal changes in `testing` package.
+* output is not indented
 
 ## Proposal
 
 I propose the following user-visible changes:
 
 *   add `-json` flag to `go test`
-    *   `-json`: all `go test` stdout is indented JSON objects containing
+    *   `-json`: all `go test` stdout is JSON objects containing
         test binary artifacts, separated by newline.
         Format below.
     *   `-json -v`: verbose messages are printed to stderr,
@@ -56,7 +57,7 @@ I propose the following user-visible changes:
     *   `-json -n`: not supported
     *   `-json -x`: not supported
 *   In `testing` package
-    *   Add `type State` which is enum (`PASS`, `FAIL`, `SKIP`).
+    *   Add `type State` which is enum
     *   Add `Name`, `Log`, `State` and `Procs` fields to `BenchmarkResult`.
     *   Add `type CoverageResult`.
     *   In type `Cover`, change `CoveredPackages` field type from `string` to
@@ -74,7 +75,8 @@ Type definitions and details below.
 type State int
 
 const (
-    PASS State = iota
+    RUN State = iota
+    PASS
     FAIL
     SKIP
 )
@@ -102,7 +104,7 @@ type CoverageResult struct {
 // JSONResult is used for test binary JSON output format.
 //
 // Each time a test/benchmark completes, the test binary emits one result
-// in unindented JSON format to stdout, surrounded by '\n'.
+// in JSON format to stdout, surrounded by '\n'.
 type JSONResult struct {
   // BenchmarkResult contains fields used by both benchmarks and tests,
   // such as Name and State.
@@ -116,23 +118,46 @@ Example of a test binary stdout (JSON output is made indented for the
 convenience of the reader. It will be unindented in fact):
 
 ```json
+
+{
+    "Name": "TestFoo",
+    "State": "RUN",
+}
+Random string written directly to os.Stdout.
 {
     "Name": "TestFoo",
     "State": "PASS",
     "T": 1000000
 }
-Random string written directly to os.Stdout.
+
+{
+    "Name": "TestBar",
+    "State": "RUN",
+}
+
 {
     "Name": "TestBar",
     "State": "PASS",
     "T": 1000000,
     "Log": "some test output\n"
 }
+
+{
+    "Name": "Example1",
+    "State": "RUN",
+}
+
 {
     "Name": "Example1",
     "State": "PASS",
     "T": 1000000,
 }
+
+{
+    "Name": "BenchmarkBar",
+    "State": "RUN",
+}
+
 {
     "Name": "BenchmarkBar",
     "State": "PASS",
@@ -142,6 +167,7 @@ Random string written directly to os.Stdout.
     "MemAllocs": 10,
     "MemBytes": 10
 }
+
 {
     "Coverage": {
         "Mode": "set",
@@ -169,10 +195,20 @@ type TestResult struct {
 }
 ```
 
-Example `go test -json` output
-
+Example `go test -json` output:
 
 ```json
+{
+    "Package": "example.com/foobar",
+    "Result": {
+        "Name": "TestFoo",
+        "State": "Run",
+    }
+}
+{
+    "Package": "example.com/foobar",
+    "Stdout": "Random string written directly to os.Stdout."
+}
 {
     "Package": "example.com/foobar",
     "Result": {
@@ -183,7 +219,10 @@ Example `go test -json` output
 }
 {
     "Package": "example.com/foobar",
-    "Stdout": "Random string written directly to os.Stdout.\n"
+    "Result": {
+        "Name": "TestBar",
+        "State": "Run",
+    }
 }
 {
     "Package": "example.com/foobar",
@@ -198,8 +237,22 @@ Example `go test -json` output
     "Package": "example.com/foobar",
     "Result": {
         "Name": "Example1",
+        "State": "Run",
+    }
+}
+{
+    "Package": "example.com/foobar",
+    "Result": {
+        "Name": "Example1",
         "State": "PASS",
         "T": 1000000
+    }
+}
+{
+    "Package": "example.com/foobar",
+    "Result": {
+        "Name": "BenchmarkBar",
+        "State": "Run",
     }
 }
 {
@@ -210,9 +263,6 @@ Example `go test -json` output
         "Procs": 8,
         "T": 1000000,
         "N": 1000,
-        "Bytes": 0,
-        "MemAllocs": 0,
-        "MemBytes": 0
     }
 }
 {
@@ -256,7 +306,7 @@ Trade offs:
 
     *   add `type TestResult`, which together with
         `BenchmarkResult` would have duplicated fields, such as `Name`,
-        `Status`, `Procs`, `T`, `Log`.
+        `State`, `Procs`, `T`, `Log`.
         We cannot add `type CommonResult` with common fields and embed it in
         `TestResult` and `BenchmarkResult` because it would break backwards
         compatibility of `BenchmarkResult`.
@@ -299,7 +349,7 @@ Most of the work would be done by the author of this proposal.
 
 Implementation steps:
 
-1.  Add `type Status` and add new fields to `testing.BenchmarkResult`.
+1.  Add `type State` and add new fields to `testing.BenchmarkResult`.
     Modify `testing.(*B).launch` to fill the new fields.
 1.  Add `-test.json` flag, `type CoverageResult` and `type JSONResult` to the
     `testing` package.
