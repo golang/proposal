@@ -87,14 +87,7 @@ while preserving this invariant:
   * A Go pointer passed as an argument to C code is only visible to C
     code for the duration of the function call.
 
-3. If Go code passes a Go pointer to a C function, the C function must
-  return.
-  * A Go pointer may not be visible to C code indefinitely.
-  * While there are no documented time limits, a C function that simply
-    blocks holding a Go pointer while other goroutines are running may
-    eventually cause the program to run out of memory and fail.
-
-4. A Go function called by C code may not return a Go pointer.
+3. A Go function called by C code may not return a Go pointer.
   * A Go function called by C code may take C pointers as arguments,
     and it may store non-pointer or C pointer data through those
     pointers, but it may not store a Go pointer into memory pointed to
@@ -105,7 +98,7 @@ while preserving this invariant:
   * C code calling a Go function can not cause any additional Go
     pointers to become visible to C code.
 
-The purpose of these four rules is to preserve the above invariant and
+The purpose of these three rules is to preserve the above invariant and
 to limit the number of Go pointers visible to C code at any one time.
 
 ### Examples
@@ -193,11 +186,6 @@ The dynamic checker will have the following effects:
 * We will change cgo to check that any pointer returned by an exported
   Go function is not a Go pointer.
 
-* We will add a timeout to any C function that takes a Go pointer as a
-  value.
-  If the C function does not return within 1 minute, we will report an
-  error.
-
 These rules taken together preserve the invariant.
 It will be impossible to write a Go pointer to non-Go memory.
 When passing a Go pointer to C, only that Go pointer will be made
@@ -209,7 +197,7 @@ When C code calls a Go function, no additional Go pointers will become
 visible to C.
 
 We propose that we enable the above changes, other than the write
-barrier and the timeout, at all times.
+barrier, at all times.
 These checks are reasonably cheap.
 
 These checks should detect all violations of the invariant on the Go side.
