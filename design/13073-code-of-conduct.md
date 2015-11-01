@@ -234,7 +234,7 @@ A classic troll:
 Condescending behavior:
 
 * M posts a message to /r/golang describing the approach they're planning to take for wrapping http.HandlerFunc and asking for feedback.
-* P replies to the message "Why don’t you just do it the obvious way?" with an explanation of an alternate approach. =
+* P replies to the message "Why don’t you just do it the obvious way?" with an explanation of an alternate approach.
 * N, a bystander to this exchange, replies “That may have been obvious to you, but you shouldn’t assume that it’s obvious to just anyone.”
 * P replies “Well I guess you’re an idiot too, then.”
 * Q, a moderator, observes this interaction and sends a message to P to tell them their behavior is unacceptable.
