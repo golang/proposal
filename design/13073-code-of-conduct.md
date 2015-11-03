@@ -7,7 +7,7 @@ Last updated: 30 October 2015
 **Please send all comments or questions directly to <adg@golang.org>.**
 
 > (This is a departure from the typical proposal process, since discussions
-> Around Codes of Conduct tend to devolve quickly. By restricting the
+> around Codes of Conduct tend to devolve quickly. By restricting the
 > discussion Of this proposal to 1:1 conversations between myself and members
 > of the Community, I hope to better hear everyone’s specific concerns without
 > generating unnecessary noise.)
@@ -17,7 +17,7 @@ Last updated: 30 October 2015
 This proposal provides a Code of Conduct for the Go community. The code is to
 be enforced in all project-operated spaces (the GitHub project, mailing lists,
 IRC, etc). Other Go-related spaces (forums, events, etc) are encouraged to
-adopt the code as well.
+adopt it as well.
 
 ## Background
 
@@ -51,8 +51,8 @@ The document text is as follows.
 
 Online communities include people from many different backgrounds. The first
 goal of the Code of Conduct (CoC) is to specify a baseline of common courtesy
-so that people with different social mores and communication styles can
-communicate with each other effectively, productively, and respectfully.
+so that people with different backgrounds can communicate with each other 
+effectively, productively, and respectfully.
 
 Another goal of the CoC is to make our community welcoming to people from
 different backgrounds. Diversity is critical to the project; for Go to become a
@@ -65,8 +65,9 @@ disability, ethnicity, religion, or similar personal characteristic.
 
 #### Where does it apply?
 
-The Code of Conduct applies generally. If you participate in or contribute to
-the Go ecosystem in any way, you should observe the Code of Conduct.
+The Code of Conduct applies to all forms of communications. If you participate 
+in or contribute to the Go ecosystem in any way, you should observe the Code of
+Conduct.
 
 Explicit enforcement of the Code of Conduct can only practically apply to the
 official forums operated by the Go project (the official Go GitHub projects, Go
@@ -96,20 +97,20 @@ aspire, and the kinds of behaviors that are not acceptable in our community.
    * Productive communication requires effort. Think about how your words will be interpreted.
    * Remember that sometimes it is best to refrain from commenting entirely.
 * Avoid destructive behavior, for example:
-   * Snarking (pithy, unproductive, sniping comments)
-   * Derailing (try to stay on topic; if you want to talk about something else,
-     start a new conversation)
-   * Unconstructive criticism (don't merely decry the current state of affairs;
-     offer suggestions as to how things may be improved)
+   * Harassment (either in public or private; if someone asks you to stop
+     speaking to/at them, you must stop immediately)
    * Insulting, demeaning, hateful, oppressive, exclusionary, or otherwise
      hurtful remarks.
    * Romantic or sexual commentary, remarks, or questions.
-   * Harassment (either in public or private; if someone asks you to stop
-     speaking to/at them, you must stop immediately)
+   * Unconstructive criticism (don't merely decry the current state of affairs;
+     offer suggestions as to how things may be improved)
    * Flirting with offensive or sensitive issues, particularly if they're
      off-topic; this all too often leads to unnecessary conflict.
    * “Microaggressions,” the small, subtle, often subconscious actions that
      marginalize people in oppressed groups.
+   * Derailing (try to stay on topic; if you want to talk about something else,
+     start a new conversation)
+   * Snarking (pithy, unproductive, sniping comments)
 * Don't just aim to be technically unimpeachable, aim to be your best self.
    * If someone takes issue with something you said or did, resist the urge to
      be defensive. Just stop doing what it was they complained about and
@@ -127,9 +128,8 @@ be removed from our community spaces.
 
 The forum moderators are volunteers that are free to act with their own
 discretion. Moderators are held to a higher standard than other community
-members. If a moderator creates an inappropriate situation, they should expect
-less leeway than others, and should expect to be removed for their position if
-they cannot adhere to the code. 
+members. Moderators will be removed from their position if they cannot 
+adhere to the code. 
 
 Complaints about moderator actions must be dealt with in private
 (use the reporting process below).
@@ -156,8 +156,8 @@ about the issue publicly or try to rally sentiment against a particular
 individual or group.
 
 * Mail conduct@golang.org or fill in [TODO(adg): anonymous web form]
-   * Your mail will reach the Go Code of Conduct Working Group.
    * Reports are confidential within the working group.
+   * Your mail will reach the Go Code of Conduct Working Group.
    * Note that if you choose to remain anonymous then you cannot be notified of
      the outcome of your report.
    * You may contact a member of the group directly if you do not feel
@@ -250,7 +250,7 @@ Two examples of “microaggressions”:
 * The issue is resolved.
 
 
-* K has typically female name and posts to a mailing list to announce a Go-to-Forth compiler they wrote.
+* K has a typical female name and posts to a mailing list to announce a Go-to-Forth compiler they wrote.
 * N replies “It’s impressive to see a woman doing such great work. Nice job!”
 * K writes to the CoC Working Group to say “I felt really deflated for my work to be seen as impressive just because I’m a woman. Can you say something to N for me?”
 * T, a member of the working group, reaches out to N to explain how their words affected K.
