@@ -56,9 +56,11 @@ I propose that we permit Go code to pass Go pointers to C code, while
 preserving the following invariant:
 
 * The Go garbage collector must be aware of the location of all Go
-  pointers; a known number of pointers may be temporarily
-  *visible to C code*, meaning that they exist in an area that the
-  garbage collector can not see, and may not be modified or released.
+  pointers, except for a known set of pointers that are temporarily
+  *visible to C code*.
+  The pointers visible to C code exist in an area that the garbage
+  collector can not see, and the garbage collector may not modify or
+  release them.
 
 It is impossible to break this invariant in Go code that does not
 import "unsafe" and does not call C.
@@ -98,7 +100,11 @@ while preserving this invariant:
   * C code calling a Go function can not cause any additional Go
     pointers to become visible to C code.
 
-The purpose of these three rules is to preserve the above invariant and
+4. Go code may not store a Go pointer into C memory.
+  * C code may store a Go pointer into C memory subject to rule 2: it
+    must stop storing the pointer before it returns to Go.
+
+The purpose of these four rules is to preserve the above invariant and
 to limit the number of Go pointers visible to C code at any one time.
 
 ### Examples
@@ -127,8 +133,8 @@ A Go function called by C code may not return a string.
 
 This proposal restricts the Go garbage collector: any Go pointer
 passed to C code must be pinned for the duration of the C call.
-By definition, since that memory block may not contain any pointers,
-this will only pin a single block of memory.
+By definition, since that memory block may not contain any Go
+pointers, this will only pin a single block of memory.
 
 Because C code can call back into Go code, and that Go code may need
 to copy the stack, we can never pass a Go stack pointer into C code.
