@@ -40,8 +40,8 @@ You can allocate Go memory in C code by calling the Go function
 
 The de-facto rule for 1.5 adds restrictions.
 You can still pass any Go pointer to C.
-However, C code may not store a Go pointer into Go memory (C code can
-still store a Go pointer into C memory, with the same restrictions as
+However, C code may not store a Go pointer in Go memory (C code can
+still store a Go pointer in C memory, with the same restrictions as
 in 1.4).
 The `_cgo_allocate` function has been removed.
 
@@ -70,7 +70,7 @@ while preserving this invariant:
 
 1. Go code may pass a Go pointer to C provided that the Go memory to
   which it points does not contain any Go pointers.
-  * The C code must not store any Go pointers into Go memory, even
+  * The C code must not store any Go pointers in Go memory, even
     temporarily.
   * When passing a pointer to a field in a struct, the Go memory in
     question is the memory occupied by the field, not the entire
@@ -92,7 +92,7 @@ while preserving this invariant:
 3. A Go function called by C code may not return a Go pointer.
   * A Go function called by C code may take C pointers as arguments,
     and it may store non-pointer or C pointer data through those
-    pointers, but it may not store a Go pointer into memory pointed to
+    pointers, but it may not store a Go pointer in memory pointed to
     by a C pointer.
   * A Go function called by C code may take a Go pointer as an
     argument, but it must preserve the property that the Go memory to
@@ -100,8 +100,8 @@ while preserving this invariant:
   * C code calling a Go function can not cause any additional Go
     pointers to become visible to C code.
 
-4. Go code may not store a Go pointer into C memory.
-  * C code may store a Go pointer into C memory subject to rule 2: it
+4. Go code may not store a Go pointer in C memory.
+  * C code may store a Go pointer in C memory subject to rule 2: it
     must stop storing the pointer before it returns to Go.
 
 The purpose of these four rules is to preserve the above invariant and
