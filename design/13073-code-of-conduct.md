@@ -4,8 +4,6 @@ Author: Andrew Gerrand <adg@golang.org>
 
 Last updated: 17 November 2015
 
-*Please send comments or questions directly to <adg@golang.org>.*
-
 ## Abstract
 
 This proposal specifies a Code of Conduct for the Go community.
