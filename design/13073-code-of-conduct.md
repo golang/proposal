@@ -132,7 +132,7 @@ These actions are explicitly forbidden in Go spaces:
   or physical disability.
 * Bullying or systematic harassment.
 * Unwelcome sexual advances.
-* Incitement to or condoning of any of these.
+* Incitement to any of these.
 
 ### Moderation
 
