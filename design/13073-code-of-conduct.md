@@ -105,7 +105,7 @@ These are the values to which people in the Go community (“Gophers”) should 
    * Derailing: stay on topic; if you want to talk about something else,
      start a new conversation.
    * Unconstructive criticism: don't merely decry the current state of affairs;
-     offer suggestions as to how things may be improved.
+     offer—or at least solicit—suggestions as to how things may be improved.
    * Snarking (pithy, unproductive, sniping comments)
    * Discussing potentially offensive or sensitive issues;
      this all too often leads to unnecessary conflict.
