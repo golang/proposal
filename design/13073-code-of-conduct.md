@@ -192,8 +192,7 @@ particular individual or group.
 * The group will reach a decision as to how to act. These may include:
    * Nothing.
    * A request for a private or public apology.
-   * A private reprimand from the working group to the individual(s) involved.
-   * A public reprimand.
+   * A private or public warning.
    * An imposed vacation (for instance, asking someone to "take a week off"
      from a mailing list or IRC).
    * A permanent or temporary ban from some or all Go spaces (mailing lists,
