@@ -97,7 +97,7 @@ These are the values to which people in the Go community (“Gophers”) should 
 * Be thoughtful
    * Productive communication requires effort.
      Think about how your words will be interpreted.
-   * Remember that sometimes it is best to refrain from commenting entirely.
+   * Remember that sometimes it is best to refrain entirely from commenting.
 * Be respectful
    * In particular, respect differences of opinion.
 * Be charitable
@@ -128,7 +128,8 @@ It is the responsibility of *all parties* to de-escalate conflict when it arises
 These actions are explicitly forbidden in Go spaces:
 
 * Insulting, demeaning, hateful, or threatening remarks.
-* Discrimination based on gender, race, nationality, sexuality, religion, age or physical disability.
+* Discrimination based on gender, race, nationality, sexuality, religion, age
+  or physical disability.
 * Bullying or systematic harassment.
 * Unwelcome sexual advances.
 * Incitement to or condoning of any of these.
@@ -216,6 +217,11 @@ Bannings and other forceful measures are to be employed only as a last resort.
 * Be thoughtful in how you communicate.
 * Don’t be destructive or antagonistic.
 * If you encounter an issue, please mail conduct@golang.org.
+
+#### Acknowledgements
+
+Parts of this document were derived from the Code of Conduct documents of the
+Rust, Django, and FreeBSD projects.
 
 ---
 
