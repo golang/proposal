@@ -70,10 +70,10 @@ they disagree.
 
 #### Where does the Code of Conduct apply?
 
-The Code of Conduct applies generally. If you participate in or contribute to
-the Go ecosystem in any way, you are expected to follow the Code of Conduct.
+If you participate in or contribute to the Go ecosystem in any way,
+you are encouraged to follow the Code of Conduct while doing so.
 
-Explicit enforcement of the Code of Conduct can only practically apply to the
+Explicit enforcement of the Code of Conduct applies to the
 official forums operated by the Go project (“Go spaces”):
 - The official Go GitHub projects,
 - Go project code reviews,
