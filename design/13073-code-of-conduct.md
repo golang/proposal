@@ -44,44 +44,46 @@ The document text is as follows.
 
 ### About the Code of Conduct
 
-#### Why have one?
+#### Why have a Code of Conduct?
 
 Online communities include people from many different backgrounds.
+The Go contributors are committed to providing a friendly, safe and welcoming
+environment for all, regardless of gender, sexual orientation, disability,
+ethnicity, religion, or similar personal characteristic.
+
 The first goal of the Code of Conduct is to specify a baseline standard
 of behavior so that people with different social values and communication
 styles can talk about Go effectively, productively, and respectfully.
 
-A second goal is to provide a mechanism for resolving conflicts in the
+The second goal is to provide a mechanism for resolving conflicts in the
 community when they arise.
 
-A third goal of the Code of Conduct is to make our community welcoming to
-people from different backgrounds. Diversity is critical to the project; for Go to
-be successful, it needs contributors and users from all backgrounds.
+The third goal of the Code of Conduct is to make our community welcoming to
+people from different backgrounds.
+Diversity is critical to the project; for Go to be successful, it needs
+contributors and users from all backgrounds.
 (See [Go, Open Source, Community](https://blog.golang.org/open-source).)
 
-To be explicit: the Go contributors are committed to providing a friendly, safe
-and welcoming environment for all, regardless of gender, sexual orientation,
-disability, ethnicity, religion, or similar personal characteristic.
-
 With that said, a healthy community must allow for disagreement and debate.
-The Code of Conduct is not a mechanism for people to silence others with whom they
-disagree.
+The Code of Conduct is not a mechanism for people to silence others with whom
+they disagree.
 
-#### Where does it apply?
+#### Where does the Code of Conduct apply?
 
 The Code of Conduct applies generally. If you participate in or contribute to
-the Go ecosystem in any way, you are expected to observe the Code of Conduct.
+the Go ecosystem in any way, you are expected to follow the Code of Conduct.
 
 Explicit enforcement of the Code of Conduct can only practically apply to the
 official forums operated by the Go project (“Go spaces”):
-- the official Go GitHub projects,
+- The official Go GitHub projects,
 - Go project code reviews,
-- the #go-nuts IRC channel on Freenode,
-- the /r/golang subreddit, and
-- the golang-nuts and golang-dev mailing lists operated on Google Groups.
+- The #go-nuts IRC channel on Freenode,
+- The /r/golang subreddit, and
+- The golang-nuts and golang-dev mailing lists operated on Google Groups.
 
 Other Go groups (such as conferences, meetups, and other unofficial forums) are
-encouraged to adopt this Code of Conduct.
+encouraged to adopt this Code of Conduct. Those groups must provide their own
+moderators and/or working group (see below).
 
 ### Gopher values
 
@@ -138,7 +140,8 @@ The Go spaces are not free speech venues; they are for discussion about Go.
 These spaces have moderators.
 The goal of the moderators is to facilitate civil discussion about Go.
 
-When using the official Go spaces you should act in the spirit of the “Gopher values”.
+When using the official Go spaces you should act in the spirit of the “Gopher
+values”.
 If you conduct yourself in a way that is explicitly forbidden by the CoC,
 you will be warned and asked to stop.
 If you do not stop, you will be removed from our community spaces temporarily.
@@ -149,7 +152,8 @@ If a moderator creates an inappropriate situation, they should expect less
 leeway than others, and should expect to be removed from their position if they
 cannot adhere to the CoC.
 
-Complaints about moderator actions must be handled using the reporting process below.
+Complaints about moderator actions must be handled using the reporting process
+below.
 
 ### Reporting issues
 
@@ -185,7 +189,7 @@ particular individual or group.
    * The working group will strive to handle reports with discretion and
      sensitivity, to protect the privacy of the involved parties,
      and to avoid conflicts of interest.
-* You will receive an initial response within 24-48 hours (likely sooner).
+* You will receive an initial response within 48 hours (likely sooner).
 * The group will meet to review the incident and determine what happened.
    * With the permission of person reporting the incident, the group may reach
      out to other community members for more context.
@@ -208,11 +212,14 @@ We hope that in most cases issues may be resolved through polite discussion and
 mutual agreement.
 Bannings and other forceful measures are to be employed only as a last resort.
 
+Changes to the members of the Working Group should be proposed using the
+[change proposal process](https://golang.org/s/proposal-process).
+
 ### Summary
 
 * Treat everyone with respect and kindness.
 * Be thoughtful in how you communicate.
-* Don’t be destructive or antagonistic.
+* Don’t be destructive or inflammatory.
 * If you encounter an issue, please mail conduct@golang.org.
 
 #### Acknowledgements
@@ -363,7 +370,7 @@ to avoid bringing shame to C in public, since C apparently meant no harm.
 * B points out the small detail C overlooked in the question to clarify the
   complexity.
 * C replies back "Ack! Sorry, I actually don't know."
-* B enters the conversation and criticizes C for his behavior in his
+* E enters the conversation and criticizes C for his behavior in his
   original reply, raising the issue further with a moderator.
 * D, a moderator, replies to the list to ask C to be less impatient in their responses,
   suggesting they could have instead said something like "The docs cover this."
@@ -424,6 +431,11 @@ across venues.
 
 ## Open issues
 
-The Working Group does not yet include anyone from Asia, Europe, or Africa.
-In particular, Europe and China are home to a large swath of Go users, so it
-would be valuable to include some people from those areas in the working group.
+* The Working Group does not yet include anyone from Asia, Europe, or Africa.
+  In particular, Europe and China are home to a large swath of Go users, so it
+  would be valuable to include some people from those areas in the working
+  group. (We have some volunteers from Europe already.)
+* The proposed process does not "scale down" to projects of a single maintainer.
+  Future revisions should permit a lightweight version of the process, but that
+  is considered outside the scope of this document.
+
