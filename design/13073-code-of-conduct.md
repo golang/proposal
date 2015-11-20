@@ -75,11 +75,12 @@ you are encouraged to follow the Code of Conduct while doing so.
 
 Explicit enforcement of the Code of Conduct applies to the
 official forums operated by the Go project (“Go spaces”):
-- The official Go GitHub projects,
-- Go project code reviews,
-- The #go-nuts IRC channel on Freenode,
-- The /r/golang subreddit, and
-- The golang-nuts and golang-dev mailing lists operated on Google Groups.
+- The official [GitHub projects](https://github.com/golang/)
+  and [code reviews](https://go-review.googlesource.com/).
+- The [golang-nuts](https://groups.google.com/group/golang-nuts) and
+  [golang-dev](https://groups.google.com/group/golang-dev) mailing lists.
+- The #go-nuts IRC channel on Freenode.
+- The [/r/golang subreddit](https://reddit.com/r/golang).
 
 Other Go groups (such as conferences, meetups, and other unofficial forums) are
 encouraged to adopt this Code of Conduct. Those groups must provide their own
