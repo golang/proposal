@@ -48,8 +48,8 @@ The document text is as follows.
 
 Online communities include people from many different backgrounds.
 The Go contributors are committed to providing a friendly, safe and welcoming
-environment for all, regardless of age, gender, nationality, physical
-disability, race, religion, sexuality, or similar personal characteristic.
+environment for all, regardless of age, disability, gender, nationality, race,
+religion, sexuality, or similar personal characteristic.
 
 The first goal of the Code of Conduct is to specify a baseline standard
 of behavior so that people with different social values and communication
@@ -129,7 +129,7 @@ It is the responsibility of *all parties* to de-escalate conflict when it arises
 These actions are explicitly forbidden in Go spaces:
 
 * Insulting, demeaning, hateful, or threatening remarks.
-* Discrimination based on age, gender, nationality, physical disability, race,
+* Discrimination based on age, disability, gender, nationality, race,
   religion, sexuality, or similar personal characteristic.
 * Bullying or systematic harassment.
 * Unwelcome sexual advances.
