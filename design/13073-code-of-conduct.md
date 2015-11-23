@@ -48,8 +48,8 @@ The document text is as follows.
 
 Online communities include people from many different backgrounds.
 The Go contributors are committed to providing a friendly, safe and welcoming
-environment for all, regardless of gender, sexual orientation, disability,
-ethnicity, religion, or similar personal characteristic.
+environment for all, regardless of age, gender, nationality, physical
+disability, race, religion, sexuality, or similar personal characteristic.
 
 The first goal of the Code of Conduct is to specify a baseline standard
 of behavior so that people with different social values and communication
@@ -129,8 +129,8 @@ It is the responsibility of *all parties* to de-escalate conflict when it arises
 These actions are explicitly forbidden in Go spaces:
 
 * Insulting, demeaning, hateful, or threatening remarks.
-* Discrimination based on gender, race, nationality, sexuality, religion, age
-  or physical disability.
+* Discrimination based on age, gender, nationality, physical disability, race,
+  religion, sexuality, or similar personal characteristic.
 * Bullying or systematic harassment.
 * Unwelcome sexual advances.
 * Incitement to any of these.
@@ -173,38 +173,40 @@ satisfaction of all parties. They are:
 * Verónica López <gveronicalg@gmail.com>
 
 If you encounter a conduct-related issue, you should report it to the
-Code of Conduct Working Group using the process described below.
+Working Group using the process described below.
 **Do not** post about the issue publicly or try to rally sentiment against a
 particular individual or group.
 
 * Mail conduct@golang.org or submit an anonymous report. [TODO(adg): set up anonymous web form]
-   * Your message will reach the Go Code of Conduct Working Group.
-   * Reports are confidential within the working group.
-   * Should you choose to remain anonymous then the group cannot
+   * Your message will reach the Working Group.
+   * Reports are confidential within the Working Group.
+   * Should you choose to remain anonymous then the Working Group cannot
      notify you of the outcome of your report.
    * You may contact a member of the group directly if you do not feel
      comfortable contacting the group as a whole. That member will then raise
-     the issue with the group as a whole, preserving the privacy of the reporter (if desired).
-   * If your report concerns a member of the working group they will be recused
-     from working group discussions of the report.
-   * The working group will strive to handle reports with discretion and
+     the issue with the Working Group as a whole, preserving the privacy of the
+     reporter (if desired).
+   * If your report concerns a member of the Working Group they will be recused
+     from Working Group discussions of the report.
+   * The Working Group will strive to handle reports with discretion and
      sensitivity, to protect the privacy of the involved parties,
      and to avoid conflicts of interest.
-* You will receive an initial response within 48 hours (likely sooner).
-* The group will meet to review the incident and determine what happened.
-   * With the permission of person reporting the incident, the group may reach
-     out to other community members for more context.
-* The group will reach a decision as to how to act. These may include:
+* You should receive a response within 48 hours (likely sooner).
+  (Should you choose to contact a single Working Group member,
+  it may take longer to receive a response.)
+* The Working Group will meet to review the incident and determine what happened.
+   * With the permission of person reporting the incident, the Working Group
+     may reach out to other community members for more context.
+* The Working Group will reach a decision as to how to act. These may include:
    * Nothing.
    * A request for a private or public apology.
    * A private or public warning.
-   * An imposed vacation (for instance, asking someone to "take a week off"
+   * An imposed vacation (for instance, asking someone to abstain for a week
      from a mailing list or IRC).
-   * A permanent or temporary ban from some or all Go spaces (mailing lists,
-     IRC, etc.).
-* The group will reach out to the original reporter to let them know the
-  decision.
-* Appeals to the decision may be made to the working group,
+   * A permanent or temporary ban from some or all Go spaces.
+* The Working Group will reach out to the original reporter to let them know
+  the decision.
+* Appeals to the decision may be made to the Working Group,
   or to any of its members directly.
 
 **Note that the goal of the Code of Conduct and the Working Group is to resolve
@@ -213,7 +215,8 @@ We hope that in most cases issues may be resolved through polite discussion and
 mutual agreement.
 Bannings and other forceful measures are to be employed only as a last resort.
 
-Changes to the members of the Working Group should be proposed using the
+Changes to the Code of Conduct (including to the members of the Working Group)
+should be proposed using the
 [change proposal process](https://golang.org/s/proposal-process).
 
 ### Summary
@@ -226,7 +229,7 @@ Changes to the members of the Working Group should be proposed using the
 #### Acknowledgements
 
 Parts of this document were derived from the Code of Conduct documents of the
-Rust, Django, and FreeBSD projects.
+Django, FreeBSD, and Rust projects.
 
 ---
 
@@ -281,7 +284,7 @@ behaviors that are explicitly forbidden, we at least give all community members
 an idea of what is expected of them.
 
 Note that *this* document is a proposal document; the Code of Conduct itself is
-a subset of the proposal document and is about 12,000 words long, including the
+a subset of the proposal document and is about 1,200 words long, including the
 description of the reporting process. The “Gopher Values” section—the meat of
 the thing—is under 300 words.
 
