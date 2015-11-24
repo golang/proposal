@@ -19,9 +19,9 @@ thousands of posts each month, and there are many major Go conferences each
 year with thousands of attendees.
 
 Today the various Go spaces are moderated by people that are unknown to the
-public with no specified policy. It is not clear to the members of these spaces
-how they are expected to conduct themselves. In the rare cases where people are
-banned, they are afforded no recourse.
+public and with no specified policy. It is not clear to the members of these
+spaces how they are expected to conduct themselves. In the rare cases where
+people are banned, they are afforded no recourse.
 
 For a community of this scale to grow and prosper, it needs guidelines
 to encourage productive and positive participation, and a process for
@@ -177,7 +177,8 @@ Working Group using the process described below.
 **Do not** post about the issue publicly or try to rally sentiment against a
 particular individual or group.
 
-* Mail conduct@golang.org or submit an anonymous report. [TODO(adg): set up anonymous web form]
+* Mail [conduct@golang.org](mailto:conduct@golang.org) or
+  [submit an anonymous report](https://golang.org/s/conduct-report).
    * Your message will reach the Working Group.
    * Reports are confidential within the Working Group.
    * Should you choose to remain anonymous then the Working Group cannot
@@ -350,7 +351,7 @@ community from becoming an echo chamber.
 
 *A microaggression:*
 
-* B has typically female name and posts to a mailing list to announce a
+* B has a typically female name and posts to a mailing list to announce a
   Go-to-Forth compiler they wrote.
 * C replies “I am amazed to see a woman doing such great work. Nice job!”
 * B writes to the CoC Working Group to say “I felt really deflated for my work
