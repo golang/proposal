@@ -44,6 +44,9 @@ The document text is as follows.
 
 ### About the Code of Conduct
 
+Our motto is “Be excellent to each other;” if you see or experience anything different please read further.
+
+
 #### Why have a Code of Conduct?
 
 Online communities include people from many different backgrounds.
