@@ -2,7 +2,9 @@
 
 Author: Dave Cheney &lt;dave@cheney.net&gt;
 
-Last updated: 15 September 2015
+Last updated: 03 December 2015
+
+Status: Withdrawn
 
 Discussion at https://golang.org/issue/12302.
 
