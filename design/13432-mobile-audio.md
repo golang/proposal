@@ -49,7 +49,7 @@ the long run.
 
 #### Playback
 Single or multi-channel playback with player controls such as play, pause,
-stop, etc. Games use a looping sample as the background music, so looping
+stop, etc. Games use a looping sample as the background music -- looping
 functionality is also essential. Multiple playback instances are needed. Most
 games require a background audio track and one-shot audio effects on the
 foreground.
@@ -156,6 +156,8 @@ type Clip interface {
 
 #### Decoders
 Decoders take any arbitrary input and is responsible to output a clip.
+TODO(jbd): Proposal should also mention how the decoders will be organized.
+e.g. image package's support for png, jpeg, gif, etc decoders.
 
 ```
 // Decoder that reads from a Reader and converts the input
@@ -174,7 +176,8 @@ func DecodeWAVBytes(data []byte) (Clip, error) {
 ```
 
 #### Clip sources
-Any arbitrary valid audio data source can be converted into a clip.
+Any arbitrary valid audio data source can be converted into a clip. Examples
+of clip sources are networking streams, file assets and in-memory buffers.
 
 ```
 // NewBufferClip converts a buffer to a Clip.
