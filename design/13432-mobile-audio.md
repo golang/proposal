@@ -120,8 +120,7 @@ audio chuncks. A fundamental interface, Clip, will define how to consume audio
 data and how audio attributes (such as bit and sample rate) are reported to
 the consumers of an audio media source.
 
-Clip is an io.ReadSeeker and must be considered as a small window into the
-underlying audio data.
+Clip is is a small window into the underlying audio data.
 
 ```
 // FrameInfo represents the frame-level information.
@@ -139,16 +138,20 @@ type FrameInfo struct {
     SampleRate int64
 }
 
-// Clip is an io.ReadSeeker that represents linear PCM formatted audio.
-// Clip can seek and read from a section and allow users to
+// Clip represents linear PCM formatted audio.
+// Clip can seek and read a small number of frames to allow users to
 // consume a small section of the underlying audio data.
 //
-// FrameInfo returns the basic frame-level information about the clip audio.
+// Frames return audio frames up to a number that can fit into the buf by
+// seeking to offset. n is the total number of returned frames. err is
+// io.EOF if there are no frames left to read.
+//
+// FrameInfo returns the basic frame information about the clip audio.
 //
 // Size returns the total number of bytes of the underlying audio data.
 // TODO(jbd): Support cases where size is unknown?
 type Clip interface {
-    io.ReadSeeker
+    Frames(buf []byte, offset int64) (n int, err error)
     FrameInfo() FrameInfo
     Size() int64
 }
