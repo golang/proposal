@@ -245,6 +245,7 @@ stream to the device buffer in the longer term? The scope of the audio package
 is primarily mobile devices (which case-by-case supports hardware
 acceleration). But if the package will cover beyond the mobile, we should
 consider this case.
+- Seeking on variable bit rate encoded audio data is hard without a seek table.
 
 ## Appendix: Audio Apps Classification
 
