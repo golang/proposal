@@ -231,7 +231,9 @@ doesn't have to fit in the Go release cycle.
 ## Open issues
 
 - WAV and AIFF both support float PCM values even though the use of float
-values is unpopular. Should we consider supporting float values?
+values is unpopular. Should we consider supporting float values? Float values
+mean more expensive encoding and decoding. Even if float values are supported,
+they must be optional -- not the primary type to represent values.
 - Decoding on desktop. The package will use the system codec libraries
 provided by Android and iOS on mobile devices. It is not possible to provide
 feature parity for desktop envs in the scope of decoding.
