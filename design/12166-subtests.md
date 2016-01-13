@@ -1,8 +1,8 @@
-# Proposal: Enhanced Table-Driven Test Support
+# Proposal: testing: programmatic sub-test and sub-benchmark support
 
 Author: Marcel van Lohuizen
 
-_With input from Sameer Ajmani, Austin Clements, Damien Neil, and Bryan Mills._
+_With input from Sameer Ajmani, Austin Clements, Russ Cox, Bryan Mills, and Damien Neil._
 
 
 Last updated: September 2, 2015
@@ -10,8 +10,8 @@ Last updated: September 2, 2015
 Discussion at https://golang.org/issue/12166.
 
 ## Abstract
-Enhanced table-driven support in the testing package by means of
-a Run method for starting subtests and subbenchmarks.
+This proposal introduces programmatic subtest and subbenchmarks for a variety
+of purposes.
 
 ## Background
 
@@ -27,7 +27,7 @@ command line (e.g. for debugging),
 * more control over parallelism,
 * cleaner code, compared to many top-level functions, both for tests and
 benchmarks, and
-* eliminate need to prefix each error message in a test with its subtest name.
+* eliminate need to prefix each error message in a test with its subtest's name.
 
 
 ## Proposal
@@ -41,8 +41,7 @@ command line.
 T gets the following method:
 
 ```go
-// Run runs f as a subtest of t called name. It panics if name is not unique
-// among t's subtests and reports whether f succeeded.
+// Run runs f as a subtest of t called name. It reports whether f succeeded.
 // Run will block until all its parallel subtests have completed.
 func (t *T) Run(name string, f func(t *testing.T)) bool
 ```
@@ -75,7 +74,7 @@ A NumFailed method might be useful as well.
 
 #### Examples
 
-A typical use case:
+A simple example:
 
 ```go
 tests := []struct {
@@ -98,15 +97,15 @@ func TestSum(t *testing.T) {
 ```
 
 Note that we write `t.Errorf("got %d; want %d")` instead of something like
-`t.Errorf("%d+%d = %d; want %d")`: the subtest name already uniquely identifies
-the test.
+`t.Errorf("%d+%d = %d; want %d")`: the subtest's name already uniquely
+identifies the test.
 
-Selected (sub)tests from the command line using -test.run:
+Select (sub)tests from the command line using -test.run:
 
 ```go
-go test --run=TestFoo,1+2  # selects the first test in TestFoo
-go test --run=TestFoo,1+   # selects tests for which A == 1 in TestFoo
-go test --run=,1+          # for any top-level test, select subtests matching ”1+”
+go test --run=TestFoo/1+2  # selects the first test in TestFoo
+go test --run=TestFoo/1+   # selects tests for which A == 1 in TestFoo
+go test --run=.*/1+        # for any top-level test, select subtests matching ”1+”
 ```
 
 Skipping a subtest will not terminate subsequent tests in the calling test:
@@ -125,6 +124,44 @@ func TestFail(t *testing.T) {
     }
 }
 ```
+
+A more concrete and realistic use case is an adaptation of bufio.TestReader:
+
+```go
+func TestReader(t *testing.T) {
+    var texts [31]string
+    str := ""
+    all := ""
+    for i := 0; i < len(texts)-1; i++ {
+        texts[i] = str + "\n"
+        all += texts[i]
+        str += string(i%26 + 'a')
+    }
+    texts[len(texts)-1] = all
+
+    for _, readmaker := range readMakers {
+        t.Run("readmaker="+readMaker.name, func(t *testing.T) {
+            for _, text := range texts {
+                for _, bufreader := range bufreaders {
+                    for _, bufsize := range bufsizes {
+                        read := readmaker.fn(strings.NewReader(text))
+                        buf := NewReaderSize(read, bufsize)
+                        s := bufreader.fn(buf)
+                        if s != text {
+                            t.Fatalf("fn=%s bufsize=%d got=%q; want=%q",
+                                bufreader.name, bufsize, got, text)
+                        }
+                    }
+                }
+            }
+        })
+    }
+}
+```
+
+In this example the use of `t.Fatalf` avoids getting a large number of similar
+errors for different buffer sizes.
+In case of failure, testing will resume with testing the next reader.
 
 Run a subtest in parallel:
 
@@ -170,26 +207,23 @@ completed and that both TestTeardownParallel and "block" are sequential.
 
 ### Flags
 
-The -test.run flag allows filtering of subtests given a comma-separated list of
-regular expressions, applying the following rules:
+The -test.run flag allows filtering of subtests given a prefix path where each
+path component is a regular expression, applying the following rules:
 
 * Each test has its own (sub) name.
 * Each test has a level. A top-level test (e.g. `func TestFoo`) has level 1, a
-test invoked with Run by such test has level 2, a test invoked by such a subtest
- level 3, and so forth.
-* The nth regular expression (n = 1,...) of --test.run filters a name of level n.
-* An empty or non-defined string for a level matches any name
-(analogous to -run now).
-* Non-printable characters are replaced by an escape sequence, whitespace is
-replaced by  '␣' (U+2423), and commas by '‚' (U+201A). The latter allows commas
-in command line flags to work as separators. The same substitutions are done in
-regular expressions, except for the comma.
+test invoked with Run by such test has level 2, a test invoked by such a
+subtest level 3, and so forth.
+* A (sub)test is run if the (level-1)-th regular expression
+resulting from splitting -test.run by '/' matches the test's name or if this
+regular expression is not defined.
+So for a -test.run not containing a '/' the behavior is identical to the current
+behavior.
+* Spaces (as defined by unicode.IsSpace) are replaced by underscores.
 
-We use a “,” to separate the regular expressions because it is both a common way
-to define a list, because it is a character not frequently printed by `%+v` and
-because it plays well with regular expressions.
-
-Rules for -test.bench are analoguous.
+Rules for -test.bench are analogous, except that only a non-empty -test.bench
+flag triggers running of benchmarks.
+The implementation of these flags semantics can be done later.
 
 ####Examples:
 Select top-level test “TestFoo” and all its subtests:
@@ -199,12 +233,12 @@ Select top-level test “TestFoo” and all its subtests:
 Select top-level tests that contain the string “Foo” and all their subtests that
 contain the string “A:3”.
 
-    go test --run=Foo,A:3
+    go test --run=Foo/A:3
 
 Select all subtests of level 2 which name contains the string “A:1 B:2” for any
 top-level test:
 
-    go test --run=”,A:1 B:2”
+    go test --run=.*/A:1_B:2
 
 The latter could match, for example, struct{A, B int}{1, 2} printed with %+v.
 
@@ -213,16 +247,13 @@ The latter could match, for example, struct{A, B int}{1, 2} printed with %+v.
 
 The following method would be added to B:
 
-    // Run benchmarks f as a subbenchmark with the given name. It panics if name
-    // is not unique within b's scope and reports whether there were any failures.
+    // Run benchmarks f as a subbenchmark with the given name. It reports
+    // whether there were any failures.
     //
     // A subbenchmark is like any other benchmark. A benchmark that calls Run at
     // least once will not be measured itself and will only run for one iteration.
     func (b *B) Run(name string, f func(b *testing.B)) bool
 
-The uniqueness requirement of the name will help tools that rely on benchmarks
-having a unique name.
-For benchmarks, benchcmp is an example of such a tool.
 
 The `Benchmark` function gets an additional clarification (addition between []):
 
@@ -261,20 +292,14 @@ func BenchmarkMethod(b *testing.B) {
 var allMethods = []struct {
     name string
     f    func(to Form, b []byte) func()
-}{{"Transform", func(f Form, b []byte) func() {
-    buf := make([]byte, 4*len(b))
-    return func() {
-        f.Transform(buf, b, true)
-    }
-}, {"Iter", func(f Form, b []byte) func() {
-    iter := Iter{}
-    return func() {
-        for iter.Init(f, b); !iter.Done(); iter.Next() {
-        }
-    }
-}, {
+}{
+    {"Transform", transform },
+    {"Iter", iter },
     ...
-}}
+}
+
+func transform(f Form, b []byte) func()
+func iter(f Form, b []byte) func()
 
 var textdata = []struct { name, data string }{
     {"small_change", "No\u0308rmalization"},
@@ -291,23 +316,23 @@ in a similar manner.
 
 The output for the above benchmark, without additional logging, could look something like:
 
-    BenchmarkMethod-8,Transform,small_change      200000           668 ns/op      22.43 MB/s
-    BenchmarkMethod-8,Transform,small_no_change  1000000           100 ns/op     139.13 MB/s
-    BenchmarkMethod-8,Transform,ascii              10000         22430 ns/op     735.60 MB/s
-    BenchmarkMethod-8,Transform,all                 1000        128511 ns/op      43.82 MB/s
-    BenchmarkMethod-8,Iter,small_change           200000           701 ns/op      21.39 MB/s
-    BenchmarkMethod-8,Iter,small_no_change        500000           321 ns/op      43.52 MB/s
-    BenchmarkMethod-8,Iter,ascii                    1000        210633 ns/op      78.33 MB/s
-    BenchmarkMethod-8,Iter,all                      1000        235950 ns/op      23.87 MB/s
-    BenchmarkMethod-8,ToLower,small_change        300000           475 ns/op      31.57 MB/s
-    BenchmarkMethod-8,ToLower,small_no_change     500000           239 ns/op      58.44 MB/s
-    BenchmarkMethod-8,ToLower,ascii                  500        297486 ns/op      55.46 MB/s
-    BenchmarkMethod-8,ToLower,all                   1000        151722 ns/op      37.12 MB/s
-    BenchmarkMethod-8,QuickSpan,small_change     2000000            70.0 ns/op   214.20 MB/s
-    BenchmarkMethod-8,QuickSpan,small_no_change  1000000           115 ns/op     120.94 MB/s
-    BenchmarkMethod-8,QuickSpan,ascii               5000         25418 ns/op     649.13 MB/s
-    BenchmarkMethod-8,QuickSpan,all                 1000        175954 ns/op      32.01 MB/s
-    BenchmarkMethod-8,Append,small_change         200000           721 ns/op      20.78 MB/s
+    BenchmarkMethod/Transform/small_change-8      200000           668 ns/op      22.43 MB/s
+    BenchmarkMethod/Transform/small_no_change-8  1000000           100 ns/op     139.13 MB/s
+    BenchmarkMethod/Transform/ascii-8              10000         22430 ns/op     735.60 MB/s
+    BenchmarkMethod/Transform/all-8                 1000        128511 ns/op      43.82 MB/s
+    BenchmarkMethod/Iter/small_change-8           200000           701 ns/op      21.39 MB/s
+    BenchmarkMethod/Iter/small_no_change-8        500000           321 ns/op      43.52 MB/s
+    BenchmarkMethod/Iter/ascii-8                    1000        210633 ns/op      78.33 MB/s
+    BenchmarkMethod/Iter/all-8                      1000        235950 ns/op      23.87 MB/s
+    BenchmarkMethod/ToLower/small_change-8        300000           475 ns/op      31.57 MB/s
+    BenchmarkMethod/ToLower/small_no_change-8     500000           239 ns/op      58.44 MB/s
+    BenchmarkMethod/ToLower/ascii-8                  500        297486 ns/op      55.46 MB/s
+    BenchmarkMethod/ToLower/all-8                   1000        151722 ns/op      37.12 MB/s
+    BenchmarkMethod/QuickSpan/small_change-8     2000000            70.0 ns/op   214.20 MB/s
+    BenchmarkMethod/QuickSpan/small_no_change-8  1000000           115 ns/op     120.94 MB/s
+    BenchmarkMethod/QuickSpan/ascii-8               5000         25418 ns/op     649.13 MB/s
+    BenchmarkMethod/QuickSpan/all-8                 1000        175954 ns/op      32.01 MB/s
+    BenchmarkMethod/Append/small_change-8         200000           721 ns/op      20.78 MB/s
     ok      golang.org/x/text/unicode/norm  5.601s
 
 The only change in the output is the characters allowable in the Benchmark name.
@@ -321,27 +346,27 @@ Logs for tests are printed hierarchically. Example:
 
     --- FAIL: TestFoo  (0.03s)
         display_test.go:75: setup issue
-        --- FAIL: TestFoo,{Alpha:1_Beta:1}  (0.01s)
+        --- FAIL: TestFoo/{Alpha:1_Beta:1}  (0.01s)
             display_test.go:75: Foo(Beta) = 5: want 6
-        --- FAIL: TestFoo,{Alpha:1_Beta:3}  (0.01s)
+        --- FAIL: TestFoo/{Alpha:1_Beta:3}  (0.01s)
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
         display_test.go:75: setup issue
-        --- FAIL: TestFoo,{Alpha:1_Beta:4}  (0.01s)
+        --- FAIL: TestFoo/{Alpha:1_Beta:4}  (0.01s)
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
-        --- FAIL: TestFoo,{Alpha:1_Beta:8}  (0.01s)
+        --- FAIL: TestFoo/{Alpha:1_Beta:8}  (0.01s)
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
             display_test.go:75: Foo(Beta) = 5; want 6
-        --- FAIL: TestFoo,{Alpha:1_Beta:9}  (0.03s)
+        --- FAIL: TestFoo/{Alpha:1_Beta:9}  (0.03s)
             display_test.go:75: Foo(Beta) = 5; want 6
 
-For each header, we include the full name, thereby repeating the name of the parent.
+For each header, we include the full name, repeating the name of the parent.
 This makes it easier to identify the specific test from within the local context
 and obviates the need for tools to keep track of context.
 
@@ -350,46 +375,41 @@ For benchmarks we adopt a different strategy. For benchmarks, it is important to
 be able to relate the logs that might have influenced performance to the
 respective benchmark.
 This means we should ideally interleave the logs with the benchmark results.
-It also means we should distinguish between logs of unmeasured, enclosing
-benchmarks and logs written during actual benchmarks.
-For the latter purpose we introduce the `LOG` tag in addition to the `FAIL` and
-`BENCH` tags.
-For example:
+
 
 ```
---- LOG: BenchmarkForm,from␣NFC-8
+--- BENCH: BenchmarkForm/from_NFC-8
         normalize_test.go:768: Some message
-BenchmarkForm,from␣NFC,canonical,to␣NFC-8            10000       15914 ns/op     166.64 MB/s
---- LOG: BenchmarkForm,from␣NFC-8
+BenchmarkForm/from_NFC/canonical/to_NFC-8            10000       15914 ns/op     166.64 MB/s
+--- BENCH: BenchmarkForm/from_NFC-8
         normalize_test.go:768: Some message
---- LOG: BenchmarkForm,from␣NFC,canonical-8
+--- BENCH: BenchmarkForm/from_NFC/canonical-8
         normalize_test.go:776: Some message.
-BenchmarkForm,from␣NFC,canonical,to␣NFD-8            10000       15914 ns/op     166.64 MB/s
---- LOG: BenchmarkForm,from␣NFC,canonical-8
+BenchmarkForm/from_NFC/canonical/to_NFD-8            10000       15914 ns/op     166.64 MB/s
+--- BENCH: BenchmarkForm/from_NFC/canonical-8
         normalize_test.go:776: Some message.
---- BENCH: BenchmarkForm,from␣NFC,canonical,to␣NFD-8
+--- BENCH: BenchmarkForm/from_NFC/canonical/to_NFD-8
         normalize_test.go:789: Some message.
         normalize_test.go:789: Some message.
         normalize_test.go:789: Some message.
-BenchmarkForm,from␣NFC,canonical,to␣NFKC-8           10000       15170 ns/op     174.82 MB/s
---- LOG: BenchmarkForm,from␣NFC,canonical-8
+BenchmarkForm/from_NFC/canonical/to_NFKC-8           10000       15170 ns/op     174.82 MB/s
+--- BENCH: BenchmarkForm/from_NFC/canonical-8
         normalize_test.go:776: Some message.
-BenchmarkForm,from␣NFC,canonical,to␣NFKD-8           10000       15881 ns/op     166.99 MB/s
---- LOG: BenchmarkForm,from␣NFC,canonical-8
+BenchmarkForm/from_NFC/canonical/to_NFKD-8           10000       15881 ns/op     166.99 MB/s
+--- BENCH: BenchmarkForm/from_NFC/canonical-8
         normalize_test.go:776: Some message.
-BenchmarkForm,from␣NFC,ext_latin,to␣NFC-8             5000       30720 ns/op      52.86 MB/s
---- LOG: BenchmarkForm,from␣NFC-8
+BenchmarkForm/from_NFC/ext_latin/to_NFC-8             5000       30720 ns/op      52.86 MB/s
+--- BENCH: BenchmarkForm/from_NFC-8
         normalize_test.go:768: Some message
-BenchmarkForm,from␣NFC,ext_latin,to␣NFD-8             2000       71258 ns/op      22.79 MB/s
---- BENCH: BenchmarkForm,from␣NFC,ext_latin,to␣NFD-8
+BenchmarkForm/from_NFC/ext_latin/to_NFD-8             2000       71258 ns/op      22.79 MB/s
+--- BENCH: BenchmarkForm/from_NFC/ext_latin/to_NFD-8
         normalize_test.go:789: Some message.
         normalize_test.go:789: Some message.
         normalize_test.go:789: Some message.
-BenchmarkForm,from␣NFC,ext_latin,to␣NFKC-8            5000       32233 ns/op      50.38 MB/s
+BenchmarkForm/from_NFC/ext_latin/to_NFKC-8            5000       32233 ns/op      50.38 MB/s
 ```
 
-Only logs marked `BENCH` influenced benchmark results. No bench results are
-printed for "parent" benchmarks.
+No bench results are printed for "parent" benchmarks.
 
 
 ## Rationale
@@ -486,7 +506,7 @@ The rules for logging subtests are:
 prefixed with a header to identify the subtest.
 * Each subtest logs to the buffer with an indentation corresponding to its level.
 
-These rule are consistent with the subtest semantics presented earlier.
+These rule are consistent with the sub-test semantics presented earlier.
 Combined with these semantics, logs have the following properties:
 
 * Logs from a parallel subtests always come after the logs of its parent.
@@ -495,8 +515,8 @@ Combined with these semantics, logs have the following properties:
 overall test logs.
 * Each logged message is only displayed once.
 * The output is identical to the old log format absent calls to t.Run.
-* The output is identical except for whitespace and characters allowed in names
-if subtests are used.
+* The output is identical except for non-Letter characters being allowed in
+names if subtests are used.
 
 Printing hierarchically makes the relation between tests visually clear.
 It also avoids repeating printing some headers.
@@ -512,43 +532,43 @@ In that case, logs would only be printed after each top-level test.
 For example:
 
 ```
-BenchmarkForm,from␣NFC,canonical,to␣NFC-8       10000        23609 ns/op     112.33 MB/s
-BenchmarkForm,from␣NFC,canonical,to␣NFD-8       10000        16597 ns/op     159.78 MB/s
-BenchmarkForm,from␣NFC,canonical,to␣NFKC-8      10000        17188 ns/op     154.29 MB/s
-BenchmarkForm,from␣NFC,canonical,to␣NFKD-8      10000        16082 ns/op     164.90 MB/s
-BenchmarkForm,from␣NFD,overflow,to␣NFC-8          300       441589 ns/op      38.34 MB/s
-BenchmarkForm,from␣NFD,overflow,to␣NFD-8          300       483748 ns/op      35.00 MB/s
-BenchmarkForm,from␣NFD,overflow,to␣NFKC-8         300       467694 ns/op      36.20 MB/s
-BenchmarkForm,from␣NFD,overflow,to␣NFKD-8         300       515475 ns/op      32.85 MB/s
+BenchmarkForm/from_NFC/canonical/to_NFC-8       10000        23609 ns/op     112.33 MB/s
+BenchmarkForm/from_NFC/canonical/to_NFD-8       10000        16597 ns/op     159.78 MB/s
+BenchmarkForm/from_NFC/canonical/to_NFKC-8      10000        17188 ns/op     154.29 MB/s
+BenchmarkForm/from_NFC/canonical/to_NFKD-8      10000        16082 ns/op     164.90 MB/s
+BenchmarkForm/from_NFD/overflow/to_NFC-8          300       441589 ns/op      38.34 MB/s
+BenchmarkForm/from_NFD/overflow/to_NFD-8          300       483748 ns/op      35.00 MB/s
+BenchmarkForm/from_NFD/overflow/to_NFKC-8         300       467694 ns/op      36.20 MB/s
+BenchmarkForm/from_NFD/overflow/to_NFKD-8         300       515475 ns/op      32.85 MB/s
 --- FAIL: BenchmarkForm
-    --- FAIL: BenchmarkForm,from␣NFC
+    --- FAIL: BenchmarkForm/from_NFC
         normalize_test.go:768: Some failure.
-        --- BENCH: BenchmarkForm,from␣NFC,canonical
+        --- BENCH: BenchmarkForm/from_NFC/canonical
             normalize_test.go:776: Just a message.
             normalize_test.go:776: Just a message.
-            --- BENCH: BenchmarkForm,from␣NFC,canonical,to␣NFD-8
+            --- BENCH: BenchmarkForm/from_NFC/canonical/to_NFD-8
                 normalize_test.go:789: Some message
                 normalize_test.go:789: Some message
                 normalize_test.go:789: Some message
             normalize_test.go:776: Just a message.
             normalize_test.go:776: Just a message.
-        normalize_test.go:768: Some failure.
-        …
-    --- FAIL: BenchmarkForm-8,from␣NFD
         normalize_test.go:768: Some failure.
         …
+    --- FAIL: BenchmarkForm-8/from_NFD
         normalize_test.go:768: Some failure.
-            --- BENCH: BenchmarkForm-8,from␣NFD,overflow
+        …
+        normalize_test.go:768: Some failure.
+            --- BENCH: BenchmarkForm-8/from_NFD/overflow
             normalize_test.go:776: Just a message.
             normalize_test.go:776: Just a message.
-            --- BENCH: BenchmarkForm-8,from␣NFD,overflow,to␣NFD
+            --- BENCH: BenchmarkForm-8/from_NFD/overflow/to_NFD
                 normalize_test.go:789: Some message
                 normalize_test.go:789: Some message
                 normalize_test.go:789: Some message
             normalize_test.go:776: Just a message.
             normalize_test.go:776: Just a message.
-BenchmarkMethod,Transform,small_change-8            100000        1165 ns/op      12.87 MB/s
-BenchmarkMethod,Transform,small_no_change-8        1000000         103 ns/op     135.26 MB/s
+BenchmarkMethod/Transform/small_change-8            100000        1165 ns/op      12.87 MB/s
+BenchmarkMethod/Transform/small_no_change-8        1000000         103 ns/op     135.26 MB/s
 …
 ```
 
@@ -560,12 +580,12 @@ the user will have to align the logs with the result lines to correlate the data
 
 The API changes are fully backwards compatible.
 It introduces several minor changes in the logs:
+
 * Names of tests and benchmarks may contain additional printable, non-space runes.
 * Log items for tests may be indented.
-* There is an additional LOG tag for benchmarks to distinguish logs that
-influence performance from logs that don't.
 
-There are no change required to benchstats and benchcmp.
+benchstats and benchcmp may need to be adapted to take into account the
+possibility of duplicate names.
 
 ## Implementation
 
@@ -580,8 +600,7 @@ iteration, they will initially only be allowed for top-level tests.
 Once we have a good way to detect improper usage of range variables, we could
 open up parallelism by introducing Go or enable calling `Parallel` on subtests.
 
-It should be possible to have the first implementations of T.Run and B.Run in
-before 1.6.
+The aim is to have the first implementations of T.Run and B.Run in for 1.7.
 
 <!-- ### Implementation details
 
@@ -645,7 +664,7 @@ decide on one of these methods or find a better solution.
 We showed how it is possible to insert teardown code after running a few
 parallel tests.
 Thought not difficult, it is a bit clumsy.
-We could at some point add the following method to make this easier:
+We could add the following method to make this easier:
 
 
 ```go
@@ -671,5 +690,5 @@ func TestTeardownParallel(t *testing.T) {
 
 This could be added later if there seems to be a need for it.
 The introduction of Wait would only require a minimal and backward compatible
-change to the subtest semantics.
+change to the sub-test semantics.
 
