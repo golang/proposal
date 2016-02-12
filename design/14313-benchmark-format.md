@@ -68,7 +68,7 @@ and likely more unpublished programs.
 
 ### Benchmark runners
 
-Multiple tools have also been written that process this format.
+Multiple tools have also been written that generate this format.
 In addition to the standard Go testing package,
 [compilebench](https://godoc.org/rsc.io/compilebench)
 generates this data format based on runs of the Go compiler,
@@ -93,7 +93,7 @@ have semantic meaning in the reporting of benchmark results.
 All other lines in the data file, including but not limited to
 blank lines and lines beginning with a # character, are ignored.
 For example, the testing package prints test results above benchmark data,
-usually the text `PASS`. that line is neither a configuration line nor a benchmark
+usually the text `PASS`. That line is neither a configuration line nor a benchmark
 result line, so it is ignored.
 
 ### Configuration Lines
@@ -106,6 +106,7 @@ where key contains no space characters (as defined by `unicode.IsSpace`)
 nor upper case characters (as defined by `unicode.IsUpper`),
 and space characters separate “key:” from “value.”
 Conventionally, multiword keys are written with the words
+separated by hyphens, as in cpu-speed.
 There are no restrictions on value, except that it cannot contain a newline character.
 Value can be omitted entirely but the colon must still be present.
 
