@@ -654,7 +654,7 @@ are lists of respectively hosts and guests, and data:
 ```go
 map[string]interface{}{
 	"Hosts": []gender.String{
-    	gender.Male.String("Andy"),
+		gender.Male.String("Andy"),
 		gender.Female.String("Sheila"),
 	},
 	"Guests": []string{ "Andy", "Mary", "Bob", "Linda", "Carl", "Danny" },
@@ -677,8 +677,8 @@ message.SetSelect(en, "%[1]s invite %[2]s and %[3]d other guests to their party.
 					"female", "%[1]s invites %[2]s to her party.",
 					"other ", "%[1]s invites %[2]s to his party."),
 				"=1", gender.Select(1, // Hosts
-					"female", "%[1]s invites %[2]s and one other person to her party.",
-					"other ", "%[1]s invites %[2]s and one other person to his party."),
+					"female", "%[1]s invites %#[2]s and one other person to her party.",
+					"other ", "%[1]s invites %#[2]s and one other person to his party."),
 				"other", gender.Select(1, // Hosts
 					"female", "%[1]s invites %#[2]s and %[3]d other people to her party.",
 					"other ", "%[1]s invites %#[2]s and %[3]d other people to his party.")),
@@ -686,8 +686,8 @@ message.SetSelect(en, "%[1]s invite %[2]s and %[3]d other guests to their party.
 			"=0 ", "%[1]s do not give a party.",
 			"other", plural.Select(3, // Other guests count
 				"=0", "%[1]s invite %[2]s to their party.",
-				"=1", "%[1]s invite %#[2] and one other person to their party.",
-				"other ", "%[1]s invite %#[2]v and %[3]d other people to their party.")))
+				"=1", "%[1]s invite %#[2]s and one other person to their party.",
+				"other ", "%[1]s invite %#[2]s and %[3]d other people to their party."))))
 ```
 
 <!-- ```go
@@ -737,9 +737,9 @@ and add another select block at the start of the list:
 
 
 ```go
-message.SetSelect(en, "%[1]s invite %[2]s and %[3] other guests to their party.",
-	plural.Select(".Guests", "=0", `There is no party. Move on!`),
-	plural.Select(".Hosts",
+message.SetSelect(en, "%[1]s invite %[2]s and %[3]d other guests to their party.",
+	plural.Select(2, "=0", `There is no party. Move on!`),
+	plural.Select(1,
 		"=0", `There is no party. Move on!`,
 		…
 ```
@@ -773,7 +773,7 @@ message.SetSelect(en, "%[1]s invite %[2]s and %[3]d other guests to their party.
 	feature.Var("guests", plural.Select(3, // other guests
 		"=0", "%[2]s",
 		"=1", "%#[2]s and one other person",
-		"other", "%#[2]v and %[3]d other people"),
+		"other", "%#[2]s and %[3]d other people"),
 	feature.String("%[1]s %[invite]s %[guests]s to %[their]s party."))
 ```
 
@@ -940,18 +940,18 @@ func init() {
 	}
 }
 type entry struct {
-    key    string
-    value feature.Value
+	key   string
+	value feature.Value
 }
 var entries = []struct{
-    lang language.Tag
-    entry []entry
+	lang  language.Tag
+	entry []entry
 }{
-    { language.French, []entry{
+	{ language.French, []entry{
 		{ "Hello", feature.String("Bonjour") },
 		{ "%s went to %s", feature.Select{ … } },
-		...
-    }
+		…
+	},
 }
 
 ```
