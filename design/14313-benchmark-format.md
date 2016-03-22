@@ -86,7 +86,7 @@ the need to process custom output formats in future benchmarks.
 
 ## Proposal
 
-A Go benchmark data file is a textual file consisting of a sequence of lines.
+A Go benchmark data file is a UTF-8 textual file consisting of a sequence of lines.
 Configuration lines and benchmark result lines, described below,
 have semantic meaning in the reporting of benchmark results.
 
@@ -102,13 +102,15 @@ A configuration line is a key-value pair of the form
 
 	key: value
 
-where key contains no space characters (as defined by `unicode.IsSpace`)
+where key begins with a lower case character (as defined by `unicode.IsLower`),
+contains no space characters (as defined by `unicode.IsSpace`)
 nor upper case characters (as defined by `unicode.IsUpper`),
-and space characters separate “key:” from “value.”
+and one or more ASCII space or tab characters separate “key:” from “value.”
 Conventionally, multiword keys are written with the words
 separated by hyphens, as in cpu-speed.
 There are no restrictions on value, except that it cannot contain a newline character.
-Value can be omitted entirely but the colon must still be present.
+Value can be omitted entirely, in which case the colon must still be
+present, but need not be followed by a space.
 
 The interpretation of a key/value pair is up to tooling, but the key/value pair
 is considered to describe all benchmark results that follow,
@@ -125,7 +127,9 @@ so the line can be parsed with `strings.Fields`.
 The line must have an even number of fields, and at least four.
 
 The first field is the benchmark name, which must begin with `Benchmark`
-and is typically followed by a capital letter, as in `BenchmarkReverseString`.
+followed by an upper case character (as defined by `unicode.IsUpper`)
+or the end of the field,
+as in `BenchmarkReverseString` or just `Benchmark`.
 Tools displaying benchmark data conventionally omit the `Benchmark` prefix.
 The same benchmark name can appear on multiple result lines,
 indicating that the benchmark was run multiple times.
@@ -287,7 +291,7 @@ anticipated future work on benchmark reporting.
 
 The main known issue with the current `go test -bench` is that
 we'd like to emit finer-grained detail about runs, for linearity testing
-and more robust statistics.
+and more robust statistics (see [issue 10669](https://golang.org/issue/10669)).
 This proposal allows that by simply printing more result lines.
 
 Another known issue is that we may want to add custom outputs
