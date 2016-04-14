@@ -364,10 +364,10 @@ Examples:
 
 ```
 func [T] Sum(a, b T) T { return a + b }
-var v1 = Sum[int, int](0, 0)
-var v2 = Sum(0, 0)			// [int, int] deduced
+var v1 = Sum[int](0, 0)
+var v2 = Sum(0, 0)			// [int] deduced
 type [T] Cons struct { car, cdr T }
-var v3 = Cons{0, 0}			// [int, int] deduced
+var v3 = Cons{0, 0}			// [int] deduced
 type [T] Opaque T
 func [T] (a Opaque[T]) String() string {
 	return "opaque"
