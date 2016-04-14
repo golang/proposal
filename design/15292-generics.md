@@ -227,7 +227,7 @@ provided the downsides can be kept under control.
 The following documents are my previous generics proposals,
 presented for historic reference. All are flawed in various ways.
 
-* [Type functions](NNNN/2010-06-type-functions.md) (June 2010)
-* [Generalized types](NNNN/2011-03-gen.md) (March 2011)
-* [Generalized types](NNNN/2013-10-gen.md) (October 2013)
-* [Type parameters](NNNN/2013-12-type-params.md) (December 2013)
+* [Type functions](15292/2010-06-type-functions.md) (June 2010)
+* [Generalized types](15292/2011-03-gen.md) (March 2011)
+* [Generalized types](15292/2013-10-gen.md) (October 2013)
+* [Type parameters](15292/2013-12-type-params.md) (December 2013)
