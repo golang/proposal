@@ -113,7 +113,7 @@ Any implementation of generics in Go should support the following.
   with the slice’s element type.
 * Restrict the set of types that may be used to instantiate a generic type, to
   ensure that the generic type is only instantiated with types that support the
-* required operations.
+  required operations.
 * Do not require an explicit relationship between the definition of a generic
   type or function and its use.  That is, programs should not have to
   explicitly say *type T implements generic G*.
