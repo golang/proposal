@@ -480,7 +480,7 @@ package sample
 import (
 	"fmt"
 	"hashmap"
-	"os'
+	"os"
 )
 
 func hashint(i int) uint {
