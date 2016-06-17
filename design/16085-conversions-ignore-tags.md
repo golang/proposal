@@ -6,7 +6,7 @@ Created: June 16, 2016
 
 Last updated: June 16, 2016
 
-Discussion at https://golang.org/issue/16085
+Discussion at [issue 16085](https://golang.org/issue/16085)
 
 ## Abstract
 
@@ -39,7 +39,7 @@ Instead, every field must be copied manually, which leads to more source text,
 and less readable and possibly less efficient code.
 The code must also be adjusted every time the involved struct types change.
 
-https://github.com/golang/go/issues/6858 discusses this in more detail.
+[Issue 6858](https://github.com/golang/go/issues/6858) discusses this in more detail.
 rsc@golang and r@golang suggest that we might be able to relax the rules for
 structs such that struct tags are ignored for conversions, but not for struct
 identity.
@@ -77,8 +77,8 @@ Programs that manually copy all fields from one struct to another struct with
 identical type but for the (type name and) tags, will be able to use a single
 struct conversion instead.
 
-More importantly, with this change two different (type) views of the same struct
-value become possible via pointers of different types.
+More importantly, with this change two different (type) views of the same
+struct value become possible via pointers of different types.
 For instance, given:
 
 	type jsonPerson struct {
