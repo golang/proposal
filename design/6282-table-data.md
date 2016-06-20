@@ -2,9 +2,7 @@
 
 Author(s): Brendan Tracey, with input from the gonum team
 
-Last updated: November 24th, 2015
-
-Discussion at https://golang.org/issue/6282.
+Last updated: July 15th, 2016
 
 ## Abstract
 
@@ -24,11 +22,32 @@ continuous in memory and do not have a uniform length in each dimension.
 
 The table structure proposed here is a multi-dimensional slice of a
 multi-dimensional array.
-A table in N dimensions is accessed with N indices where each dimension is 
+A table in N dimensions is accessed with N indices where each dimension is
 bounds checked for safety.
 This proposal defines syntax for accessing and slicing, provides definitions for
 `make`, `len`, `cap`, `copy` and `range`, and discusses some additions to package
 reflect.
+
+## Previous discussions
+
+This proposal is a self-contained document, and these discussions are not
+necessary for understanding the proposal.
+These are here to provide a history of discussion on the subject.
+
+### About this proposal
+
+(Note that many changes have been made since the earlier discussions)
+1. [Issue 6282 -- proposal: spec: multidimensional slices:](https://golang.org/issue/6282.)
+2. [gonum-dev thread:](https://groups.google.com/forum/#!topic/gonum-dev/NW92HV_W_lY%5B1-25%5D)
+3. [golang-nuts thread: Proposal to add tables (two-dimensional slices) to go](https://groups.google.com/forum/#!topic/golang-nuts/osTLUEmB5Gk%5B1-25%5D)
+4. [golang-dev thread: Table proposal (2-D slices) on go-nuts](https://groups.google.com/forum/#!topic/golang-dev/ec0gPTfz7Ek)
+5. [golang-dev thread: Table proposal next steps](https://groups.google.com/forum/#!searchin/golang-dev/proposal$20to$20add$20tables/golang-dev/T2oH4MK5kj8/kOMHPR5YpFEJ)
+
+### Other related threads
+
+[golang-nuts thread -- Multi-dimensional arrays for Go. It's time](https://groups.google.com/forum/#!topic/golang-nuts/Q7lwBDPmQh4%5B1-25%5D)
+[golang-nuts thread -- Multidimensional slices for Go: a proposal](https://groups.google.com/forum/#!topic/golang-nuts/WwQOuYJm_-s)
+[golang-nuts thread -- Optimizing a classical computation in Go](https://groups.google.com/forum/#!topic/golang-nuts/ScFRRxqHTkY)
 
 ## Background
 
@@ -58,7 +77,7 @@ pain to being enjoyable to use.
 
 The desire for good matrix support is the motivation for this proposal, but
 matrices are not synonymous with tables. A matrix is composed of real or complex
-numbers and has well-defined operations (multiply, determinant, cholesky
+numbers and has well-defined operations (multiply, determinant, Cholesky
 decomposition).
 Tables, on the other hand, are merely a rectangular data container. A table can
 be of any dimension, hold any data type and do not have any of the additional
@@ -68,7 +87,7 @@ A matrix can be constructed on top of a table in an external package.
 A rectangular data container can find use throughout the Go ecosystem.
 A partial list is
 
-1. Image processing: An image canvas can be represented as a retangle of colors.
+1. Image processing: An image canvas can be represented as a rectangle of colors.
 Here the ability to efficiently slice in multiple dimensions is important.
 2. Machine learning: Typically feature vectors are represented as a row of a
 matrix. Each feature vector has the same length, and so the additional safety of
@@ -89,13 +108,15 @@ multi-dimensional array will increase the sphere of projects for which Go is ide
 In the end, tables are the pragmatic choice for supporting rectangular data.
 
 ### Language Workarounds
+
 There are several possible ways to emulate a rectangular data structure, each
 with its own downsides.
 This section discusses data in two dimensions, but similar problems exist for
 higher dimensional data.
 
 #### 1. Slice of slices
-Perhaps the most natural way to express a two-dimensional table in Go is to use 
+
+Perhaps the most natural way to express a two-dimensional table in Go is to use
 a slice of slices (for example `[][]float64`).
 This construction allows convenient accessing and assignment using the
 traditional slice access
@@ -134,6 +155,7 @@ some common operations like taking a subtable (the 2-d equivalent of slicing)
 are expensive on a slice of slice but are cheap in other representations.
 
 #### 2. Single array
+
 A second representation option is to contain the data in a single slice, and
 maintain auxiliary variables for the size of the table.
 The main benefit of this approach is speed.
@@ -146,7 +168,7 @@ Every access requires hand-writing the data access multiplication as well as han
 but not that the row and column bounds are respected).
 Not only is hand-written access error prone, but the integer multiply-add is
 much slower than compiler support for access.
-Furthermore, it is not clear from the data representation whether if the table
+Furthermore, it is not clear from the data representation whether the table
 is to be accessed in "row major" or "column major" format
 
 	v := a[i*stride + j]     // Row major a[i,j]
@@ -161,6 +183,7 @@ package writing and improve package inter-operation, but relying on library
 writers to follow unenforced convention is ripe for confusion and incorrect code.
 
 #### 3. Struct type
+
 A third approach is to create a struct data type containing a data slice and all
 of the data access information.
 The data is then accessed through method calls.
@@ -197,14 +220,14 @@ This is the approach used by go.matrix and gonum/matrix.
 		m.mat.Data[r*m.mat.Stride+c] = v
 	}
 
-From the user’s perspective:
+From the user's perspective:
 
 	v := m.At(i, j)
 	m.Set(i, j, v)
 
-The major benefits to this approach are that the data is encapsulated correctly
+The major benefits to this approach are that the data are encapsulated correctly
 -- the structure is presented as a table, and panics occur when either dimension
-is accessed out of bounds -- and that speed is preserved when doing commons
+is accessed out of bounds -- and that speed is preserved when doing common
 matrix operations (such as multiplication), as they can operate on the slice
 directly.
 
@@ -222,7 +245,7 @@ Legibility starts to erode, however, when used in more complicated expressions
 	// wise multiplication)
 	for i := 0; i < nRows; i++ {
 		for j := 0; j < nCols; j++{
-			c.Set(i,j, c.At(i,j) + a.At(i,j) * b.At(i,j))
+			c.Set(i, j, c.At(i,j) + a.At(i,j) * b.At(i,j))
 		}
 	}
 
@@ -254,6 +277,7 @@ cost; there are many codes where matrix operations dominate computational cost (
 consider a 10x slowdown when accessing millions of matrix elements).
 
 ### Benchmarks
+
 Two benchmarks were created to compare the representations: 1) a traditional
 matrix multiply, and 2) summing elements of the matrix that meet certain
 qualifications. The code can be found [here](http://play.golang.org/p/VsL5HGNYT4).
@@ -322,6 +346,7 @@ A native table type provides immediate speed improvements and opens to the
 door for further easily-recognizable optimization opportunities.
 
 ### Recap
+
 The following table summarizes the current state of affairs with tables in go
 
 |                | Correct Representation | Access/Assignment Convenience | Speed |
@@ -353,12 +378,13 @@ container.
 The term "matrix" implies the ability to do other mathematical operations (which
 will not be implemented at the language level).
 One may multiply a matrix; one may not multiply a table.
-Just as `[]T` is shorthand for a slice, `[,]T` is shorthand for a two-dimensional 
+Just as `[]T` is shorthand for a slice, `[,]T` is shorthand for a two-dimensional
 table, `[,,]T` a three-dimensional table, etc. (as will be clear later).
 
 ### Syntax (spec level specification)
 
 ### Allocation:
+
 A new table may be constructed either using the make built-in or as a table
 literal.
 The elements are guaranteed to be stored in a continuous array, and are
@@ -367,32 +393,33 @@ of two-dimensional arrays in Go.
 Specifically, for a two-dimensional table t with m rows and n columns, the
 elements are laid out as
 
-	[t11, t12, ... t1n, t21, t22, ... t2n ... , tm1, … tmn]
+	[t11, t12, ... t1n, t21, t22, ... t2n ... , tm1, ... tmn]
 
-Similarly, for a three-dimensional table with lengths m, n, and p, the data is 
+Similarly, for a three-dimensional table with lengths m, n, and p, the data is
 arranged as
 
 	[t111, t112, ... t11p, t121, ..., t12n, ... t211 ... , t2np, ... tmnp]
 
-Row major is the only acceptable layout. Tables can be constructed as multi-
-dimensional arrays which have been sliced, and the spec guarantees that multi-
-dimensional arrays are in row-major order.
+Row major is the only acceptable layout. Tables can be constructed as
+multi-dimensional arrays which have been sliced, and the spec guarantees that
+multi-dimensional arrays are in row-major order.
 Furthermore, guaranteeing a specific order allows code authors to reason about
 data layout for optimal performance.
 
 #### Using make:
+
 A new N-dimensional table (of generic type) may be allocated by using the make
 command with a mandatory argument of a [N]int specifying the length in each
 dimension, followed by an optional [N]int specifying the capacity in each
-dimension.
+dimension (rationale described in "Length / Capacity" section).
 If the capacity argument is not present, each capacity is defaulted to its
 respective length argument.
 These act like the length and capacity for slices, but on a per-dimension basis.
 The table will be filled with the zero value of the type
 
 	s := make([,]T, [2]int{m, n}, [2]int{maxm, maxn})
-	t := make([,]T, [2]int{m, n})
-	s2 := make([,,]T, [3]int{m, n, p}, [3]int{maxm, maxn, maxp})
+	t := make([,]T, [...]int{m, n})
+	s2 := make([,,]T, [...]int{m, n, p}, [...]int{maxm, maxn, maxp})
 	t2 := make([,,]T, [3]int{m, n, p})
 
 Calling make with a zero length or capacity is allowed, and is equivalent to
@@ -408,6 +435,7 @@ Specifically, the length and capacities for both are 0, 6, 4, and 0 in the
 dimensions, and the underlying data array contains 0 elements.
 
 #### Table literals
+
 A table literal can be constructed using nested braces
 
 	u := [,]T{{x, y, z}, {a, b, c}}
@@ -417,13 +445,13 @@ The size of the table will depend on the size of the brace sets, outside in.
 For example, in a two-dimensional table the number of rows is equal to the number
 of sets of braces, the number of columns is equal to the number of elements within
 each set of braces.
-In a three-dimensional table, the length of the first dimension is the number 
+In a three-dimensional table, the length of the first dimension is the number
 of sets of brace sets, etc.
 Above, u has length [2, 3], and v has length [2, 2, 4].
 It is a compile-time error if each brace layer does not contain the same number of
 elements.
 Like normal slices and arrays, key-element literal construction is allowed.
-For example, the two following constructions yeild the same result
+For example, the two following constructions yield the same result
 
 	[,]int{{0:1, 2:0},{1:1, 2:0}, {2:1}}
 	[,]int{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
@@ -447,6 +475,7 @@ Other combination operators are valid (assuming the table is of correct type)
 	              // constants)
 
 ### Slicing
+
 A table can be sliced using the normal 2 or 3 index slicing rules in each
 dimension, `i:j` or `i:j:k`.
 The same panic rules as slices apply (`0 <= i <= j <= k`, must be less than the
@@ -465,7 +494,126 @@ In
 
 t is a table with lengths 4 and 2, capacities 5 and 10, and a stride of 5.
 
+### Down-slicing
+
+An n-dimensional table may be "down-sliced" into a `k < n` dimensional table.
+This is similar to regular slicing, in that certain elements are no longer
+directly accessible, but is dissimilar to regular slicing in that the returned
+type is different from the sliced type.
+
+A down-slicing statement consists of a single index in the beginning `n-k`
+dimensions, and three-element slice syntax in the remaining `k` dimensions.
+In other words, the rules are asymmetric in that the leading dimensions contain
+single element indices, while the minor dimensions have three-element slice syntax.
+The returned table shares an underlying data slice with the sliced table, but
+with a new offset and updated lengths and capacities.
+
+	t2 := t[1,:] // t2 has type []T and contains the elements of the second row of t
+	t3 := t[4,7,:] // t3 has type []T and contains the elements of the 5th row
+	               // and 8th column of t.
+	t4 := t[3, 1:3, 1:5:6] // t3 has type [,]T
+	t5 := t[:,:,2] // Compile error: left-most indices must be specified
+
+Like slice expressions, either tables or multi-dimensional arrays may be down-sliced.
+Note that the limiting cases of down-slicing match other behaviors of tables.
+In the case where `k == n`, down-slicing is identical to regular slicing, and in
+the case where `k == 0`, down-slicing is just table access.
+
+#### Discussion
+
+Down-slicing increases the integration between tables and slices, and tables
+of different sizes with themselves.
+Down-slicing allows for copy-free passing of subsections of data to algorithms
+which require a lower-sized table or slice. For example,
+
+	func mean(s []float64) float64 {
+		var m float64
+		for _, v := range s {
+			m += v
+		}
+		return m / float64(len(s))
+	}
+
+	func means(t [,]float64) []float64 {
+		m := make([]float64, len(t)[0]) // syntax discussed below
+		for i := range m {
+			m[i] = mean(t[i,:])
+		}
+		return m
+	}
+
+A downside of this behavior is that the semantics are asymetric, in that
+sub-slices of a table can only be taken in certain dimensions.
+However, this is the only reasonable choice given how slices work in Go.
+The other two possibilities are to
+
+1. Modify the slice implementation to add a stride field
+2. Have a "1-D table" type which is the same as a slice but has a stride
+
+Option 1 would have huge ramifications on Go programs.
+It would add memory and cost to such a fundamental data structure, not to mention
+require changes to most low-level libraries.
+Option 2 is, in my opinion, harmful to the language.
+It will cause a gap between the codes that support strided slices and the codes
+that support non-strided slices, and may cause duplication of effort to support
+both forms (`2^N` effort in the worst case).
+On the whole, it will make the language less cohesive.
+Thus, any proposal that allows down-slicing has to be asymmetric to work with
+Go as it is today.
+Despite the asymmetry, the increase in language congruity merits the inclusion
+of down-slicing within the proposal.
+
+### Reshaping
+
+A new built-in `reshape` allows the data in a slice to be re-interpreted as a
+higher dimensional table in constant time.
+The pseudo-signature is `func reshape(s []T, [N]int) [,...]T` where `N`
+is an integer greater than one, and [,...]T is a table of dimension `N`.
+The returned table shares the same underlying data as the input slice, and is
+interpreted in the layout discussed in the "Allocation" section.
+The product of the elements in the `[N]int` must equal the length of the input
+slice or a run-time panic will occur.
+
+	s := []float64{0, 1, 2, 3, 4, 5, 6, 7}
+	t := reshape(s, [2]int{4,2})
+	fmt.Println(t[2,0]) // prints 4
+	t[1,0] = -2
+	t2 := reshape(s, [...]int{2,2,2})
+	fmt.Println(t3[0,1,0]) // prints -2
+	t3 := reshape(s, [...]int{2,2,2,2}) // runtime panic: reshape length mismatch
+
+#### Discussion
+
+There are several use cases for reshaping, as discussed in the
+[strided slices proposal](https://github.com/golang/go/issues/13253).
+However, arbitrary reshaping (as proposed in the previous link) does not compose
+with table slicing (discussed more below).
+This proposal allows for the common use case of transforming between linear and
+multi-dimensional data while still allowing for slicing in the normal way.
+
+Another possible syntax for reshape is discussed in
+[issue 395](https://github.com/golang/go/issues/395).
+Instead of a new built-in, one could use `t := s.([m1,m2,...,mn]T)`, where s
+is of type `[]T`, and the returned type is `[,...]T` with
+`len(t) == [n]int{m1, m2, ..., mn}`.
+As discussed in #395, the .() syntax is typically reserved for interface assertions.
+This isn't strictly overloaded, since []T is not an interface, but it could be
+confusing to have similar syntax represent similar ideas.
+The difference between s.([,]T) and s.([m,n]T) may be too large for how similar
+the expressions appear -- the first asserts that the value stored in the
+interface `s` is a [,]T, while the second reshapes a `[]T` into a `[,]T` with
+lengths equal to `m` and `n`.
+Initial discussion seems to suggest a new built-in is preferred to these
+subtleties.
+
+This proposal intentionally excludes the inverse operation, `unshape`.
+Extracting the linear data from a table is not compatible with slicing, as slicing
+makes the visible data no longer contiguous.
+If a user wants to re-interpret the data in several different sizes, the user
+can just maintain the original []T.
+
 ### Length / Capacity
+
 Like slices, the `len` and `cap` built-in functions can be used on a table.
 Len and cap take in a table and return a [N]int representing the lengths/
 capacities in the dimensions of the table.
@@ -475,7 +623,8 @@ capacities in the dimensions of the table.
 	nCols := len(t)[1]
 	maxElems := cap(t)[0] * cap(t)[1]
 
-#### Discussion:
+#### Discussion
+
 This behavior keeps the natural definitions of len and cap.
 There are four possible syntax choices
 
@@ -493,7 +642,7 @@ Second, it is easy to compare the lengths and capacities of the array with
 
 	len(x) == len(y)
 
-Finally, this behavior interacts well with make 
+Finally, this behavior interacts well with make
 
 	t2 := make([,,]T, len(t), cap(t))
 
@@ -506,19 +655,19 @@ One has to do
 
 Additionally, now the call to length requires a check that the second argument
 is less than the dimension of the table, and may panic if that check fails.
-There doesn’t seem to be any benefit gained by allowing this failure.
+There doesn't seem to be any benefit gained by allowing this failure.
 
 The third syntax possibility has the same weaknesses as the second. It's hard to
 compare table sizes, it can possibly fail at runtime, and does not mesh with make.
 
-The fourth option will always succeed, but again, it’s hard to compare the full
+The fourth option will always succeed, but again, it's hard to compare the full
 lengths of the tables
 
 	mx, nx, px, ... := len(x)
 	my, ny, py, ... := len(y)
 	rx == ry && cx == cy && px == py && ...
 
-Additionally, it’s hard to get any one specific length.
+Additionally, it's hard to get any one specific length.
 Such an ability is useful in for loops, for example
 
 	for i := 0; i < len(t)[0]; i++ {
@@ -532,9 +681,10 @@ For a 5-dimensional table,
 is pretty silly. It would be much better to return a `[5]int`.
 
 ### Copy
-There are two cases in copy for tables.
-The first is a table-table copy in which copy takes in two tables and returns a
-[N]int specifying the number of elements that were copied in each dimension.
+
+The built-in `copy` will be changed to allow two tables of equal dimension.
+Copy returns an `[N]int` specifying the number of elements that were copied in each
+dimension.
 
 	n := copy(dst, src)   // n is a [N]int
 
@@ -547,53 +697,38 @@ Copy will copy all of the elements in the subtable from the first dimension to
 	n := copy(dst, src) // n == [2]int{5, 8}
 	fmt.Println("All destination elements were overwritten:", n == len(dst))
 
-The second case is a copy between a single dimension of a table and either a
-slice or another table single dimension.
-The dimension of the table to copy will be specified with a single integer in
-one dimension, and a two-index slice formation in the other dimension.
-In this case, the number of elements copied is to the minimum length along the
-copying dimension.
-Copy will return an integer stating this number.
-In the case of slice-table copy, the element-type must be the same.
+Down-slicing can be used to copy data between tables of different dimension.
 
 	slice := []int{0, 0, 0, 0, 0}
 	table := [,]int{{1,2,3}, {4,5,6}, {7,8,9}, {10,11,12}}
 	copy(slice, table[1,:])    // Copies all the whole second row of the table
 	fmt.Println(slice)  // prints [4 5 6 0 0]
-	copy(table[1:, 2], slice[1:])  // copies elements 1:4 of the slice into the
-	                               // 3rd table column
-	fmt.Println(table)  // prints  [[1 2 3] [4 5 5] [7 8 6] [10 11 0]]
 	copy(table[2,:], table[1,:]) // copies the second row into the third row
-	fmt.Println(table)  // prints  [[1 2 3] [4 5 5] [4 5 5] [10 11 0]]
 
 #### Discussion
-The table-table copy seems like the only reasonable extension to copy for tables.
 
-The single dimension copy is required because it is very common to want to
-extract data along a specific dimension of a table.
-It does increase the complexity of copy, as there needs to be an implementation
-of runtime·copyn that handles strided copying (more than just memmove).
-However, this implementation is already required for a table-table copy, and the
-special case greatly improves the compatibility of slices and tables thus
-meriting its inclusion.
+For similar reasons as `len` and `cap`, returning an [N]int is the best option.
 
 ### Range
-Range allows for efficient iteration along a fixed location in a single
-dimension of a table, for example the (elements of the) third column.
-The expression list of the range statement may have one or two items that
-represent the index and the table value along the fixed location respectively.
+
+Range allows for efficient iteration along a fixed axis of the table,
+for example the (elements of the) third column.
+
+The expression list on the left hand side of the range clause may have one or
+two items that represent the index and the table value along the fixed location
+respectively.
 This fixed dimension is specified similarly to copy above -- one dimension of
 the table has a single integer specifying the row or column to loop over, and
 the other dimension has a two-index slice syntax.
 Optionally, if there is only one element in the expression list, the fixed
-integer may be omitted.
-It is a compile-time error if the expression list has two elements but the fixed
-integer is omitted.
-It is also a compile-time error if the single integer is a negative constant,
-and a runtime panic will occur if the fixed integer is out of bounds of the
+integer may be omitted (see examples).
+It is a compile-time error if the left hand expression list has two elements
+but the fixed integer is omitted.
+It is also a compile-time error if the specifying integer on the right hand side
+is a negative constant, and a runtime panic will occur if the fixed integer is out of bounds of the
 table in that dimension.
 To help with legibility, gofmt will format such that there is a space between
-the comma and the bracket when the fixed index is omitted, i.e. `[:, ]` and 
+the comma and the bracket when the fixed index is omitted, i.e. `[:, ]` and
 `[ ,:]`, not `[:,]` and `[,:]`.
 
 #### Examples
@@ -616,7 +751,7 @@ Two-dimensional tables.
 		fmt.Println(i)
 	}
 	// Sum the rows of the table
-	rowsum := make([]int, len(table,1))
+	rowsum := make([]int, len(table)[1])
 	for i = range table[:, ]{
 		for _, v = range table[i,:]{
 			rowsum[i] += v
@@ -635,7 +770,7 @@ Two-dimensional tables.
 Higher-dimensional tables
 
 	table := [,,]int{{{1, 2, 3, 4}, {5, 6, 7, 8}}, {{9, 10, 11, 12}, {13, 14, 15, 16}}}
-	for i, v := range [1,:, 3]{
+	for i, v := range [1,:,3]{
 		fmt.Println(i, v) // i ranges from 0 to 1, v will be 12, 16
 	}
 	for i := range [ , ,:]{
@@ -643,6 +778,7 @@ Higher-dimensional tables
 	}
 
 #### Discussion
+
 This description of range mimics that of slices.
 It permits a range clause with one or two values, where the type of the second
 value is the same as that of the elements in the table.
@@ -651,6 +787,28 @@ the elements in a single row or column).
 Such a proposal (where the value is `[]T` instead of just `T`) would have O(n) run
 time in the length of the table dimension and could create significant extra
 garbage.
+
+Much of the proposed range behavior follows naturally from the specification
+of down-slicing and the behavior of range over slices.
+In particular, the line
+
+	for i, v := range t[0,:]
+
+follows the proposed behavior here without any additional specification.
+The behavior specified here is special in two ways.
+First, this range behavior does not require an index to be specified in the
+down-slicing-like expression.
+This is discussed in detail below.
+Second, the "range + down-slicing" discussed above can only be used to range
+over the minor dimension in the table.
+It is very common to want to loop over the other dimensions as well.
+It is of course possible to loop over the major dimension without a range
+statement
+
+	for i := 0; i < len(t)[0]; i++ {}
+
+but these kinds of loops seem sufficiently common to merit special treatment,
+especially since it reduces the asymmetry in the dimensions.
 
 The option to omit specific dimensions is necessary to allow for nice
 behavior when the length of the table is zero in the relevant dimension.
@@ -683,13 +841,13 @@ be a problem for most programmers.
 There are four ways one may range over a two-dimensional table:
 
 1. `for i := range t[:, ]`
-2. `for i := range t[ ,:]`
-3. `for i, v := range t[x,:]`
-4. `for i, v := range t[:,x]`
+2. `for j := range t[ ,:]`
+3. `for j, v := range t[i,:]`
+4. `for i, v := range t[:,j]`
 
 These all seem reasonably distinct from one another.
-With the gofmt space enforcement, It’s clear which side of the comma the colon
-is on, and it’s clear whether or not a value is present.
+With the gofmt space enforcement, It's clear which side of the comma the colon
+is on, and it's clear whether or not a value is present.
 Furthermore, anyone attempting to read code involving tables will need to know
 which dimension is being looped over, and anyone debugging such code will
 immediately check that the the correct dimension has been looped over.
@@ -697,14 +855,15 @@ immediately check that the the correct dimension has been looped over.
 Lastly, this range syntax is very robust to user error.
 All of the following are compile errors:
 
-	for i := range t            // Error: expected "[" when ranging over table
-	for i, v := range t[:, ]    // Error: column unspecified when using two-
-	                            // element syntax
-	for i := range t[ , ]       // Error: no ranging dimension specified
+	for i := range t            // error: no table axis specified.
+	for i, v := range t[:, ]    // error: column unspecified when ranging with
+								// index and value.
+	for i := range t[ , ]       // error: no ranging dimension specified
 
-Note in particular that while the omission is technically optional, an extra
-omission is a compile-time error, and not omitting when one could will have no
-effect on program behavior as long as the specified index is in-bounds.
+It can be seen that while the omission is technically optional, it does not
+complicate programs.
+An unnecessary omission has no effect on program behavior as long as the index
+is in-bounds, and disallowed omissions are compile-time errors.
 
 Instead of the optional omission, using an underscore was also considered, for
 example,
@@ -713,7 +872,7 @@ example,
 
 This has the benefit that the programmer must specify something for every
 dimension, and this usage matches the spirit of underscore in that "the specific
-column doesn’t matter".
+column doesn't matter".
 This was rejected for fear of overloading underscore, but remains a possibility
 if such overloading is acceptable.
 Similarly, "-" could be used, but is overloaded with subtraction.
@@ -793,48 +952,20 @@ and gonum/lapack to assist with testing the implementation.
 
 ### Non-goals
 
-This proposal intentionally omits many behaviors put forth in Norman’s proposal.
-This is not to say those proposals can’t ever be added (nor does it imply that
-they will be added), but that they provide additional complications and, in my
-opinion, do not pull their weight for an initial implementation.
-
-### Down-slicing
-Norman’s proposal suggested the allowance of "down-slicing", where one could
-turn, say, a table into a slice with a single element slicing operation
-
-	slice := table[1,2:10]   // creates a slice of length 8 using the elements
-	                         // from row 1 of the table
-
-In my opinion, this feature would be nice, but it either requires one of three
-things
-
-1. Asymmetry in spec (`t[1,2:10]` is allowed but not `t[2:10,1]`)
-2. Modification of the slice implementation to add a stride field
-3. Have a "1-D table" type which is the same as a slice but has a stride
-
-Option 3 is, in my opinion, harmful to the language.
-It will cause a gap between the codes that support strided slices and the codes
-that support non-strided slices, and may cause duplication of effort to support
-both forms (2^N effort in the worst case).
-On the whole, it will make the language less cohesive.
-Option 1 is a possibility, as it reflects the underlying row-major
-implementation of the data (required by the spec).
-That said, it could be confusing for users of the language.
-Option 2 would be a significant change to the language, adding memory and cost
-to a fundamental data structure.
-Such a change would require more commentary and analysis from the community at
-large.
-In any event, nothing in the proposal prevents any of these options, and it is
-better to avoid making a change than to add something that must be kept forever.
-This decision can be put off until a later discussion.
+This proposal intentionally omits several suggested behaviors.
+This is not to say those proposals can't ever be added (nor does it imply that
+they will be added), but that they provide additional complications and can be
+part of a separate proposal.
 
 ### Append
-Like Norman’s proposal, this proposal does not allow append to be used with
-tables. This is mainly a matter of syntax. Can you append a table to a table or
-just add to a single dimension at a time? What would the syntax be? 
-Again, better to leave for later.
+
+This proposal does not allow append to be used with tables.
+This is mainly a matter of syntax.
+Can you append a table to a table or just add to a single dimension at a time?
+What would the syntax be?
 
 ### Arithmetic Operators
+
 Some have called for tables to support arithmetic operators (+, -, *) to also
 work on `[,]Numeric` (`int`, `float64`, etc.), for example
 
@@ -843,7 +974,7 @@ work on `[,]Numeric` (`int`, `float64`, etc.), for example
 	c := a*b
 
 While operators can allow for very succinct code, they do not seem to fit in Go.
-Go’s arithmetic operators only work on numeric types, they don’t work on slices.
+Go's arithmetic operators only work on numeric types, they don't work on slices.
 Secondly, arithmetic operators in Go are all fast, whereas the operation above
 is many orders of magnitude more expensive than a floating point multiply.
 Finally, multiplication could either mean element-wise multiplication, or
@@ -853,8 +984,9 @@ additional operators to be added (such as `.*`).
 Especially in terms of clock cycles per character, `c.Mul(a,b)` is not that bad.
 
 ## Conclusion
+
 Matrices are widely used in numerical algorithms, and have been used in
-computing almost as long as there have been computers.
+computing arguably even before there were computers.
 With time and effort, Go could be a great language for numerical computing (for
 all of the same reasons it is a great general-purpose language), but first it
 needs a rectangular data structure, a "table", built into the language as a
@@ -877,12 +1009,8 @@ huge benefit, but instead a request for safety and speed; the desire to build
 | Built-in       | ✓                      | ✓                             | ✓     |
 
 ## Open issues
-Since this was originally proposed, a few issues have come to light.
 
-1. Given the desire for 'all-at-once' changes rather than incremental changes
-(which was the belief at the time of writing), it's worth thinking about
-down-slicing.
-This would likely be option 1 in the non-goals.
-2. In the discussion, it was mentioned that adding a TableHeader is a bad idea.
+1. In the discussion, it was mentioned that adding a TableHeader is a bad idea.
 This can be removed from the proposal, but some other mechanism should be added
 that allows data in tables to be passed to C.
+2. The "reshaping" syntax as discussed above.
