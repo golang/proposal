@@ -94,9 +94,9 @@ we will be able to access a value of *jsonPerson type
 	person := new(jsonPerson)
 	// some code that populates person
 
-as a *Txml:
+as an *xmlPerson:
 
-	alias := (*xmlPerson)(&person)
+	alias := (*xmlPerson)(person)
 	// some code that uses alias
 
 This may eliminate the need to copy struct values just to change the tags.
