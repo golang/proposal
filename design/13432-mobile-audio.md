@@ -148,10 +148,16 @@ type FrameInfo struct {
 //
 // FrameInfo returns the basic frame information about the clip audio.
 //
+// Seek seeks (offset*framesize*channels) byte in the source audio data.
+// Seeking to negative offsets are illegal.
+// An error is returned if the offset is out of the bounds of the
+// audio data source.
+//
 // Size returns the total number of bytes of the underlying audio data.
 // TODO(jbd): Support cases where size is unknown?
 type Clip interface {
-    Frames(buf []byte, offset int64) (n int, err error)
+    Frames(buf []byte) (n int, err error)
+    Seek(offset int64) (error)
     FrameInfo() FrameInfo
     Size() int64
 }
