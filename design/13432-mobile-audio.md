@@ -1,6 +1,6 @@
 # Proposal: Audio for Mobile
 
-Author: Burcu Dogan
+Author: Jaana Burcu Dogan
 
 With input from David Crawshaw, Hyang-Ah Kim and Andrew Gerrand.
 
@@ -142,9 +142,9 @@ type FrameInfo struct {
 // Clip can seek and read a small number of frames to allow users to
 // consume a small section of the underlying audio data.
 //
-// Frames return audio frames up to a number that can fit into the buf by
-// seeking to offset. n is the total number of returned frames. err is
-// io.EOF if there are no frames left to read.
+// Frames return audio frames up to a number that can fit into the buf.
+// n is the total number of returned frames.
+// err is io.EOF if there are no frames left to read.
 //
 // FrameInfo returns the basic frame information about the clip audio.
 //
