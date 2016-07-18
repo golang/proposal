@@ -1,15 +1,21 @@
 # Proposal: Alias declarations for Go
 
 Authors: Robert Griesemer & Rob Pike.
-Last updated: June 31, 2016
+Last updated: July 18, 2016
 
 Discussion at https://golang.org/issue/16339.
 
 ## Abstract
 We propose to add alias declarations to the Go language. An alias declaration
 introduces an alternative name for an object (type, function, etc.) declared
-elsewhere. Aliases simplify splitting up packages because clients can be
-updated incrementally, which is crucial for large-scale refactoring.
+elsewhere. Alias declarations simplify splitting up packages because clients
+can be updated incrementally, which is crucial for large-scale refactoring.
+They also facilitate multi-package "components" where a top-level package
+is used to provide a component's public API with aliases referring to the
+componenent's internal packages. Alias declarations are
+important for the Go implementation of the "import public" feature of Google
+protocol buffers. They also provide a more fine-grained and explicit
+alternative to "dot-imports".
 
 ## 1. Motivation
 Suppose we have a library package L and a client package C that depends on L.
@@ -99,7 +105,7 @@ everything else.
 To address these issues with a single, unified mechanism, we propose a new
 form of declaration in Go, called an alias declaration. As the name suggests,
 an alias declaration introduces an alternative name for a given object that
-has been declared elsewhere, possibly in a different package.
+has been declared elsewhere, in a different package.
 
 An alias declaration in package L makes it possible to move the original
 declaration of an object X (a constant, type, variable, or function) from
@@ -108,9 +114,7 @@ Both L.X and L1.X denote the exact same object (L1.X).
 
 Note that the two predeclared types byte and rune are aliases for the
 predeclared types uint8 and int32. Alias declarations will enable users
-to define their own aliases, and byte and rune can then be defined
-internally using this general language mechanism rather than rely on
-built-in “magic” only available to the implementation.
+to define their own aliases, similar to byte and rune.
 
 ## 3. Notation
 The existing declaration syntax for constants effectively permits
@@ -135,56 +139,61 @@ has a given (and different) meaning in variable declarations:
 var V = L1.V  // V is initialized to L1.V
 ```
 
-Instead of "=" we propose the new alias operator  "->"  to solve the
+Instead of "=" we propose the new alias operator "=>" to solve the
 syntactic issue:
 
 ```
-const C -> L1.C  // for regularity only, same effect as const C = L1.C
-type  T -> L1.T  // T is an alias for type L1.T
-var   V -> L1.V  // V is an alias for variable L1.V
-func  F -> L1.F  // F is an alias for function L1.F
+const C => L1.C  // for regularity only, same effect as const C = L1.C
+type  T => L1.T  // T is an alias for type L1.T
+var   V => L1.V  // V is an alias for variable L1.V
+func  F => L1.F  // F is an alias for function L1.F
 ```
 
 With that, a general alias specification is of the form:
 
-AliasSpec = identifier "->" [ PackageName "." ] identifier .
+AliasSpec = identifier "=>" PackageName "." identifier .
 
-An alias declaration may refer to another alias, as in:
+Per the discussion at https://golang.org/issue/16339, and based on feedback
+from adonovan@golang, to avoid abuse, alias declarations may refer to imported
+and package-qualified objects only (no aliases to local objects or
+"dot-imports").
+Furthermore, they are only permitted at the top (package) level,
+not inside a function.
 
-```
-type T1 -> L1.T  // T1 is an alias for L1.T
-type T2 -> T1    // T2 is an alias for L1.T
-```
+These restriction do not hamper the utility of aliases for the intended
+use cases. Both restrictions can be trivially lifted later if so desired;
+we start with them out of an abundance of caution.
 
-The lhs identifier (T1, T2 in the example above) in an alias declaration is
-called the alias name (or alias for short). For each alias name there is an
-original name (or original for short), which is the non-alias name declared
-for a given object (here L1.T).
+An alias declaration may refer to another alias.
+
+The LHS identifier (C, T, V, and F in the examples above) in an alias
+declaration is called the _alias name_ (or _alias_ for short). For each alias
+name there is an _original name_ (or _original_ for short), which is the
+non-alias name declared for a given object (e.g., L1.T in the example above).
 
 Some more examples:
 
 ```
-import "math"
 import "oldp"
 
-var v -> oldp.V  // local alias, not exported
+var v => oldp.V  // local alias, not exported
 
+// alias declarations may be grouped
 type (
-	T1 -> oldp.T1  // original for T1 is oldp.T1
-	T2 -> T1       // original for T2 is oldp.T1
+	T1 => oldp.T1  // original for T1 is oldp.T1
+	T2 => oldp.T2  // original for T2 is oldp.T2
+	T3    [8]byte  // regular declaration may be grouped with aliases
 )
 
-var (
-	V1 -> oldp.V1
-	V2 T2  // same effect as: var V2 oldp.T1
-)
+var V2 T2  // same effect as: var V2 oldp.T2
 
-func myF -> oldp.F  // local alias, not exported
-func G   -> oldp.G
+func myF => oldp.F  // local alias, not exported
+func G   => oldp.G
+
+type T => oldp.MuchTooLongATypeName
 
 func f() {
-	type T -> muchTooLongATypeName
-	x := T{}  // same effect as: x := muchTooLongATypeName{}
+	x := T{}  // same effect as: x := oldp.MuchTooLongATypeName{}
 	...
 }
 ```
@@ -198,18 +207,24 @@ See Appendix A1 for details.
 The short variable declaration form (using ":=") cannot be used to
 declare an alias.
 
-Discussion: Introducing a new operator ("->") has the advantage of not
+Discussion: Introducing a new operator ("=>") has the advantage of not
 needing to introduce a new keyword (such as "alias"), which we can't really
 do without violating the Go 1 promise (though r@golang and rsc@golang observe
 that it would be possible to recognize "alias" as a keyword at the package-
 level only, when in const/type/var/func position, and as an identifier
-otherwise, and probably not break existing code). As proposed, it also means
-that an alias declaration must specify what kind of object the alias refers
-to (const, type, var, or func), which we think is an advantage: It makes it
-clear to a user what the alias denotes (as with existing declarations); and
-it also makes it possible to report an error at the type of the alias
-declaration if the aliased object changes (e.g., from being a constant to a
-variable) rather than only at where the alias is used.
+otherwise, and probably not break existing code).
+
+The token sequence "=" ">" (or "==" ">") is not a valid sequence in a Go
+program since ">" is a binary operator that must be surrounded by operands,
+and the left operand cannot end in "=" or "==". Thus, it is safe to introduce
+"=>" as a new token sequence without invalidating existing programs.
+
+As proposed, an alias declaration must specify what kind of object the alias
+refers to (const, type, var, or func). We believe this is an advantage:
+It makes it clear to a user what the alias denotes (as with existing
+declarations). It also makes it possible to report an error at the location
+of the alias declaration if the aliased object changes (e.g., from being a
+constant to a variable) rather than only at where the alias is used.
 
 On the other hand, mdempsky@golang points out that using a keyword would
 permit making changes in a package L1, say change a function F into a type F,
@@ -248,76 +263,58 @@ would need to end up in package scope. (It would be odd if they ended up in
 file scope: the same alias may have to be imported in multiple files of the
 same package, possibly with different names.)
 
-The choice of symbol ("->") is somewhat arbitrary, but both "A -> B" and
-"A => B" conjure up the image of a reference or forwarding from A to B.
-Furthermore, "->" is also used in Unix directory listings for symbolic links,
-where the lhs is another name (an alias) for the file mentioned on the rhs.
+The choice of token ("=>") is somewhat arbitrary, but both "A => B" and
+"A -> B" conjure up the image of a reference or forwarding from A to B.
+The token "->" is also used in Unix directory listings for symbolic links,
+where the lhs is another name (an alias) for the file mentioned on the RHS.
 
 dneil@golang and r@golang observe that if "->" is written "in reverse" by
 mistake, a declaration "var X -> p.X" meant to be an alias declaration is
 close to a regular variable declaration "var X <-p.X" (with a missing "=");
 though it wouldn’t compile.
 
-adonovan@golang points out that we could permit aliases only to imported
-(explicitly package-qualified or dot-imported) identifiers to start with.
-This would solve the immediate problem at hand and still allow the more
-general form eventually. It may also mean less work during declaration cycle
-detection.
+Many people expressed a preference for "=>" over "->" on the tracking issue.
+The argument is that "->" is more easily confused with a channel operation.
+A few people would like to use "@" (as in _@lias_). For now we proceed with
+"=>" - the token is trivially changed down the road if there is strong general
+sentiment or a convincing argument for any other notation.
 
 ## 3. Semantics and rules
 An alias declaration declares an alternative name, the alias, for a constant,
-type, variable, or function, referred to by the rhs of the alias declaration.
-The rhs must be a (possibly package-qualified) identifier; it may itself be an
-alias, or it may the original name for the aliased object.
+type, variable, or function, referred to by the RHS of the alias declaration.
+The RHS must be a package-qualified identifier; it may itself be an alias, or
+it may be the original name for the aliased object.
+
+Alias cycles are impossible by construction since aliases must refer to fully
+package-qualified (imported) objects and package import cycles are not
+permitted.
 
 An alias denotes the aliased object, and the effect of using an alias is
-indistinguishable from the effect of using the original; the only difference
-is the name.
+indistinguishable from the effect of using the original; the only visible
+difference is the name.
+
+An alias declaration may only appear at the top- (package-) level where it
+is valid to have a keyword-based constant, type, variable, or function
+declaration. Alias declarations may be grouped.
 
 The same scope and export rules (capitalization for export) apply as for all
-other identifiers.
+other identifiers at the top-level.
 
-An alias declaration may be used wherever it is valid to have a keyword-based
-constant, type, variable, or function declaration. In particular, alias
-declarations may be grouped and aliases may refer to locally declared objects.
+The scope of an alias identifier at the top-level is the package block
+(as is the case for an identifier denoting a constant, type, variable,
+or function).
 
-The scope of an alias identifier at the top-level (outside any function) is
-the package block (as is the case now for an identifier denoting a constant,
-type, variable, or function). The scope of an alias identifier inside a
-function begins at the end of the alias specification and ends at the end of
-the innermost block (analogous to what is the case now for local declarations).
+An alias declaration may refer to unsafe.Pointer, but not to any of the unsafe
+functions.
 
-An alias declaration may refer to any predeclared type including
-unsafe.Pointer, but not to any other predeclared object in the Universe scope
-(true, false, nil, iota, or any of the predeclared functions) nor any function
-of package unsafe (unsafe.Alignof, unsafe.Offsetof, unsafe.Sizeof).
+A package is considered "used" if any imported object of a package is used.
+Consequently, declaring an alias referring to an object of an package marks
+the package as used.
 
-An alias may refer to another alias, but cycles are forbidden. The existing
-lexical rules for cycle detection will serve for aliases as well.
-
-A variable “used” via an alias is considered “used” as if it were accessed by
-its original name.
-
-Discussion: The main reason for permitting aliases to predeclared types is
-regularity - we already implement byte and rune type aliases and the
-mechanisms for it exist already. There is no inherent difficulty in permitting
-aliases for the predeclared values nil, true, and false. However, due to the
-special meaning of nil it seems unwise to permit aliases to nil. The same is
-true for iota. The values true and false are constants, so aliases (as unwise
-as they may be) are already possible with constant declarations. Predeclared
-functions such as new or append (and others) are not regular functions; new
-takes a type argument, and append has a generic signature. These function
-types cannot be expressed via ordinary function signatures. If an alias to
-such a function were exported it would require a new mechanism to export these
-functions. Extra machinery for a questionable use case does not seem
-justifiable.
-
-For purposes of implementation, unsafe.Pointer and the functions in package
-unsafe are treated like any of the other predeclared objects. It is already
-possible to declare a new type P with unsafe.Pointer as its underlying type,
-export P, and then use that P in another package to convert any pointer type
-to P, which then further can be converted to an uintptr. Thus restricting
-aliases in some way for unsafe.Pointer is not a meaningful restriction.
+Discussion: The original proposal permitted aliases to any (even local)
+objects and also to predeclared types in the Universe scope. Furthermore,
+it permitted alias declarations inside functions. See the tracking issue
+and earlier versions of this document for a more detailed discussion.
 
 ## 4. Impact on other libraries and tools
 Alias declarations are a source-level and compile-time feature, with no
@@ -384,6 +381,23 @@ so that tools such as guru have access to the alias names.
 
 To be prototyped.
 
+## 6. Other use cases
+Alias declarations facilitate the construction of larger-scale libraries or
+"components". For organizational and size reasons it often makes sense to split
+up a large library into several sub-packages. The exported API of a sub-package
+is driven by internal requirements of the component and may be only remotely
+related to its public API. Alias declarations make it possible to "pull out"
+the relevant declarations from the various sub-packages and collect them in
+a single top-level package that represents the component's API.
+The other packages can be organized in an "internal" sub-directory,
+which makes them virtually inaccessible through the `go build` command (they
+cannot be imported).
+
+TODO(gri): Expand on use of alias declarations for protocol buffer's
+"import public" feature.
+
+TODO(gri): Expand on use of alias declarations instead of "dot-imports".
+
 # Appendix
 
 ## A1. Syntax changes
@@ -391,7 +405,7 @@ The syntax changes necessary to accommodate alias declarations are limited
 and concentrated. There is a new declaration specification called AliasSpec:
 
 ```
-AliasSpec = identifier "->" [ PackageName "." ] identifier .
+AliasSpec = identifier "=>" PackageName "." identifier .
 ```
 
 An AliasSpec binds an identifier, the alias name, to the object (constant,
