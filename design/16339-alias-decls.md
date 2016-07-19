@@ -406,9 +406,7 @@ TODO(gri): Expand on use of alias declarations instead of "dot-imports".
 The syntax changes necessary to accommodate alias declarations are limited
 and concentrated. There is a new declaration specification called AliasSpec:
 
-```
-AliasSpec = identifier "=>" PackageName "." identifier .
-```
+**AliasSpec = identifier "=>" PackageName "." identifier .**
 
 An AliasSpec binds an identifier, the alias name, to the object (constant,
 type, variable, or function) the alias refers to. The object must be specified
@@ -418,22 +416,18 @@ constant, type, variable, of function declaration.
 
 Alias specifications may be used with any of the existing constant, type,
 variable, or function declarations. The respective syntax productions are
-extended as follows, with the extensions marked in red:
+extended as follows, with the extensions marked in bold:
 
-```
 ConstDecl = "const" ( ConstSpec | "(" { ConstSpec ";" } ")" ) .
-ConstSpec = IdentifierList [ [ Type ] "=" ExprList ] | AliasSpec .
+ConstSpec = IdentifierList [ [ Type ] "=" ExprList ] **| AliasSpec** .
 
 TypeDecl  = "type" ( TypeSpec | "(" { TypeSpec ";" } ")" ) .
-TypeSpec  = identifier Type | AliasSpec .
+TypeSpec  = identifier Type **| AliasSpec** .
 
 VarDecl   = "var" ( VarSpec | "(" { VarSpec ";" } ")" ) .
-VarSpec   = IdentList ( Type [ "=" ExprList ] | "=" ExprList ) |
-            AliasSpec .
+VarSpec   = IdentList ( Type [ "=" ExprList ] | "=" ExprList ) **| AliasSpec** .
 
-FuncDecl  = "func" FunctionName ( Function | Signature ) |
-            "func" AliasSpec .
-```
+FuncDecl  = "func" FunctionName ( Function | Signature ) **| "func" AliasSpec** .
 
 ## A2. Alternatives to this proposal
 For completeness, we mention several alternatives.
