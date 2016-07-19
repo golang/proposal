@@ -151,7 +151,9 @@ func  F => L1.F  // F is an alias for function L1.F
 
 With that, a general alias specification is of the form:
 
+```
 AliasSpec = identifier "=>" PackageName "." identifier .
+```
 
 Per the discussion at https://golang.org/issue/16339, and based on feedback
 from adonovan@golang, to avoid abuse, alias declarations may refer to imported
