@@ -371,7 +371,7 @@ representation may have an impact on the go/types API and potentially affect
 many tools. For instance, type switches assuming only the kinds of objects now
 in existence in go/types would need to be extended to handle aliases, should
 they show up in the public API. The go/types’ Info.Uses map, which currently
-mapes identifiers to objects, will require especial attention: Should it record
+maps identifiers to objects, will require especial attention: Should it record
 the alias to object references, or only the original names?
 
 At first glance, since an alias is simply another name for an object, it would
