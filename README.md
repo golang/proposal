@@ -71,7 +71,7 @@ examples of recent language changes.)
 	- In Go development historically, a lack of agreement means the
 	  author should write a design doc.
 	- If there is disagreement about whether there is agreement,
-	  [adg@](mailto:adg@golang.org) is the arbiter.
+	  [rsc@](mailto:rsc@golang.org) is the arbiter.
 
 - It's always fine to label a suggestion issue with Proposal to opt in to this process.
 
@@ -105,7 +105,7 @@ examples of recent language changes.)
 	- The discussion is expected to be resolved in a timely manner.
 	- In Go development historically, a lack of agreement means decline.
 	- If there is disagreement about whether there is agreement,
-	  [adg@](mailto:adg@golang.org) is the arbiter.
+	  [rsc@](mailto:rsc@golang.org) is the arbiter.
 
 - The author (and/or other contributors) do the work as described by the
   "Implementation" section of the proposal.
@@ -134,8 +134,6 @@ If you need help with this process, please contact the Go contributors by postin
 to the [golang-dev mailing list](https://groups.google.com/group/golang-dev).
 (Note that the list is moderated, and that first-time posters should expect a
 delay while their message is held for moderation.)
-
-If you want to talk to someone off-list, contact Andrew Gerrand at <adg@golang.org>.
 
 To learn about contributing to Go in general, see the
 [contribution guidelines](https://golang.org/doc/contribute.html).
