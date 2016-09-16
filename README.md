@@ -103,9 +103,9 @@ examples of recent language changes.)
 	- The goal of the final discussion is to reach agreement on the next step:
 		(1) accept or (2) decline.
 	- The discussion is expected to be resolved in a timely manner.
-	- In Go development historically, a lack of agreement means decline.
-	- If there is disagreement about whether there is agreement,
-	  [rsc@](mailto:rsc@golang.org) is the arbiter.
+	- If clear agreement cannot be reached, the arbiter
+	  ([rsc@](mailto:rsc@golang.org)) reviews the discussion
+	  and makes the decision to accept or decline.
 
 - The author (and/or other contributors) do the work as described by the
   "Implementation" section of the proposal.
