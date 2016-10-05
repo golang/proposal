@@ -87,47 +87,47 @@ type JSONResult struct {
     // nor upper case characters (as defined by unicode.IsUpper).
     // Conventionally, multiword keys are written with the words separated by hyphens,
     // as in cpu-speed.
-    Configuration map[string]string
+    Configuration map[string]string  `json:",omitempty"`
 
     // Package is a full name of the package containing the test/benchmark.
     // It is zero iff Name is zero.
-    Package string  `json:",omitempty"
+    Package string  `json:",omitempty"`
     // Name is the name of the test/benchmark that this JSONResult is about.
     // It can be empty if JSONResult describes global state, such as
     // Configuration or Stdout/Stderr.
-    Name    string  `json:",omitempty"
+    Name    string  `json:",omitempty"`
     // State is the current state of the test/benchmark.
     // It is non-zero iff Name is non-zero.
-    State   State   `json:",omitempty"
+    State   State   `json:",omitempty"`
     // Procs is the value of runtime.GOMAXPROCS for this test/benchmark run.
     // It is specified only in the first JSONResult of a test/benchmark.
-    Procs   int     `json:",omitempty"
+    Procs   int     `json:",omitempty"`
     // Log is log created by calling Log or Logf functions of *T or *B.
     // A JSONResult with Log is emitted by go test as soon as possible.
     // First occurrence of test/benchmark does not contain logs.
-    Log     string  `json:",omitempty"
+    Log     string  `json:",omitempty"`
 
     // Benchmark contains benchmark-specific details.
     // It is emitted in the final JSONResult of a benchmark with a terminal
     // State if the benchmark does not have sub-benchmarks.
-    Benchmark *BenchmarkResult  `json:",omitempty"
+    Benchmark *BenchmarkResult  `json:",omitempty"`
 
     // CoverageMode is coverage mode that was used to run these tests.
     CoverageMode     string    `json:",omitempty"
     // TotalStatements is the number of statements checked for coverage.
-    TotalStatements  int64     `json:",omitempty"
+    TotalStatements  int64     `json:",omitempty"`
     // ActiveStatements is the number of statements covered by tests, examples
     // or benchmarks.
-    ActiveStatements int64     `json:",omitempty"
+    ActiveStatements int64     `json:",omitempty"`
     // CoveragedPackages is full names of packages included in coverage.
-    CoveredPackages  []string  `json:",omitempty"
+    CoveredPackages  []string  `json:",omitempty"`
 
     // Stdout is text written by the test binary directly to os.Stdout.
     // If this field is non-zero, all others are zero.
-    Stdout string  `json:",omitempty"
+    Stdout string  `json:",omitempty"`
     // Stderr is text written by test binary directly to os.Stderr.
     // If this field is non-zero, all others are zero.
-    Stderr string  `json:",omitempty"
+    Stderr string  `json:",omitempty"`
 }
 ```
 
