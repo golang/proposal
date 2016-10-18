@@ -2,7 +2,7 @@
 
 Author: Michael Matloob
 
-Last updated: 11 October 2016
+Last updated: 18 October 2016
 
 Discussion at https://golang.org/issue/17280.
 
@@ -96,6 +96,11 @@ the standard library.
     // WithLabels returns a new ProfileLabels with the given labels added.
     // A label overwrites a prior label with the same key.
     func (l *ProfileLabels) WithLabels(labels ...[2]string) *ProfileLabels
+
+    // Labels returns a new slice containing the labels in the ProfileLabels.
+    // Labels panics if called on a ProfileLabels returned by SetProfileLabels
+    // or derived from one by WithLabels.
+    func (l *ProfileLabels) Labels() [][2]string
 
 ### `Context` changes
 
