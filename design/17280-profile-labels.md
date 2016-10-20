@@ -63,14 +63,18 @@ In this proposal, the following function will be added to the
 
     package context
 
-    // DoWithLabels calls f with a copy of the parent context with the
+    // DoWithProfileLabels calls f with a copy of the parent context with the
     // given labels added to the parent's label map.
     // Labels should be a slice of key-value pairs.
     // Labels are added to the label map in the order provided and override
     // any previous label with the same key.
     // The combined label map will be set for the duration of the call to f
     // and restored once f returns.
-    func DoWithLabels(parent Context, labels [][2]string, f func(ctx Context))
+    func DoWithProfileLabels(parent Context, labels [][2]string, f func(ctx Context))
+
+    // ProfileLabels returns a new slice containing the profile labels
+    // on the context.
+    func ProfileLabels(ctx Context) [][2]string
 
 The following types and functions will be added to the
 [runtime](golang.org/pkg/runtime) package.
