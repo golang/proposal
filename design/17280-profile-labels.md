@@ -82,9 +82,6 @@ the standard library.
 
     // ProfileLabels is an immutable map of profiler labels. A nil
     // *ProfileLabels is an empty map of labels.
-    // There is intentionally no way to access the profile labels contained
-    // inside the ProfLabels because doing so could create a goroutine-local
-    // storage mechanism.
     type ProfileLabels struct { /* runtime-internal unexported fields */ }
 
     // SetProfileLabels associates the specified profile
