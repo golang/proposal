@@ -2,7 +2,7 @@
 
 Author(s): Austin Clements, Rick Hudson
 
-Last updated: 2016-10-18
+Last updated: 2016-10-21
 
 Discussion at https://golang.org/issue/17503.
 
@@ -124,8 +124,11 @@ However, while not required by Go's current write barrier, Go already
 allocates black for other reasons, so no change to allocation is
 necessary.
 
-To our knowledge, the hybrid barrier is a novel approach to concurrent
-GC.
+The hybrid write barrier is equivalent to the "double write barrier"
+used in the adaptation of Metronome used in the IBM real-time Java
+implementation [Auerbach '07]. In that case, the garbage collector was
+incremental, rather than concurrent, but ultimately had to deal with
+the same problem of tightly bounded stop-the-world times.
 
 ### Reasoning
 
@@ -910,6 +913,12 @@ any objects that are not reachable when the mark phase starts.
 
 
 ## References
+
+[Auerbach '07] J. Auerbach, D. F. Bacon, B. Blainey, P. Cheng, M.
+Dawson, M. Fulton, D. Grove, D. Hart, and M. Stoodley. Design and
+implementation of a comprehensive real-time java virtual machine. In
+*Proceedings of the 7th ACM & IEEE international conference on
+Embedded software (EMSOFT '07)*, 249–258, 2007.
 
 [Dijkstra '78] E. W. Dijkstra, L. Lamport, A. J. Martin, C. S.
 Scholten, and E. F. Steffens. On-the-fly garbage collection: An
