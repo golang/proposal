@@ -804,7 +804,7 @@ Let *W* be a white object pointed to by a black object *B* after the
 heap write.
 There are two cases:
 
-1. *B ≠ obj*: *W* was pointed to by them same black object *B* before
+1. *B ≠ obj*: *W* was pointed to by the same black object *B* before
    the write, and, by assumption, *W* was grey-protected by a path *G
    -> W₁ -> ⋯ -> Wₙ -> W*, where *G* is a heap object.
    If none of these edges are *obj.slot*, then *W* is still protected
