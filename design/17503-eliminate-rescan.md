@@ -915,30 +915,41 @@ any objects that are not reachable when the mark phase starts.
 ## References
 
 [Auerbach '07] J. Auerbach, D. F. Bacon, B. Blainey, P. Cheng, M.
-Dawson, M. Fulton, D. Grove, D. Hart, and M. Stoodley. Design and
-implementation of a comprehensive real-time java virtual machine. In
-*Proceedings of the 7th ACM & IEEE international conference on
+Dawson, M. Fulton, D. Grove, D. Hart, and M. Stoodley.
+[Design and implementation of a comprehensive real-time java virtual machine]
+(https://pdfs.semanticscholar.org/0884/98ecb7063a4d177da82222b0c00e9b5419b7.pdf).
+In *Proceedings of the 7th ACM & IEEE international conference on
 Embedded software (EMSOFT '07)*, 249–258, 2007.
 
 [Dijkstra '78] E. W. Dijkstra, L. Lamport, A. J. Martin, C. S.
-Scholten, and E. F. Steffens. On-the-fly garbage collection: An
-exercise in cooperation. *Communications of the ACM*, 21(11), 966–975,
-1978.
+Scholten, and E. F. Steffens.
+[On-the-fly garbage collection: An exercise in cooperation]
+(http://research.microsoft.com/en-us/um/people/lamport/pubs/garbage.pdf).
+*Communications of the ACM*, 21(11), 966–975, 1978.
 
-[Ellen '07] F. Ellen, Y. Lev, V. Luchango, and M. Moir. SNZI: Scalable
-nonzero indicators. In *Proceedings of the 26th ACM SIGACT-SIGOPS
-Symposium on Principles of Distributed Computing*, Portland, OR,
-August 2007.
+[Ellen '07] F. Ellen, Y. Lev, V. Luchango, and M. Moir.
+[SNZI: Scalable nonzero indicators]
+(https://pdfs.semanticscholar.org/82e3/ac7dcea37245239b1985a658dcc17f803b5e.pdf).
+In *Proceedings of the 26th ACM SIGACT-SIGOPS Symposium on
+Principles of Distributed Computing*, Portland, OR, August 2007.
 
 [Hudson '97] R. L. Hudson, R. Morrison, J. E. B. Moss, and D. S.
-Munro. Garbage collecting the world: One car at a time. In *ACM
-SIGPLAN Notices* 32(10):162–175, October 1997.
+Munro.
+[Garbage collecting the world: One car at a time]
+(https://people.cs.umass.edu/~moss/papers/oopsla-1997-gc-world.pdf).
+In *ACM SIGPLAN Notices* 32(10):162–175, October 1997.
 
-[Pirinen '98] P. P. Pirinen. Barrier techniques for incremental
-tracing. In *ACM SIGPLAN Notices*, 34(3), 20–25, October 1998.
+[Pirinen '98] P. P. Pirinen.
+[Barrier techniques for incremental tracing]
+(http://www.cs.utexas.edu/ftp/garbage/submit/PUT_IT_HERE/ppirinen11.ps).
+In *ACM SIGPLAN Notices*, 34(3), 20–25, October 1998.
 
-[Steele '75] G. L. Steele Jr. Multiprocessing compactifying garbage
-collection. *Communications of the ACM*, 18(9), 495–508, 1975.
+[Steele '75] G. L. Steele Jr.
+[Multiprocessing compactifying garbage collection]
+(http://dx.doi.org/10.1145/361002.361005).
+*Communications of the ACM*, 18(9), 495–508, 1975.
 
-[Yuasa '90] T. Yuasa. Real-time garbage collection on general-purpose
-machines. *Journal of Systems and Software*, 11(3):181–198, 1990.
+[Yuasa '90] T. Yuasa.
+[Real-time garbage collection on general-purpose machines]
+(http://dx.doi.org/10.1016/0164-1212(90)90084-Y).
+*Journal of Systems and Software*, 11(3):181–198, 1990.
