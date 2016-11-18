@@ -311,7 +311,7 @@ The example for performance comparison will be the function `C += A*B^T`.
 This is a simpler version of the "General Matrix Multiply" at the core of many
 numerical routines.
 
-First consider a single-slice implementation (BenchmarkMTNaiveSlices), which
+First consider a single-slice implementation (BenchmarkNaiveSlices), which
 will be similar to the optimal performance.
 
 	// Compute C += A*B^T, where C is an m×n matrix, A is an m×k matrix, and B
@@ -328,7 +328,7 @@ will be similar to the optimal performance.
 		}
 	}
 
-We can add an "AddSet" method (BenchmarkMTAddSet), and translate the above code
+We can add an "AddSet" method (BenchmarkAddSet), and translate the above code
 into the struct representation.
 
 	// Compute C += A*B^T, where C is an m×n matrix, A is an m×k matrix, and B
@@ -350,7 +350,7 @@ This translation is 500% slower, a very significant cost.
 The reason for this significant penalty is that the Go compiler does not
 currently inline methods that can panic, and the accessors contain panic calls
 as part of the manual index bounds checks.
-The next benchmark simulates a compiler with this restriction removed (BenchmarkMTAddSetNP)
+The next benchmark simulates a compiler with this restriction removed (BenchmarkAddSetNP)
 by replacing the `panic` calls in the accessor methods with setting the first
 data element to NaN (this is not good code, but it means the current Go compiler
 can inline the method calls and the bounds checks still affect program execution
@@ -360,12 +360,12 @@ This significantly decreases the running time, reducing the gap from 500% to onl
 The final cause of the performance gap is bounds checking.
 The benchmark is modified so the bounds checks are removed, simulating a compiler
 with better proving capability than the current compiler.
-Further, the benchmark is run with `-gcflags=-B` (BenchmarkMTAddSetNB).
+Further, the benchmark is run with `-gcflags=-B` (BenchmarkAddSetNB).
 This closes the performance gap entirely (and also improves the single slice
 implementation by 15%).
 
 However, the initial single slice implementation can be significantly improved
-as follows (BenchmarkMTSliceOpt).
+as follows (BenchmarkSliceOpt).
 
 	for i := 0; i < m; i++ {
 		as := a[i*lda : i*lda+k]
@@ -383,7 +383,7 @@ as follows (BenchmarkMTSliceOpt).
 This reduces the cost by another 40% on top of the bounds check removal.
 
 Similar performance using a struct representation can be achieved with a
-"RowView" method (BenchmarkMTDenseOpt)
+"RowView" method (BenchmarkDenseOpt)
 
 	func (d *Dense) RowView(i int) []float64 {
 		if uint(i) >= uint(d.rows) {
