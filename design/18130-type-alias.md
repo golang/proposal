@@ -12,7 +12,7 @@ We propose to add to the Go language a type alias declaration, which introduces 
 
 ## Background
 
-The article [[Codebase Refactoring (with help from Go)](https://talks.golang.org/2016/refactor.article) presents the background for this change in detail.
+The article [Codebase Refactoring (with help from Go)](https://talks.golang.org/2016/refactor.article) presents the background for this change in detail.
 
 In short, one of Go's goals is to scale well to large codebases. In those codebases, it's important to be able to refactor the overall structure of the codebase, including changing which APIs are in which packages. In those large refactorings, it is important to support a transition period in which the API is available from both the old and new locations and references to old and new can be mixed and interoperate. Go provides workable mechanisms for this kind of change when the API is a const, func, or var, but not when the API is a type. There is today no way to arrange that oldpkg.OldType and newpkg.NewType are identical and that code referring to the old name interoperates with code referring to the new name. Type aliases provide that mechanism.
 
