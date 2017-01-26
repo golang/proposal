@@ -4,7 +4,7 @@ Author: Russ Cox
 
 Last updated: January 26, 2017<br>
 Discussion: [https://golang.org/issue/12914](https://golang.org/issue/12914).<br>
-URL: https://golang.org/design/12914-montonic
+URL: https://golang.org/design/12914-monotonic
 
 ## Abstract
 
