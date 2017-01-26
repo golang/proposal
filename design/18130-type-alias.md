@@ -32,7 +32,15 @@ to
 
 Like in any declaration, T1 must be an [identifier](https://golang.org/ref/spec#Identifiers). If T1 is an [exported identifier](https://golang.org/ref/spec#Exported_identifiers), then T1 is exported for use by importing packages. There are no restrictions on the form of `T2`: it may be [any type](https://golang.org/ref/spec#Type), including but not limited to types imported from other packages. Anywhere a TypeSpec is allowed today, a TypeSpec introducing a type alias is valid, including inside function bodies.
 
-Note that because T1 is an alternate spelling for T2, nearly all analysis of code involving T1 proceeds by first expanding T1 to T2. In particular, T1 is not necessarily a [named type](https://golang.org/ref/spec#Types).
+Note that because T1 is an alternate spelling for T2, nearly all analysis of code involving T1 proceeds by first expanding T1 to T2. In particular, T1 is not necessarily a [named type](https://golang.org/ref/spec#Types) for purposes such as evaluating [assignability](https://golang.org/ref/spec#Assignability). 
+
+To make the point about named types concrete, consider:
+
+	type Name1 map[string]string
+	type Name2 map[string]string
+	type Alias = map[string]string
+
+According to [Go assignability](https://golang.org/ref/spec#Assignability), a value of type Name1  is assignable to map[string]string (because the latter is not a named type) but a value of type Name1 is not assignable to Name2 (because both are named types, and the names differ). In this example, because Alias is an alternate spelling for map[string]string, a value of type Name1 is assignable to Alias (because Alias is the same as map[string]string, which is not a named type).
 
 Note: It’s possible that due to aliases, the spec term “named type” should be clarified or reworded in some way, or a new term should replace it, like “declared type”. This proposal uses words like “written” or “spelled” when describing aliases to avoid the term “named”. We could also use a better pair of names than “type declaration” and “type alias declaration”.
 
@@ -46,7 +54,7 @@ Go already has a [type declaration](https://golang.org/ref/spec#Type_declaration
  - func(Tnamed) and func(Tunderlying)
  - interface{ M() Tnamed } and interface{ M() Tunderlying }
 
-Because Tnamed and Tunderlying are different types, a Tunderlying stored in an interface value x does not match a type assertion x.(Tnamed) and does not match a type switch case Tnamed; similarly, a Tnamed does not match x.(Tunderlying) nor case Tunderlying.
+Because Tnamed and Tunderlying are different types, a Tunderlying stored in an interface value x does not match a type assertion `x.(Tnamed)` and does not match a type switch `case Tnamed`; similarly, a Tnamed does not match `x.(Tunderlying)` nor `case Tunderlying`.
 
 Tnamed, being a named type, can have [method declarations](https://golang.org/ref/spec#Method_declarations) associated with it.
 
@@ -57,11 +65,12 @@ In contrast, the new type alias declaration `type T1 = T2` defines T1 as an alte
  - func(T1) and func(T2)
  - interface{ M() T1 } and interface{ M() T2 }
 
-Because T1 and T2 are identical types, a T2 stored in an interface value x does match a type assertion x.(T1) and does match a type switch case T1; similarly a T1 does match x.(T2) and case T2.
+Because T1 and T2 are identical types, a T2 stored in an interface value x does match a type assertion `x.(T1)` and does match a type switch `case T1`; similarly a T1 does match `x.(T2)` and `case T2`.
 
 Because T1 and T2 are identical types, it is not valid to list both as different cases in a type switch, just as it is not valid to list T1 twice or T2 twice. (The spec already says, “[The types listed in the cases of a type switch must all be different.](https://golang.org/ref/spec#Type_switches)”)
 
 Since T1 is just another way to write T2, it does not have its own set of method declarations. Instead, T1’s method set is the same as T2’s. At least for the initial trial, there is no restriction against method declarations using T1 as a receiver type, provided using T2 in the same declaration would be valid.
+Note that if T1 is an alias for a type T2 defined in an imported package, method declarations using T1 as a receiver type are invalid, just as method declarations using T2 as a receiver type are invalid.
 
 ### Type cycles
 
@@ -91,7 +100,7 @@ Similarly, because an embedded T1 must be accessed using the name T1, not T2, it
         T2
     }
 
-References to myStruct.T1 or myStruct.T2 resolve to the corresponding fields. (Of course, this situation is unlikely to arise, and if T1 (= T2) is a struct type, then any fields within the struct would be inaccessible due to the usual [selector ambiguity rules](https://golang.org/ref/spec#Selectors).
+References to myStruct.T1 or myStruct.T2 resolve to the corresponding fields. (Of course, this situation is unlikely to arise, and if T1 (= T2) is a struct type, then any fields within the struct would be inaccessible by direct access due to the usual [selector ambiguity rules](https://golang.org/ref/spec#Selectors).
 
 These choices also match the current meaning today of the byte and rune aliases. For example, it is valid today to write
 
@@ -111,7 +120,7 @@ Because neither type has methods, that declaration is essentially equivalent to
 
 An alternate approach would be [generalized aliases](golang.org/design/16339-alias-decls), as discussed during the Go 1.8 cycle. However, generalized aliases overlap with and complicate other declaration forms, and the only form where the need is keenly felt is types. In contrast, this proposal limits the change in the language to types, and there is still plenty to do; see the Implementation section. 
 
-The implementation changes for type aliases are smaller than for generalized aliases, because while there is new syntax there is no need for a new AST type (the new syntax is still represented as an ast.TypeSpec, matching the grammar). With generalized aliases, any program processing ASTs needed update for the new forms. With type aliases, most programs processing ASTs care only that they are holding a TypeSpec and can treat type alias declarations and regular type declarations the same, with no code changes. For example, we expect that cmd/vet and cmd/doc may need no changes for type aliases; in contrast, they both crashed and needed updates when generalized aliases were tried.
+The implementation changes for type aliases are smaller than for generalized aliases, because while there is new syntax there is no need for a new AST type (the new syntax is still represented as an ast.TypeSpec, matching the grammar). With generalized aliases, any program processing ASTs needed updates for the new forms. With type aliases, most programs processing ASTs care only that they are holding a TypeSpec and can treat type alias declarations and regular type declarations the same, with no code changes. For example, we expect that cmd/vet and cmd/doc may need no changes for type aliases; in contrast, they both crashed and needed updates when generalized aliases were tried.
 
 The question of the meaning of an embedded type alias was identified as [issue 17746](https://github.com/golang/go/issues/17746), during the exploration of general aliases. The rationale for the decision above is given inline with the decision. A key property is that it matches the current handling of byte and rune, so that the language need not have two different classes of type alias (predefined vs user-defined) with different semantics.
 
@@ -195,7 +204,7 @@ Owner: gri, adonovan, by Jan 31
 The go/importer’s underlying import data decoders must be updated so they can understand export data containing alias information. This should be done more or less simultaneously with the compiler changes.
 
 Owner: gri, by Jan 31 (for go/internal/gcimporter)
-Owner: gri, by Jan 31 (for go/interna/gccgoimporter)
+Owner: gri, by Jan 31 (for go/internal/gccgoimporter)
 
 ### reflect
 
