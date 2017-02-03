@@ -572,36 +572,38 @@ The current definition of a `time.Time` is:
 To add the optional monotonic clock reading, we can change the representation to:
 
 	type Time struct {
-		wall uint64    // wall time: 1-bit flag, 33-bit sec since 1950, 30-bit nsec
+		wall uint64    // wall time: 1-bit flag, 33-bit sec since 1885, 30-bit nsec
 		ext  int64     // extended time information
 		loc  *Location // location
 	}
 
-The wall field holds the wall time, packed into a 33-bit seconds and 30-bit nsecs
+The wall field can encode the wall time, packed into a 33-bit seconds and 30-bit nsecs
 (keeping them separate avoids costly divisions).
 2<sup>33</sup> seconds is 272 years, so the wall field by itself
-can encode times from the years 1950 to 2222 to nanosecond precision.
-If the top flag bit in `t.wall` is set, then `t.ext` holds
+can encode times from the years 1885 to 2157 to nanosecond precision.
+If the top flag bit in `t.wall` is set, then the wall seconds are packed into `t.wall`
+as just described, and `t.ext` holds 
 a monotonic clock reading, stored as nanoseconds since Go process startup
 (translating to process start ensures we can store monotonic clock readings
 even if the operating system returns a representation larger than 64 bits).
-Otherwise, if the 33-bit second count is zero,
-`t.ext` holds the full 64-bit seconds since Jan 1, year 1, as in 
-the original Time representation.
-Otherwise, `t.ext` must be zero.
+Otherwise (the top flag bit is clear), the 33-bit field in `t.wall` must be zero,
+and `t.ext` holds the full 64-bit seconds since Jan 1, year 1, as in the
+original Time representation.
 Note that the meaning of the zero Time is unchanged.
 
 An implication is that monotonic clock readings can only be stored
-alongside wall clock readings for the years 1950 to 2222.
+alongside wall clock readings for the years 1885 to 2157.
 We only need to store monotonic clock readings in the result of `time.Now`
 and derived nearby times,
-and we expect those times to lie well within the range 1950 to 2222.
+and we expect those times to lie well within the range 1885 to 2157.
 The low end of the range is constrained by the default boot time
 used on a system with a dead clock:
 in this common case, we must be able to store a
 monotonic clock reading alongside the wall clock reading.
 Unix-based systems often use 1970, and Windows-based systems often use 1980.
-We are unaware of any systems using earlier default wall times.
+We are unaware of any systems using earlier default wall times,
+but since the NTP protocol epoch uses 1900, it seemed more future-proof
+to choose a year before 1900.
 
 On 64-bit systems, there is a 32-bit padding gap between `nsec` and `loc`
 in the current representation, which the new representation fills,
