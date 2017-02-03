@@ -9,7 +9,7 @@ URL: https://golang.org/design/12914-monotonic
 ## Abstract
 
 Comparison and subtraction of times observed by `time.Now` can return incorrect
-results if the system wall clock is reset bewteen the two observations.
+results if the system wall clock is reset between the two observations.
 We propose to extend the `time.Time` representation to hold an
 additional monotonic clock reading for use in those calculations.
 Among other benefits, this should make it impossible for a basic elapsed time
@@ -159,7 +159,7 @@ spreading the extra second
 over a 20-hour window in which the clock runs at 99.9986% speed
 (20 hours on that clock corresponds to 20 hours and one second
 in the real world).
-In 2011, hoped that the trend toward reliable, reset-free computer clocks
+In 2011, I hoped that the trend toward reliable, reset-free computer clocks
 would continue and that Go programs could safely use the system wall clock
 to measure elapsed times.
 I was wrong.
@@ -359,7 +359,7 @@ Add this section to the end of the package documentation:
 > If Times t and u both contain monotonic clock readings, the operations
 > t.After(u), t.Before(u), t.Equal(u), and t.Sub(u) are carried out using
 > the monotonic clock readings alone, ignoring the wall clock readings.
-> (If either t or u or contains no monotonic clock reading, these operations
+> (If either t or u contains no monotonic clock reading, these operations
 > use the wall clock readings.)
 >
 > Note that the Go == operator includes the monotonic clock reading in its comparison.
