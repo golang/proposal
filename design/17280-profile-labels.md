@@ -2,7 +2,7 @@
 
 Author: Michael Matloob
 
-Last updated: 18 October 2016
+Last updated: 15 May 2017 (to reflect actual implementation)
 
 Discussion at https://golang.org/issue/17280.
 
@@ -39,74 +39,88 @@ This change allows users to annotate profiles with that information for more
 fine-grained profiling.
 
 It is natural to use `context.Context` types to store this information, because
-their purpose is to hold context-dependent data.
-So we've added the `context.DoWithLabels` function which is the intended
-mechanism for users to set and unset profiler labels.
+their purpose is to hold context-dependent data. So the `runtime/pprof` package
+API adds labels to and changes labels on opaque `context.Context` values.
 
 Supporting profiler labels necessarily changes the runtime package, because
 that's where profiling is implemented.
-The runtime package will expose the low-level `SetProfilerLabels` function
-primarily for internal use by the context package.
-Like the other low-level profiling functions in the runtime, ordinary programs
-are not expected to call this API directly, but to use the high-level
-`context.DoWithLabels` API.
+The `runtime` package will expose internal hooks to package `runtime/pprof` which
+it uses to implement its `Context`-based API.
 
 One goal of the design is to avoid creating a mechanism that could be used to
 implement goroutine-local storage.
 That's why it's possible to set profile labels but not retrieve them.
 
 
-## Proposed API
-
-In this proposal, the following function will be added to the
-[context](golang.org/pkg/context) package.
-
-    package context
-
-    // DoWithProfileLabels calls f with a copy of the parent context with the
-    // given labels added to the parent's label map.
-    // Labels should be a slice of key-value pairs.
-    // Labels are added to the label map in the order provided and override
-    // any previous label with the same key.
-    // The combined label map will be set for the duration of the call to f
-    // and restored once f returns.
-    func DoWithProfileLabels(parent Context, labels [][2]string, f func(ctx Context))
-
-    // ProfileLabels returns a new slice containing the profile labels
-    // on the context.
-    func ProfileLabels(ctx Context) [][2]string
+## API
 
 The following types and functions will be added to the
-[runtime](golang.org/pkg/runtime) package.
-They exist to support the implementation of `context.DoWithLabels`.
-As such, they are low level functions that should almost never be used outside
-the standard library.
+[runtime/pprof](golang.org/pkg/runtime/pprof) package.
 
-    package runtime
+    package pprof
 
-    // ProfileLabels is an immutable map of profiler labels. A nil
-    // *ProfileLabels is an empty map of labels.
-    type ProfileLabels struct { /* runtime-internal unexported fields */ }
+    // SetGoroutineLabels sets the current goroutine's labels to match ctx.
+    // This is a lower-level API than Do, which should be used instead when possible.
+    func SetGoroutineLabels(ctx context.Context) {
+        ctxLabels, _ := ctx.Value(labelContextKey{}).(*labelMap)
+        runtime_setProfLabel(unsafe.Pointer(ctxLabels))
+    }
 
-    // SetProfileLabels associates the specified profile
-    // labels with the current goroutine.
-    // SetProfileLabels returns the ProfileLabels currently set on
-    // the current goroutine.
-    func SetProfileLabels(labels *ProfileLabels) *ProfileLabels
+    // Do calls f with a copy of the parent context with the
+    // given labels added to the parent's label map.
+    // Each key/value pair in labels is inserted into the label map in the
+    // order provided, overriding any previous value for the same key.
+    // The augmented label map will be set for the duration of the call to f
+    // and restored once f returns.
+    func Do(ctx context.Context, labels LabelSet, f func(context.Context)) {
+        defer SetGoroutineLabels(ctx)
+        ctx = WithLabels(ctx, labels)
+        SetGoroutineLabels(ctx)
+        f(ctx)
+    }
 
-    // WithLabels returns a new ProfileLabels with the given labels added.
+    // LabelSet is a set of labels.
+    type LabelSet struct {
+        list []label
+    }
+
+    // Labels takes an even number of strings representing key-value pairs
+    // and makes a LabelList containing them.
     // A label overwrites a prior label with the same key.
-    func (l *ProfileLabels) WithLabels(labels ...[2]string) *ProfileLabels
+    func Labels(args ...string) LabelSet {
+        if len(args)%2 != 0 {
+            panic("uneven number of arguments to pprof.Labels")
+        }
+        labels := LabelSet{}
+        for i := 0; i+1 < len(args); i += 2 {
+            labels.list = append(labels.list, label{key: args[i], value: args[i+1]})
+        }
+        return labels
+    }
 
-    // Labels returns a new slice containing the labels in the ProfileLabels.
-    // Labels panics if called on a ProfileLabels returned by SetProfileLabels
-    // or derived from one by WithLabels.
-    func (l *ProfileLabels) Labels() [][2]string
+    // Label returns the value of the label with the given key on ctx, and a boolean indicating
+    // whether that label exists.
+    func Label(ctx context.Context, key string) (string, bool) {
+        ctxLabels := labelValue(ctx)
+        v, ok := ctxLabels[key]
+        return v, ok
+    }
+
+    // ForLabels invokes f with each label set on the context.
+    // The function f should return true to continue iteration or false to stop iteration early.
+    func ForLabels(ctx context.Context, f func(key, value string) bool) {
+        ctxLabels := labelValue(ctx)
+        for k, v := range ctxLabels {
+            if !f(k, v) {
+                break
+            }
+        }
+    }
 
 ### `Context` changes
 
-Each `Context` has a set of profiler labels associated with it.
-`DoWithLabels` calls `f` with a new context whose labels map is
+Each `Context` may have a set of profiler labels associated with it.
+`Do` calls `f` with a new context whose labels map is
 the the parent context's labels map with the additional label arguments added.
 Consider the tree of function calls during an execution of the program,
 treating concurrent and deferred calls like any other.  The labels of a
@@ -119,10 +133,17 @@ sample records the labels of the currently executing function.
 The profiler will annotate all profile samples of each goroutine by the set of
 labels associated with that goroutine.
 
-The associated set of labels will also be replaced if the user calls `SetProfileLabels` with another
-`ProfileLabels` value.
+Two hooks in the runtime, `func runtime_setProfLabel(labels unsafe.Pointer)` and
+`func runtime_getProfLabel() unsafe.Pointer` are linknamed
+into `runtime/pprof` and are used for setting and getting profile labels from the
+current goroutine. These functions are only accessible from `runtime/pprof`, which
+prevents them from being misused to implement a Goroutine-local storage facility.
+The profile label implementation structure is left opaque to the runtime.
 
-New goroutines inherit the ProfileLabels value set on their creator.
+`runtime.CPUProfile` is deprecated. `runtime_pprof_readProfile`,
+another runtime function linknamed into `runtime/pprof`, is added as a way for `runtime/pprof` to retrieve the raw label-annotated profile data.
+
+New goroutines inherit the labels set on their creator.
 
 ## Compatibility
 
@@ -133,13 +154,11 @@ them.
 
 ## Implementation
 
-Because `context` and `runtime` have compatible notions of profile labels,
-`context.Context` can simply store a `*runtime.ProfileLabels`. Internally,
-`context.Context` can extend its label set directly using `runtime.WithLabels`,
-which means there's no performance penalty to using the higher-level context
-API.
+`context.Context` will have an internal label set representation associated with it.
+This leaves the option open to change the implementation in the future to improve
+the performance characteristics of using profiler labels.
 
-Initially, `runtime.ProfileLabels` may be implemented as a simple
+The initial implementation of the label set is a
 `map[string]string` that is copied when new labels are added. However, the
 specification permits more sophisticated implementations that scale to large
 numbers of label changes such as persistent set structures or diff arrays. This
@@ -150,15 +169,15 @@ This change requires the profile signal handler to interact with pointers, which
 means it has to interact with the garbage collector.
 There are two complications to this:
 
-1. This requires the profile signal handler to save a `*ProfileLabels` in the
+1. This requires the profile signal handler to save the label set structure in the
 CPU profile structure, which is allocated off-heap.
 Addressing this will require either adding the CPU profile structure as a new GC
 root, or allocating the CPU profile structure in the garbage-collected heap.
 
-2. Normally, writing the `*ProfileLabels` to the CPU profile structure would
+2. Normally, writing the label set structure to the CPU profile structure would
 require a write barrier, but write barriers are disallowed in a signal handler.
 This can be addressed by treating the CPU profile structure similar to stacks,
 which also do not have write barriers.
 This could mean a STW re-scan of the CPU profile structure, or shading the old
-`*ProfileLabels` when `SetProfileLabels` replaces it.
+label set structure when `SetGoroutineLabels` replaces it.
 
