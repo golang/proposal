@@ -16,7 +16,7 @@ The article [Codebase Refactoring (with help from Go)](https://talks.golang.org/
 
 In short, one of Go's goals is to scale well to large codebases. In those codebases, it's important to be able to refactor the overall structure of the codebase, including changing which APIs are in which packages. In those large refactorings, it is important to support a transition period in which the API is available from both the old and new locations and references to old and new can be mixed and interoperate. Go provides workable mechanisms for this kind of change when the API is a const, func, or var, but not when the API is a type. There is today no way to arrange that oldpkg.OldType and newpkg.NewType are identical and that code referring to the old name interoperates with code referring to the new name. Type aliases provide that mechanism.
 
-This proposal is a replacement for the [generalized alias proposal](golang.org/design/16339-alias-decls) originally targeted for, but held back from, Go 1.8.
+This proposal is a replacement for the [generalized alias proposal](https://golang.org/design/16339-alias-decls) originally targeted for, but held back from, Go 1.8.
 
 ## Proposal
 
@@ -118,7 +118,7 @@ Because neither type has methods, that declaration is essentially equivalent to
 
 ## Rationale
 
-An alternate approach would be [generalized aliases](golang.org/design/16339-alias-decls), as discussed during the Go 1.8 cycle. However, generalized aliases overlap with and complicate other declaration forms, and the only form where the need is keenly felt is types. In contrast, this proposal limits the change in the language to types, and there is still plenty to do; see the Implementation section. 
+An alternate approach would be [generalized aliases](https://golang.org/design/16339-alias-decls), as discussed during the Go 1.8 cycle. However, generalized aliases overlap with and complicate other declaration forms, and the only form where the need is keenly felt is types. In contrast, this proposal limits the change in the language to types, and there is still plenty to do; see the Implementation section. 
 
 The implementation changes for type aliases are smaller than for generalized aliases, because while there is new syntax there is no need for a new AST type (the new syntax is still represented as an ast.TypeSpec, matching the grammar). With generalized aliases, any program processing ASTs needed updates for the new forms. With type aliases, most programs processing ASTs care only that they are holding a TypeSpec and can treat type alias declarations and regular type declarations the same, with no code changes. For example, we expect that cmd/vet and cmd/doc may need no changes for type aliases; in contrast, they both crashed and needed updates when generalized aliases were tried.
 
