@@ -94,6 +94,8 @@ examples of recent language changes.)
 	- For ease of review with Gerrit, design documents should be wrapped around the
           80 column mark. [Each sentence should start on a new line](http://rhodesmill.org/brandon/2012/one-sentence-per-line/)
           so that comments can be made accurately and the diff kept shorter.
+          In Emacs, loading `fill.el` from this directory will make
+          `fill-paragraph` format text this way.
 	- Comments on Gerrit CLs should be restricted to grammar, spelling, or
           procedural errors related to the preparation of the proposal itself.
           All other comments should be addressed to the related GitHub issue.
