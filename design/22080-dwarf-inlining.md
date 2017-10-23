@@ -2,7 +2,7 @@
 
 Author(s): Than McIntosh
 
-Last updated: 2017-09-27
+Last updated: 2017-10-23
 
 Discussion at: https://golang.org/issue/22080
 
@@ -161,7 +161,7 @@ section below.
 ```
 
 If the code above is compiled with the existing compiler and the resulting DWARF
-inspected, there is a single DW_TAG_subprogram DIE for 'Top', with variable DIEs
+inspected, there is a single DW_TAG_subprogram DIE for `Top`, with variable DIEs
 reflecting params and (selected) locals for that routine.
 Two of the stack-allocated locals from the inlined routines (Mid and Leaf)
 survive in the DWARF, but other inlined variables do not:
@@ -188,14 +188,14 @@ survive in the DWARF, but other inlined variables do not:
      }
 ```
 
-There are also subprogram DIE's for the out-of-line copies of 'Leaf' and 'Mid',
+There are also subprogram DIE's for the out-of-line copies of `Leaf` and `Mid`,
 which look similar (variable DIEs for locals and params with stack locations).
 
 When enhanced DWARF location tracking is turned on, in addition to more accurate
-variable location expressions within 'Top', there are additional DW_TAG_variable
+variable location expressions within `Top`, there are additional DW_TAG_variable
 entries for variable such as "lx" and "ly" corresponding those values within the
-inlined body of 'Leaf'.
-Since these vars are directly parented by 'Top' there is no way to disambiguate
+inlined body of `Leaf`.
+Since these vars are directly parented by `Top` there is no way to disambiguate
 the various instances of a var such as "lx".
 
 # How the generated DWARF should look
@@ -207,7 +207,7 @@ of "concrete instances", one for each instantiation of the function.
 
 Here is a representation of how the generated DWARF should look for the example
 above.
-First, the abstract subprogram instance for 'Leaf'.
+First, the abstract subprogram instance for `Leaf`.
 No high/lo PC, no locations, for variables etc (these are provided in concrete
 instances):
 
@@ -228,7 +228,7 @@ instances):
    }
 ```
 
-Next we would expect to see a concrete subprogram instance for 's.Leaf', corresponding to the out-of-line copy of the function (which may wind up being eliminated by the linker if all calls are inlined).
+Next we would expect to see a concrete subprogram instance for `s.Leaf`, corresponding to the out-of-line copy of the function (which may wind up being eliminated by the linker if all calls are inlined).
 This DIE refers back to its abstract parent via the DW_AT_abstract_origin
 attribute, then fills in location details (such as hi/lo PC, variable locations,
 etc):
@@ -251,7 +251,7 @@ etc):
    }
 ```
 
-Similarly for 'Mid', there would be an abstract subprogram instance:
+Similarly for `Mid`, there would be an abstract subprogram instance:
 
 ```
    DW_TAG_subprogram {   // offset: D4
@@ -273,9 +273,12 @@ Similarly for 'Mid', there would be an abstract subprogram instance:
    }
 ```
 
-Then a concrete subprogram instance for out-of-line copy of 'Mid'.
-Note that incorporated into the concrete instance for 'Mid' we also see an
-inlined instance for 'Leaf':
+Then a concrete subprogram instance for out-of-line copy of `Mid`.
+Note that incorporated into the concrete instance for `Mid` we also see an
+inlined instance for `Leaf`.
+This DIE (with tag DW_TAG_inlined_subroutine) contains a reference to the
+abstract subprogram DIE for `Leaf`, also attributes for the file and line of
+the callsite that was inlined:
 
 ```
    DW_TAG_subprogram {
@@ -297,6 +300,8 @@ inlined instance for 'Leaf':
       // inlined body of 'Leaf'
       DW_TAG_inlined_subroutine {
          DW_AT_abstract_origin: // reference to D1 above
+         DW_AT_call_file: 1
+         DW_AT_call_line: 10
          DW_AT_ranges         : ...
          DW_TAG_formal_parameter {
             DW_AT_abstract_origin: // reference to D2 above
@@ -311,8 +316,8 @@ inlined instance for 'Leaf':
    }
 ```
 
-Finally we would expect to see a subprogram instance for 's.Top'.
-Note that since 's.Top' is not inlined, we would have a single subprogram DIE
+Finally we would expect to see a subprogram instance for `s.Top`.
+Note that since `s.Top` is not inlined, we would have a single subprogram DIE
 (as opposed to an abstract instance DIE and a concrete instance DIE):
 
 ```
@@ -326,6 +331,8 @@ Note that since 's.Top' is not inlined, we would have a single subprogram DIE
       // inlined body of 'Leaf'
       DW_TAG_inlined_subroutine {
          DW_AT_abstract_origin: // reference to D1 above
+         DW_AT_call_file: 1
+         DW_AT_call_line: 15
          DW_AT_ranges         : ...
          DW_TAG_formal_parameter {
             DW_AT_abstract_origin: // reference to D2 above
@@ -348,6 +355,8 @@ Note that since 's.Top' is not inlined, we would have a single subprogram DIE
       // inlined body of 'Mid'
       DW_TAG_inlined_subroutine {
          DW_AT_abstract_origin: // reference to D4 above
+         DW_AT_call_file: 1
+         DW_AT_call_line: 16
          DW_AT_low_pc         : ...
          DW_AT_high_pc        : ...
          DW_TAG_formal_parameter {
@@ -365,6 +374,8 @@ Note that since 's.Top' is not inlined, we would have a single subprogram DIE
          // inlined body of 'Leaf'
          DW_TAG_inlined_subroutine {
             DW_AT_abstract_origin: // reference to D1 above
+            DW_AT_call_file: 1
+            DW_AT_call_line: 10
             DW_AT_ranges         : ...
             DW_TAG_formal_parameter {
                DW_AT_abstract_origin: // reference to D2 above
