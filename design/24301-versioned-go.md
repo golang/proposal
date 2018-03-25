@@ -45,7 +45,7 @@ I propose to add versioning to Go using the following approach.
 2. Assign version numbers to modules by tagging specific commits
    with [semantic versions](https://semver.org) such as `v1.2.0`.
    (See
-   the [Defining Go Modules](https://research.swtch.com/vgo-modules) post
+   the [Defining Go Modules](https://research.swtch.com/vgo-module) post
    for details, including how to tag multi-module repositories.)
 
 3. Adopt [semantic import versioning](https://research.swtch.com/vgo-import),
