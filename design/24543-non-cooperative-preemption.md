@@ -265,13 +265,13 @@ For example, we could lower it like:
 
 ```go
 i, _n, _p := 0, len(s), &s[0]
-if i < _n { goto end } else { goto body }
+if i >= _n { goto end } else { goto body }
 top:
 _p += unsafe.Sizeof(s[0])
 body:
 { b }
 i++
-if i < _n { goto end } else { goto top }
+if i >= _n { goto end } else { goto top }
 end:
 ```
 
