@@ -4,9 +4,12 @@ Russ Cox\
 based on work by Keith Rarick\
 July 2015
 
+[_golang.org/s/go15vendor_](https://golang.org/s/go15vendor)
+
 This document is a revised copy of [https://groups.google.com/forum/#!msg/golang-dev/74zjMON9glU/4lWCRDCRZg0J](https://groups.google.com/forum/#!msg/golang-dev/74zjMON9glU/4lWCRDCRZg0J). See that link for the full mailing list thread and context.
 
 This document was formerly stored on Google Docs at [https://docs.google.com/document/d/1Bz5-UB7g2uPBdOx-rw5t9MxJwkfpx90cqG9AFL0JAYo/edit](https://docs.google.com/document/d/1Bz5-UB7g2uPBdOx-rw5t9MxJwkfpx90cqG9AFL0JAYo/edit).
+
 
 ## Proposal
 
