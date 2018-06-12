@@ -15,7 +15,7 @@ that are not known at compile time.
 Types and functions that use parameters are called parameterized, as
 in "a parameterized function."
 
-Some goals, borrowed from [Garcia et al](http://www.crest.iu.edu/publications/prints/2003/comparing_generic_programming03.pdf):
+Some goals, borrowed from [Garcia et al](https://web.archive.org/web/20170812055356/http://www.crest.iu.edu/publications/prints/2003/comparing_generic_programming03.pdf):
 
 * Do not require an explicit relationship between a definition of a parameterized function and its use. The function should be callable with any suitable type.
 * Permit interfaces to express relationships between types of methods, as in a comparison method that takes two values of the same parameterized type.

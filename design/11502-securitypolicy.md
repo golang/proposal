@@ -18,7 +18,7 @@ and vulnerability disclosure policy.
 ## Background
 
 The Go standard library includes a complete, modern [cryptography
-package](http://golang.org/pkg/crypto/). Since the initial release of Go,
+package](https://golang.org/pkg/crypto/). Since the initial release of Go,
 there has a single documented security vulnerability [CVE-2014-7189]
 (https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2014-7189) in the crypto
 package. This is a promising track record, but as Go usage increases the
@@ -34,9 +34,9 @@ of this proposal:
 
 * [Python Security Policy](https://www.python.org/news/security/)
 * [Ruby on Rails Security Policy](http://rubyonrails.org/security/)
-* [Rust Security Policy](http://www.rust-lang.org/security.html)
+* [Rust Security Policy](https://www.rust-lang.org/security.html)
 * [Webkit Security Policy](https://www.webkit.org/security/)
-* [Xen Project Security Policy](http://www.xenproject.org/security-policy.html)
+* [Xen Project Security Policy](https://www.xenproject.org/security-policy.html)
 
 These policies differ in various aspects, but in general there is a common set
 of guidelines that are typically established:
@@ -57,7 +57,7 @@ party system at this time.
 ## Proposal
 
 Among the existing security policies reviewed, the [Rust
-policy](http://www.rust-lang.org/security.html) is considered a good starting
+policy](https://www.rust-lang.org/security.html) is considered a good starting
 point. Once adopted, this policy will be hosted at
 [https://golang.org/security](https://golang.org/security). The details of the
 policy are in the Implementation section below.

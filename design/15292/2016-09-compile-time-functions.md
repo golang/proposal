@@ -166,7 +166,7 @@ not evaluated, there is no error.
 `gotype` expressions within type and method declarations are only evaluated if
 the block containing the type declaration is evaluated.
 (This is analogous to the
-[SFINAE rule in C++](http://en.cppreference.com/w/cpp/language/sfinae).)
+[SFINAE rule in C++](https://en.cppreference.com/w/cpp/language/sfinae).)
 
 A [`TypeSwitchStmt`](https://golang.org/ref/spec#TypeSwitchStmt) on an
 expression or variable of type `gotype` switches on the concrete type

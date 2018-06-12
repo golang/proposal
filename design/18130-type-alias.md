@@ -124,7 +124,7 @@ The implementation changes for type aliases are smaller than for generalized ali
 
 The question of the meaning of an embedded type alias was identified as [issue 17746](https://github.com/golang/go/issues/17746), during the exploration of general aliases. The rationale for the decision above is given inline with the decision. A key property is that it matches the current handling of byte and rune, so that the language need not have two different classes of type alias (predefined vs user-defined) with different semantics.
 
-The syntax and distinction between type declarations and type alias declarations ends up being nearly identical to that of [Pascal](http://www.freepascal.org/docs-html/ref/refse19.html). The alias syntax itself is also the same as in later languages like [Rust](https://doc.rust-lang.org/book/type-aliases.html).
+The syntax and distinction between type declarations and type alias declarations ends up being nearly identical to that of [Pascal](https://www.freepascal.org/docs-html/ref/refse19.html). The alias syntax itself is also the same as in later languages like [Rust](https://doc.rust-lang.org/book/type-aliases.html).
 
 ## Compatibility
 

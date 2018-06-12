@@ -16,7 +16,7 @@ structures in a generic form, with concrete elements of the code
 (such as types) factored out.
 It means the ability to express algorithms with minimal assumptions
 about data structures, and vice-versa
-(paraphrasing [Jazayeri, et al](http://www.dagstuhl.de/en/program/calendar/semhp/?semnr=98171)).
+(paraphrasing [Jazayeri, et al](https://www.dagstuhl.de/en/program/calendar/semhp/?semnr=98171)).
 
 ## Background
 
@@ -139,7 +139,7 @@ This has its benefits&mdash;otherwise nobody would do it&mdash;but it has
 wide-ranging and sometimes surprising effects, as in incomprehensible
 C++ error messages.
 
-As [Russ pointed out](http://research.swtch.com/generic), generics are
+As [Russ pointed out](https://research.swtch.com/generic), generics are
 a trade off between programmer time, compilation time, and execution
 time.
 
@@ -210,7 +210,7 @@ they are real.
 * Channel operations
   * Merge N channels onto one
   * Multiplex one channel onto N
-  * The [worker-pool pattern](http://play.golang.org/p/b5XRHnxzZF)
+  * The [worker-pool pattern](https://play.golang.org/p/b5XRHnxzZF)
 * Graph algorithms, for example immediate dominator computation
 * Multi-dimensional arrays (not slices) of different lengths
 * Many of the packages in go.text could benefit from it to avoid duplicate

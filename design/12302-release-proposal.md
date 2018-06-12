@@ -43,7 +43,7 @@ which holds the source of one or more Go packages.
 ### Release process
 
 This proposal recommends that repository owners adopt the
-[Semantic Versioning 2.0 standard](http://SemVer.org/spec/v2.0.0.html) (SemVer)
+[Semantic Versioning 2.0 standard](https://SemVer.org/spec/v2.0.0.html) (SemVer)
 for their numbering scheme.
 
 Source code is released by tagging (eg. `git tag`) the VCS repository with a
@@ -59,7 +59,7 @@ The format of the VCS tag is as follows:
 v<SemVer>
 ```
 That is, the character `v`, U+0075, followed directly by a string which is
-compliant with the [Semantic Versioning 2.0 standard](http://SemVer.org/spec/v2.0.0.html).
+compliant with the [Semantic Versioning 2.0 standard](https://SemVer.org/spec/v2.0.0.html).
 
 When inspecting a repository, tags which do not fit the format described above
 must be ignored for the purpose of determining the available release versions.
