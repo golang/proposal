@@ -10,9 +10,9 @@ This document describes the process for proposing, documenting, and
 implementing changes to the Go project.
 
 To learn more about Go's origins and development process, see the talks
-[How Go Was Made](http://talks.golang.org/2015/how-go-was-made.slide),
-[The Evolution of Go](http://talks.golang.org/2015/gophercon-goevolution.slide),
-and [Go, Open Source, Community](http://blog.golang.org/open-source)
+[How Go Was Made](https://talks.golang.org/2015/how-go-was-made.slide),
+[The Evolution of Go](https://talks.golang.org/2015/gophercon-goevolution.slide),
+and [Go, Open Source, Community](https://blog.golang.org/open-source)
 from GopherCon 2015.
 
 ## The Proposal Process
@@ -45,7 +45,7 @@ If in doubt, file a proposal.
 
 Programs written for Go version 1.x must continue to compile and work with
 future versions of Go 1.
-The [Go 1 compatibility document](http://golang.org/doc/go1compat) describes
+The [Go 1 compatibility document](https://golang.org/doc/go1compat) describes
 the promise we have made to Go users for the future of Go 1.x.
 Any proposed change must not break this promise.
 
