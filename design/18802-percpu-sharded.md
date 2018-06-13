@@ -159,7 +159,7 @@ func (s *Sharded) Get() interface{}
 // If more elements are created during the iteration itself, they may be
 // visible to the iteration, but this is not guaranteed. For stronger
 // guarantees, see DoLocked.
-func (s \*Sharded) Do(fn func(interface{}))
+func (s *Sharded) Do(fn func(interface{}))
 
 // DoLocked iterates over all the elements stored in the Sharded, and calls fn
 // once for each element.
@@ -167,7 +167,7 @@ func (s \*Sharded) Do(fn func(interface{}))
 // DoLocked will observe a consistent snapshot of the elements in the Sharded;
 // any previous creations will complete before the iteration begins, and all
 // subsequent creations will wait until the iteration ends.
-func (s \*Sharded) DoLocked(fn func(interface{}))
+func (s *Sharded) DoLocked(fn func(interface{}))
 
 // ShardInfo contains information about a CPU core.
 type ShardInfo struct {
@@ -182,7 +182,7 @@ Here, we evaluate the proposed API in light of the use-cases described above.
 
 ### Counters
 
-A counter API can be fairly easily be built on top of `percpu.Sharded`.
+A counter API can be fairly easily built on top of `percpu.Sharded`.
 Specifically, it would offer two methods `IncrementBy(int64)`, and `Sum() int64`.
 The former would only allow positive increments (if required, clients can build
 negative increments by composing two counters of additions and subtractions).
@@ -198,9 +198,9 @@ The implementation of `Sum` would call `Do` to retrieve a snapshot of all
 previously created values, then sum up their values using `atomic.LoadInt64`.
 
 If the application is managing many long-lived counters, then one possible
-optimization would be implement the `Counter` type in terms of a `counterBatch`
-(which logically encapsulates `N` independent counters). This can drastically
-limit the padding required to fix false sharing between cache lines.
+optimization would be to implement the `Counter` type in terms of a
+`counterBatch` (which logically encapsulates `N` independent counters). This can
+drastically limit the padding required to fix false sharing between cache lines.
 
 ### Read-write locks
 
@@ -224,7 +224,7 @@ has a `RUnlock()` method. This `RLockHandle` could keep an internal pointer to
 the `sync.RWMutex` that was initially chosen, and it can then `RUnlock()` that
 specific instance.
 
-It's worth noting that its also possible to drastically change the standard
+It's worth noting that it's also possible to drastically change the standard
 library's `sync.RWMutex` implementation itself to be scalable by default using
 `percpu.Sharded`; this is why the implementation sketch below is careful not not
 use the `sync` package to avoid circular dependencies. See Facebook's
@@ -317,7 +317,7 @@ func (s *sharder) shardInfo() ShardInfo {
   shardId &= runtimeDefinedMaxShards()-1
   shardId &= userDefinedMaxShards()-1
 
-  return ShardInfo{ShardId: shardId}
+  return ShardInfo{ShardIndex: shardId}
 }
 
 func runtimeDefinedMaxShards() int32 {
@@ -609,7 +609,7 @@ exposes an "IsTesting bool", which is set by the `testing` package and read by
 the `percpu` package. But ideally, this could be optimized away at compile time;
 I don't believe we have any mechanism to do this now.
 
-## Should we expose `ShardInfo.ShardId` at all?
+## Should we expose `ShardInfo.ShardIndex` at all?
 
 I think so. Even if we don't, clients can retrieve an effectively equivalent
 value by just incrementing an atomic integer inside the `createFn` passed to
