@@ -1,4 +1,4 @@
-# Proposal: percpu.Sharder, an API for reducing cache contention
+# Proposal: percpu.Sharded, an API for reducing cache contention
 
 Discussion at https://golang.org/issue/18802
 
@@ -110,8 +110,8 @@ package percpu
 // A Sharded is a container of homogenously typed values.
 //
 // On a best effort basis, the runtime will strongly associate a given value
-// with a CPU core. That is to say, retrieving a value twice on the CPU core
-// will return the same value with high probablity. Note that the runtime
+// with a CPU core. That is to say, retrieving a value twice on the same CPU
+// core will return the same value with high probablity. Note that the runtime
 // cannot guarantee this fact, and clients must assume that retrieved values
 // can be shared between concurrently executing goroutines.
 //
