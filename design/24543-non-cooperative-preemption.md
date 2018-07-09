@@ -305,17 +305,95 @@ by arguments).
 
 Over time we may opt-in more of the runtime.
 
+### Unsafe standard library code
+
+The Windows syscall package contains many `unsafe.Pointer` conversions
+that don't follow the `unsafe.Pointer` rules.
+It broadly makes shaky assumptions about safe-point behavior,
+liveness, and when stack movement can happen.
+It would likely need a thorough auditing, or would need to be opted
+out like the runtime.
+
+Perhaps more troubling is that some of the Windows syscall package
+types have uintptr fields that are actually pointers, hence forcing
+callers to perform unsafe pointer conversions.
+For example, see issue [#21376](golang.org/issue/21376).
+
+### Ensuring progress with unsafe-points
+
+Above we propose simply giving up and retrying later when a goroutine
+is interrupted at an unsafe-point.
+One danger of this is that safe points may be rare in tight loops.
+However, in many cases, there are more sophisticated alternatives to
+this approach.
+
+For interruptions in the runtime or in functions without any safe
+points (such as assembly), the signal handler could unwind the stack
+and insert a return trampoline at the next return to a function with
+safe point metadata.
+The runtime could then let the goroutine continue running and the
+trampoline would pause it as soon as possible.
+
+For write barriers and `unsafe.Pointer` sequences, the compiler could
+insert a cheap, explicit preemption check at the end of the sequence.
+For example, the runtime could modify some register that would be
+checked at the end of the sequence and let the thread continue
+executing.
+In the write barrier sequence, this could even be the register that
+the write barrier flag was loaded into, and the compiler could insert
+a simple register test and conditional branch at the end of the
+sequence.
+To even further shrink the sequence, the runtime could put the address
+of the stop function in this register so the stop sequence would be
+just a register call and a jump.
+
+Alternatives to this check include forward and reverse simulation.
+Forward simulation is tricky because the compiler must be careful to
+only generate operations the runtime knows how to simulate.
+Reverse simulation is easy *if* the compiler can always generate a
+restartable sequence (simply move the PC back to the write barrier
+flag check), but quickly becomes complicated if there are multiple
+writes in the sequence or more complex writes such as DUFFCOPY.
+
 
 ## Encoding of stack and register maps
 
-To be determined.
+In the implementation for Go 1.11, register maps are encoded using the
+exact same encoding as argument and locals maps.
+Unlike argument and locals maps, which are indexed together in a
+single PCDATA stream, the register maps are indexed by a separate
+PCDATA stream because changes to the register map tend not to
+correlate with changes to the arguments and locals maps.
 
-@austin's prototype simply added the register liveness map as a third
-liveness map accompanying the existing argument and local liveness
-maps.
-The downside of this is that any change in any of these maps requires
-writing out all of them, and the register liveness changes tend not to
-correlate with argument and local liveness changes.
+Curiously, the significant majority of the space overhead from this
+scheme is from the PCDATA stream that indexes into the register map.
+The actual register map FUNCDATA is relatively small, suggesting that
+functions have relatively few distinct register maps, but change
+between them frequently.
+
+### Alternates considered/attempted
+
+Biasing the register allocator to allocate pointers and scalars from
+different registers to reduce the number of unique maps and possibly
+reduce the number of map changes would seem like an easy improvement.
+However, it had very little effect.
+
+Similarly, adding "slop" to the register maps by allowing the liveness
+of a register to extend between its last use and next clobber slightly
+reduced the number of register map changes, but only slightly.
+
+The one successful alternate tried was to Huffman-code the delta
+stream, which roughly halved the size of the metadata.
+In this scheme, the register maps are encoded in a single bit stream
+per function that alternates between PC delta (as a positive offset
+from the previous PC), and register map delta (as an XOR from the
+previous register map).
+The two deltas are Huffman coded with separate Huffman tables, and the
+Huffman tables are shared across the entire binary.
+It may be even more effective to interleave the stack map changes into
+the same stream, since this would allow the PC deltas to be shared.
+This change was too invasive to implement for Go 1.11, but may be
+worth attempting for Go 1.12.
 
 
 ## Other uses
@@ -464,6 +542,8 @@ this for user code.
 
 ## Alternatives
 
+### Single-stepping
+
 Rather than significantly increasing the number of safe-points, we
 could use a signal to stop a thread and then use hardware
 single-stepping support to advance the thread to a safe-point (or a
@@ -477,6 +557,30 @@ stubs for these safe-points, which increases code size (and hence
 instruction cache pressure) as well as stack size.
 Safe-points everywhere increase binary size, but not code size or
 stack size.
+
+### Conservative inner frame
+
+The runtime could conservatively scan the inner-most stack frame and
+registers, while using the existing call-site stack maps to precisely
+scan all other frames.
+The compiler would still have to emit information about where it's
+*unsafe* to stop a goroutine, but wouldn't need to emit additional
+stack maps or any register maps.
+
+This has the usual leakage dangers of conservative GC, but in a
+severely limited scope.
+Unlike conservatively scanning the whole stack, it's unlikely that any
+incorrectly retained objects would last more than one GC cycle because
+it's unlikely that an inner frame would remain the inner frame across
+multiple cycles.
+
+However, its scope is more limited.
+This can't be used for debugger call injection because the injected
+function call tree may need to grow the stack, which can't be done
+without precise pointer information for the entire stack.
+It's also potentially problematic for scheduler preemptions, since
+that may keep leaked pointers live for longer than a GC pause or stack
+scan.
 
 
 ## Compatibility
