@@ -173,7 +173,7 @@ the soft heap goal at 25% GC CPU usage.
 
 Interestingly, while most of the variance in the original design was
 around GC CPU usage, that variance has been traded to the heap ratio
-in this new design[o][p].
+in this new design.
 This is because the scheduler *does not allow* GC CPU usage to drop
 below 25%.
 Hence, the controller saturates and the inherent variance shifts to
