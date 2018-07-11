@@ -6,7 +6,7 @@ Inspired by discussion with Rick Hudson and Rhys Hiltner
 
 Last updated: 2017-10-31
 
-Discussion at https://golang.org/issue/13951.
+Discussion at https://golang.org/issue/14951.
 
 ## Background
 
