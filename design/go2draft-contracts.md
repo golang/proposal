@@ -2033,7 +2033,7 @@ import "runtime"
 // the receiver stops reading them.
 func Ranger(type T)() (*Sender(T), *Receiver(T)) {
 	c := make(chan T)
-	d := make(chan struct{})
+	d := make(chan bool)
 	s := &Sender(T){values: c, done: d}
 	r := &Receiver(T){values: c, done: d}
 	runtime.SetFinalizer(r, (*Receiver(T)).finalize)
