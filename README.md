@@ -17,6 +17,35 @@ from GopherCon 2015.
 
 ## The Proposal Process
 
+The proposal process is the process for reviewing a proposal and reaching
+a decision about whether to accept or decline the proposal.
+
+1. The proposal author [creates a brief issue](https://golang.org/issue/new) describing the proposal.\
+   Note: There is no need for a design document at this point.\
+   Note: A non-proposal issue can be turned into a proposal by simply adding the proposal label.
+
+2. A discussion on the issue tracker aims to triage the proposal into one of three outcomes:
+     - Accept proposal, or
+     - decline proposal, or
+     - ask for a design doc.
+
+   If the proposal is accepted or declined, the process is done.
+   Otherwise the discussion is expected to identify concerns that
+   should be addressed in a more detailed design.
+
+3. The proposal author writes a [design doc](#design-documents) to work out details of the proposed
+   design and address the concerns raised in the initial discussion.
+
+4. Once comments and revisions on the design doc wind down, there is a final
+   discussion on the issue, to reach one of two outcomes:
+    - Accept proposal or
+    - decline proposal.
+
+After the proposal is accepted or declined (whether after step 2 or step 4),
+implementation work proceeds in the same way as any other contribution.
+
+## Detail
+
 ### Goals
 
 - Make sure that proposals get a proper, fair, timely, recorded evaluation with
@@ -41,7 +70,7 @@ Deciding what is appropriate is matter of judgment we will refine through
 experience.
 If in doubt, file a proposal.
 
-#### Compatibility
+### Compatibility
 
 Programs written for Go version 1.x must continue to compile and work with
 future versions of Go 1.
@@ -49,7 +78,7 @@ The [Go 1 compatibility document](https://golang.org/doc/go1compat) describes
 the promise we have made to Go users for the future of Go 1.x.
 Any proposed change must not break this promise.
 
-#### Language changes
+### Language changes
 
 Go is a mature language and, as such, significant language changes are unlikely
 to be accepted.
@@ -58,77 +87,74 @@ A "language change" in this context means a change to the
 (See the [release notes](https://golang.org/doc/devel/release.html) for
 examples of recent language changes.)
 
-### Process
+### Design Documents
 
-- [Create an issue](https://golang.org/issue/new) describing the proposal.
+As noted above, some (but not all) proposals need to be elaborated in a design document.
 
-- Like any GitHub issue, a Proposal issue is followed by an initial discussion
-  about the suggestion. For Proposal issues:
-	- The goal of the initial discussion is to reach agreement on the next step:
-		(1) accept, (2) decline, or (3) ask for a design doc.
-	- The discussion is expected to be resolved in a timely manner.
-	- If the author wants to write a design doc, then they can write one.
-	- In Go development historically, a lack of agreement means the
-	  author should write a design doc.
-	- If there is disagreement about whether there is agreement,
-	  [rsc@](mailto:rsc@golang.org) is the arbiter.
+- The design doc should be checked in to [the proposal repository](https://github.com/golang/proposal/) as `design/NNNN-shortname.md`,
+where `NNNN` is the GitHub issue number and `shortname` is a short name
+(a few dash-separated words at most).
+Clone this repository with `git clone https://go.googlesource.com/proposal`
+and follow the usual [Gerrit workflow for Go](https://golang.org/doc/contribute.html#Code_review).
 
-- It's always fine to label a suggestion issue with Proposal to opt in to this process.
+- The design doc should follow [the template](design/TEMPLATE.md).
 
-- It's always fine not to label a suggestion issue with Proposal.
-  (If the suggestion needs a design doc or is declined but worth remembering,
-  it is trivial to add the label later.)
+- The design doc should address any specific concerns raised during the initial discussion.
 
-- If a Proposal issue leads to a design doc:
-	- The design doc should be checked in to [the proposal repository](https://github.com/golang/proposal/) as `design/NNNN-shortname.md`,
-	  where `NNNN` is the GitHub issue number and `shortname` is a short name
-	  (a few dash-separated words at most).
-	  Clone this repository with `git clone https://go.googlesource.com/proposal`
-	  and follow the usual [Gerrit workflow for Go](https://golang.org/doc/contribute.html#Code_review).
-	- The design doc should follow [the template](design/TEMPLATE.md).
-	- The design doc should address any specific issues asked for during the
-	  initial discussion.
-	- It is expected that the design doc may go through multiple checked-in revisions.
-	- New design doc authors may be paired with a design doc "shepherd" to help work
-	  on the doc.
-	- For ease of review with Gerrit, design documents should be wrapped around the
-          80 column mark. [Each sentence should start on a new line](http://rhodesmill.org/brandon/2012/one-sentence-per-line/)
-          so that comments can be made accurately and the diff kept shorter.
-          In Emacs, loading `fill.el` from this directory will make
-          `fill-paragraph` format text this way.
-	- Comments on Gerrit CLs should be restricted to grammar, spelling, or
-          procedural errors related to the preparation of the proposal itself.
-          All other comments should be addressed to the related GitHub issue.
+- It is expected that the design doc may go through multiple checked-in revisions.
+New design doc authors may be paired with a design doc "shepherd" to help work on the doc.
 
-- Once comments and revisions on the design doc wind down, there is a final
-  discussion about the proposal.
-	- The goal of the final discussion is to reach agreement on the next step:
-		(1) accept or (2) decline.
-	- The discussion is expected to be resolved in a timely manner.
-	- If clear agreement cannot be reached, the arbiter
-	  ([rsc@](mailto:rsc@golang.org)) reviews the discussion
-	  and makes the decision to accept or decline.
+- For ease of review with Gerrit, design documents should be wrapped around the
+80 column mark.
+[Each sentence should start on a new line](http://rhodesmill.org/brandon/2012/one-sentence-per-line/)
+so that comments can be made accurately and the diff kept shorter.
+  - In Emacs, loading `fill.el` from this directory will make `fill-paragraph` format text this way.
 
-- The author (and/or other contributors) do the work as described by the
-  "Implementation" section of the proposal.
+- Comments on Gerrit CLs should be restricted to grammar, spelling,
+or procedural errors related to the preparation of the proposal itself.
+All other comments should be addressed to the related GitHub issue.
 
-#### Quick start for committers
 
-If you're already familiar with writing design docs for the Go project,
-the process has not changed much.
-The main thing that has changed is where the proposal is published.
+### Quick Start for Experienced Committers
 
-In the situation where you'd write and circulate a design doc as a Google doc
-before, now you:
+Experienced committers who are certain that a design doc will be
+required for a particular proposal
+can skip steps 1 and 2 and include the design doc with the initial issue.
 
-- Create a GitHub issue labeled Proposal, to get a number NNNN.
-- Check in the Markdown-formatted design doc to
-  [the proposal repository](https://github.com/golang/proposal/)
-  as `design/NNNN-shortname.md`.
-- Mail [golang-dev](https://groups.google.com/group/golang-dev/) as usual.
+In the worst case, skipping these steps only leads to an unnecessary design doc.
 
-Worst case, by bypassing the initial discussion you've possibly written an
-unnecessary design doc. Not a big deal.
+### Proposal Review
+
+A group of Go team members holds “proposal review meetings”
+approximately weekly to review pending proposals.
+
+The principal goal of the review meeting is to make sure that proposals
+are receiving attention from the right people,
+by cc'ing relevant developers, raising important questions,
+pinging lapsed discussions, and generally trying to guide discussion
+toward agreement about the outcome.
+The discussion itself is expected to happen on the issue tracker,
+so that anyone can take part.
+
+The proposal review meetings also identify issues where
+consensus has been reached and the process can be
+advanced to the next step (by marking the proposal accepted
+or declined or by asking for a design doc).
+
+### Consensus and Disagreement
+
+The goal of the proposal process is to reach general consensus about the outcome
+in a timely manner.
+
+If general consensus cannot be reached,
+the proposal review group decides the next step
+by reviewing and discussing the issue and
+reaching a consensus among themselves.
+If even consensus among the proposal review group
+cannot be reached (which would be exceedingly unusual),
+the arbiter ([rsc@](mailto:rsc@golang.org))
+reviews the discussion and
+decides the next step.
 
 ## Help
 
