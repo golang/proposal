@@ -2,9 +2,12 @@
 
 Author: Christian Petrin.
 
-Last updated: September 29, 2018
+Last updated: October 2, 2018
 
-Discussion at https://golang.org/issue/NNNNN.
+Discussion at: https://github.com/golang/go/issues/27935
+
+Design document at https://github.com/golang/proposal/blob/master/design/27935-unbounded-queue-package.md
+
 
 ## Abstract
 I propose to add a new package, "container/queue", to the standard library to
@@ -23,13 +26,13 @@ package](https://github.com/golang/go/tree/master/src/container/ring).
 The standard [list
 package](https://github.com/golang/go/tree/master/src/container/list) can be
 used as the underlying data structure for building unbounded queues, but the
-performance yielded by this linked list based implementation is not optimal.
+performance yielded by this linked list based implementation [is not
+optimal](https://github.com/christianrpetrin/queue-tests/blob/master/bench_queue.md).
 
-Implementing a queue using dynamic slices as suggested
+Implementing a queue using slices as suggested
 [here](https://stackoverflow.com/a/26863706) is a feasible approach, but the
-performance yielded by this implementation can be abysmal in some high load
-scenarios. The memory footprint can also easily skyrocket in some scenarios.
-
+performance yielded by this implementation can be abysmal in some [high load
+scenarios](https://github.com/christianrpetrin/queue-tests/blob/master/bench_queue.md).
 
 ## Background
 Queues that grows dynamically has many uses. As an example, I'm working on a
@@ -52,8 +55,9 @@ fully asynchronous operation in this scenario is highly desirable as logging
 data should not slow down significantly the hosting application.
 
 Above problem is a problem that, potentially, every system that calls another
-system faces. And in the cloud and microservices era, this is an extremely
-common scenario.
+system faces. And in the [cloud](https://en.wikipedia.org/wiki/Cloud_computing)
+and [microservices](https://en.wikipedia.org/wiki/Microservices) era, this is an
+extremely common scenario.
 
 Due to the lack of support for built in unbounded queues in Go, Go engineers are
 left to either:
@@ -87,7 +91,6 @@ implemented queues, the approaches suggested
 linear copy of the internal slice for resizing purposes. Some implementations
 also has memory issues such as an ever expanding internal slice and memory
 leaks.
-
 
 ## Proposal
 I propose to add a new package, "container/queue", to the standard library to
@@ -129,7 +132,7 @@ to implementing queues when in comes to the queue underlying data structure:
 
 Linked list as the underlying data structure for an unbounded queue has the
 advantage of scaling efficiently when the underlying data structure needs to
-grow to accomodate more values. This is due to the fact that the existing
+grow to accommodate more values. This is due to the fact that the existing
 elements doesn't need to be repositioned or copied around when the queue needs
 to grow.
 
@@ -146,29 +149,39 @@ However, there's a few concerns with this approach:
 
 On the other hand, using a slice as the underlying data structure for unbounded
 queues has the advantage of very good [memory
-locality](https://www.cs.cornell.edu/courses/cs3110/2012sp/lectures/lec25-locality/lec25.html)
-(values are stored next to each other with predictive indices) making retrieval
-of values faster when comparing to linked lists. Also an "alloc more than needed
-right now" approach can easily be implemented with slices. 
+locality](https://www.cs.cornell.edu/courses/cs3110/2012sp/lectures/lec25-locality/lec25.html),
+making retrieval of values faster when comparing to linked lists. Also an "alloc
+more than needed right now" approach can easily be implemented with slices.
 
-Also when the slice needs to expand, extra large new slices can be allocated
-with a single operation, thus not requiring memory allocations for each add
-operation.
+However, when the slice needs to expand to accommodate new values, a [well
+adopted
+strategy](https://en.wikipedia.org/wiki/Dynamic_array#Geometric_expansion_and_amortized_cost)
+is to allocate a new, larger slice, copy over all elements from the previous
+slice into the new one and use the new one to add the new elements.
 
-However, when the slice needs to exand to accomodate new values, the well
-adopted strategy is to allocate a new, larger slice, copy over all elements from
-the previous slice into the new one and use the new one to add the new elements.
 The problem with this approach is the obvious need to copy all the values from
 the older, small slice, into the new one, yielding a poor performance when the
-amount of values that need copying are fairly large. In other words, this
-approach doesn't scale well with large data sets.
+amount of values that need copying are fairly large.
+
+Another potential problem is a theoretical lower limit on how much data they can
+hold as slices, like arrays, have to allocate its specified positions in
+sequential memory addresses, so the maximum number of items the queue would ever
+be able to hold is the maximum size a slice can be allocated on that particular
+system at any given moment. Due to modern memory management techniques such as
+[virtual memory](https://en.wikipedia.org/wiki/Virtual_memory) and
+[paging](https://en.wikipedia.org/wiki/Paging), this is a very hard scenario to
+corroborate thru practical testing.
+
+Nonetheless, this approach doesn't scale well with large data sets.
 
 Having said that, there's a third, newer approach to implementing unbounded
 queues: use fixed size linked slices as the underlying data structure.
 
-The fixed sized linked slices approach is a hybrid between the first two,
+The fixed size linked slices approach is a hybrid between the first two,
 providing good memory locality arrays have alongside the efficient growing
-mechanism linked lists offer.
+mechanism linked lists offer. It is also not limited on the maximum size a slice
+can be allocated, being able to hold and deal efficiently with a theoretical
+much larger amount of data than pure slice based implementations.
 
 
 ## Rationale
@@ -222,16 +235,16 @@ implementations, I implemented and probed below queue implementations.
 
 Also as part of the research, I investigated and probed below open source queue
 implementations as well.
-- [gammazero](https://github.com/gammazero/deque): the deque implemented in this
-  package is a slice, ring based queue implementation.
-- [phf](https://github.com/phf/go-queue): this is also a slice, ring based queue
+- [phf](https://github.com/phf/go-queue): this is a slice, ring based queue
   implementation. Interesting to note the author did a pretty good job
   researching and probing other queue implementations as well.
+- [gammazero](https://github.com/gammazero/deque): the deque implemented in this
+  package is also a slice, ring based queue implementation.
 - [juju](https://github.com/juju/utils/tree/master/deque): the deque implemented
   in this package uses a linked list based approach, similarly to other
   experimental implementations in this package such as
   [queueimpl3](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl3/queueimpl3.go).
-  The biggest difference between this implementation and the other expirimental
+  The biggest difference between this implementation and the other experimental
   ones is the fact that this queue uses the standard list package as the linked
   list. The standard list package implements a doubly linked list, while the
   experimental implementations implements their own singly linked list.
@@ -275,21 +288,24 @@ Memory<br/>
 ![B/op](https://github.com/christianrpetrin/queue-tests/blob/master/images/queue-line-mem.jpg?raw=true
 "Benchmark tests") <br/>
 
-[Detailed, curated results can be found
-here](https://docs.google.com/spreadsheets/d/e/2PACX-1vRnCm7v51Eo5nq66NsGi8aQI6gL14XYJWqaeRJ78ZIWq1pRCtEZfsLD2FcI-gIpUhhTPnkzqDte_SDB/pubhtml?gid=668319604&single=true)
+Detailed, curated results can be found
+[here](https://docs.google.com/spreadsheets/d/e/2PACX-1vRnCm7v51Eo5nq66NsGi8aQI6gL14XYJWqaeRJ78ZIWq1pRCtEZfsLD2FcI-gIpUhhTPnkzqDte_SDB/pubhtml?gid=668319604&single=true)
 
-[Aggregated, curated results can be found
-here](https://docs.google.com/spreadsheets/d/e/2PACX-1vRnCm7v51Eo5nq66NsGi8aQI6gL14XYJWqaeRJ78ZIWq1pRCtEZfsLD2FcI-gIpUhhTPnkzqDte_SDB/pubhtml?gid=582031751&single=true)
+Aggregated, curated results can be found
+[here](https://docs.google.com/spreadsheets/d/e/2PACX-1vRnCm7v51Eo5nq66NsGi8aQI6gL14XYJWqaeRJ78ZIWq1pRCtEZfsLD2FcI-gIpUhhTPnkzqDte_SDB/pubhtml?gid=582031751&single=true)
 <br/>
 
-Given above results, [queueimpl7](queueimpl7/queueimpl7.go), henceforth just
-"impl7", proved to be the most balanced implementation, being either faster or
-very competitive in all tests scenarios from a performance and memory
-perspective. Refer [here](https://github.com/christianrpetrin/queue-tests) for
-more details about the tests.
+Given above results,
+[queueimpl7](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl7/queueimpl7.go),
+henceforth just "impl7", proved to be the most balanced implementation, being
+either faster or very competitive in all test scenarios from a performance and
+memory perspective.
 
-[The benchmark tests can be found
-here.](https://github.com/christianrpetrin/queue-tests/blob/master/benchmark_test.go).
+Refer [here](https://github.com/christianrpetrin/queue-tests) for more details
+about the tests.
+
+The benchmark tests can be found
+[here](https://github.com/christianrpetrin/queue-tests/blob/master/benchmark_test.go).
 
 
 #### Impl7 Design and Implementation
@@ -300,9 +316,12 @@ and
 [queueimpl2](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl2/queueimpl2.go)
 offers phenomenal performance when the queue is used with small data sets.
 
-For instance, comparing impl3 (very simple linked slice implementation) with
-impl1 (very simple slice based implementation), the results at adding 0 (init
-time only), 1 and 10 items are very favorable for impl1, from a performance and
+For instance, comparing
+[queueimpl3](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl3/queueimpl3.go)
+(very simple linked slice implementation) with
+[queueimpl1](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl1/queueimpl1.go)
+(very simple slice based implementation), the results at adding 0 (init time
+only), 1 and 10 items are very favorable for impl1, from a performance and
 memory perspective.
 
 ```
@@ -335,12 +354,12 @@ name       old allocs/op  new allocs/op  delta
 /100000-4      100k ± 0%      102k ± 0%      +1.53%  (p=0.000 n=20+20)
 ```
 
-Impl7 is a bybrid experiment between using a simple slice based queue
-implementation for small data sets and the fixed sized linked slice approach for
+Impl7 is a hybrid experiment between using a simple slice based queue
+implementation for small data sets and the fixed size linked slice approach for
 large data sets, which is an approach that scales really well, offering really
 good performance for small and large data sets.
 
-The implentation starts by lazily creating the first slice to hold the first
+The implementation starts by lazily creating the first slice to hold the first
 values added to the queue.
 
 ```go
@@ -388,7 +407,7 @@ func newNode(capacity int) *Node {
 
 The very first created slice is created with capacity 1. The implementation
 allows the builtin append function to dynamically resize the slice up to 16
-(maxFirstSliceSize) positions. After that it reverts to creating fixed sized 128
+(maxFirstSliceSize) positions. After that it reverts to creating fixed size 128
 position slices, which offers the best performance for data sets above 16 items.
 
 16 items was chosen as this seems to provide the best balanced performance for
@@ -397,15 +416,15 @@ tests](https://github.com/christianrpetrin/queue-tests/blob/master/bench_slice_s
 Above 16 items, growing the slice means allocating a new, larger one and copying
 all 16 elements from the previous slice into the new one. The append function
 phenomenal performance can only compensate for the added copying of elements if
-the data set is very small, no more than 8 items in our tests. For above 8
-items, the fixed sized slice approach is consistently faster and uses less
-memory, where 128 sized slices are allocated and linked together when the data
-structure needs to scale to accomodate new values.
+the data set is very small, no more than 8 items in the benchmark tests. For
+above 8 items, the fixed size slice approach is consistently faster and uses
+less memory, where 128 sized slices are allocated and linked together when the
+data structure needs to scale to accommodate new values.
 
 Why 16? Why not 15 or 14?
 
 The builtin append function, as of "go1.11 darwin/amd64", seems to double the
-slice size every time is needs to allocate a new one.
+slice size every time it  needs to allocate a new one.
 
 ```go
 ts := make([]int, 0, 1)
@@ -432,7 +451,51 @@ fmt.Println(cap(ts)) // Slice has 9 items; output: 16
 
 Since the append function will resize the slice from 8 to 16 positions, it makes
 sense to use all 16 already allocated positions before switching to the fixed
-sized slices approach.
+size slices approach.
+
+#### Design Considerations
+[Impl7](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl7/queueimpl7.go)
+uses linked slices as its underlying data structure.
+
+The reasonale for the choice comes from two main obervations of slice based
+queues:
+1) When the queue needs to expand to accomodate new values, a new, larger slice
+   needs to be allocated and used
+2) Allocating and managing large slices is expensive, especially in an
+   overloaded system with little avaialable physical memory
+
+To help clarify the scenario, below is what happens when a slice based queue
+that already holds, say 1bi items, needs to expand to accommodate a new item.
+
+Slice based implementation
+- Allocate a new, [twice the
+  size](https://en.wikipedia.org/wiki/Dynamic_array#Geometric_expansion_and_amortized_cost)
+  of the previous allocated one, say 2 billion positions slice
+- Copy over all 1 billion items from the previous slice into the new one
+- Add the new value into the first unused position in the new array, position
+  1000000001.
+
+The same scenario for impl7 plays out like below.
+
+Impl7
+- Allocate a new 128 size slice
+- Set the next pointer
+- Add the value into the first position of the new array, position 0
+
+Impl7 never copies data around, but slice based ones do, and if the data set is
+large, it doesn't matter how fast the copying algorithm is. The copying has to
+be done and will take some time.
+
+The decision to use linked slices was also the result of the observation that
+slices goes to great length to provide predictive, indexed positions. A hash
+table, for instance, absolutely need this property, but not a queue. So impl7
+completely gives up this property and focus on what really matters: add to end,
+retrieve from head. No copying around and repositioning of elements is needed
+for that. So when a slice goes to great length to provide that functionality,
+the whole work of allocating new arrays, copying data around is all wasted work.
+None of that is necessary. And this work costs dearly for large data sets as
+observed in the
+[tests](https://github.com/christianrpetrin/queue-tests/blob/master/bench_queue.md).
 
 
 #### Impl7 Benchmark Results
@@ -483,12 +546,13 @@ name       old allocs/op  new allocs/op  delta
 ```
 Impl7 is:
 - Up to ~29x faster (1.2ns vs 34.9ns) than list package for init time (0 items)
-- Up to ~4x faster (3.1ms vs 13.1ms) than list package for 10k items
-- Uses ~1/2 memory (2.43MB vs 5.60MB) than list package for 10k items
+- Up to ~4x faster (3.1ms vs 13.1ms) than list package for 100k items
+- Uses ~1/2 memory (2.43MB vs 5.60MB) than list package for 100k items
 
 ---
 
-Impl1 (simple slice based queue implementaion) vs impl7.
+[impl1](https://github.com/christianrpetrin/queue-tests/tree/master/queueimpl1/queueimpl1.go)
+(simple slice based queue implementaion) vs impl7.
 ```
 benchstat rawresults/bench-impl1.txt rawresults/bench-impl7.txt
 name       old time/op    new time/op    delta
@@ -520,51 +584,53 @@ name       old allocs/op  new allocs/op  delta
 ```
 Impl7 is:
 - Up to ~5x faster (1.18ns vs 6.83ns) than impl1 for init time (0 items)
-- Up to ~5x faster (3.1ms vs 15.8ms) than impl1 for 10k items
-- Uses ~1/4 memory (2.4MB vs 10MB) than impl1 for 10k items
+- Up to ~5x faster (3.1ms vs 15.8ms) than impl1 for 100k items
+- Uses ~1/4 memory (2.4MB vs 10MB) than impl1 for 100k items
 
 It's important to note that the performance and memory gains for impl7 is
 exponential like the larger the data set is due to the fact slice based
-implementations doesn't scale well, paying a higher and higher price,
-performance and memory wise, everytime it needs to scale to accomadate an ever
+implementations doesn't scale well, [paying a higher and higher
+price](https://en.wikipedia.org/wiki/Dynamic_array#Geometric_expansion_and_amortized_cost),
+performance and memory wise, every time it needs to scale to accommodate an ever
 expanding data set.
 
 ---
 
-Gammazero (slice, ring based FIFO queue implementation) vs impl7.
+[phf](https://github.com/phf/go-queue) (slice, ring based FIFO queue
+implementation) vs impl7.
 ```
-benchstat rawresults/bench-gammazero.txt rawresults/bench-impl7.txt
+benchstat rawresults/bench-phf.txt rawresults/bench-impl7.txt
 name       old time/op    new time/op    delta
-/0-4         1.45ns ± 0%    1.18ns ± 3%   -18.97%  (p=0.000 n=14+20)
-/1-4          103ns ± 2%      68ns ± 1%   -33.83%  (p=0.000 n=17+20)
-/10-4         337ns ± 1%     578ns ± 0%   +71.39%  (p=0.000 n=16+20)
-/100-4       4.16µs ± 2%    3.07µs ± 0%   -26.12%  (p=0.000 n=20+18)
-/1000-4      35.6µs ± 2%    25.8µs ± 1%   -27.59%  (p=0.000 n=19+20)
-/10000-4      342µs ± 2%     260µs ± 1%   -23.96%  (p=0.000 n=20+18)
-/100000-4    12.0ms ±10%     3.1ms ± 3%   -74.46%  (p=0.000 n=20+20)
+/0-4         28.1ns ± 1%     1.2ns ± 3%   -95.83%  (p=0.000 n=20+20)
+/1-4         42.5ns ± 1%    68.3ns ± 1%   +60.80%  (p=0.000 n=20+20)
+/10-4         681ns ± 1%     578ns ± 0%   -15.11%  (p=0.000 n=18+20)
+/100-4       4.55µs ± 1%    3.07µs ± 0%   -32.45%  (p=0.000 n=19+18)
+/1000-4      35.5µs ± 1%    25.8µs ± 1%   -27.32%  (p=0.000 n=18+20)
+/10000-4      349µs ± 2%     260µs ± 1%   -25.67%  (p=0.000 n=20+18)
+/100000-4    11.7ms ±11%     3.1ms ± 3%   -73.77%  (p=0.000 n=20+20)
 
 name       old alloc/op   new alloc/op   delta
-/0-4          0.00B          0.00B           ~     (all equal)
-/1-4           256B ± 0%       48B ± 0%   -81.25%  (p=0.000 n=20+20)
-/10-4          328B ± 0%      600B ± 0%   +82.93%  (p=0.000 n=20+20)
-/100-4       6.42kB ± 0%    3.40kB ± 0%   -47.07%  (p=0.000 n=20+20)
-/1000-4      56.6kB ± 0%    25.2kB ± 0%   -55.57%  (p=0.000 n=20+20)
-/10000-4      473kB ± 0%     243kB ± 0%   -48.64%  (p=0.000 n=20+20)
-/100000-4    7.09MB ± 0%    2.43MB ± 0%   -65.77%  (p=0.000 n=20+20)
+/0-4          16.0B ± 0%      0.0B       -100.00%  (p=0.000 n=20+20)
+/1-4          16.0B ± 0%     48.0B ± 0%  +200.00%  (p=0.000 n=20+20)
+/10-4          696B ± 0%      600B ± 0%   -13.79%  (p=0.000 n=20+20)
+/100-4       6.79kB ± 0%    3.40kB ± 0%   -49.94%  (p=0.000 n=20+20)
+/1000-4      57.0kB ± 0%    25.2kB ± 0%   -55.86%  (p=0.000 n=20+20)
+/10000-4      473kB ± 0%     243kB ± 0%   -48.68%  (p=0.000 n=20+20)
+/100000-4    7.09MB ± 0%    2.43MB ± 0%   -65.77%  (p=0.000 n=18+20)
 
 name       old allocs/op  new allocs/op  delta
-/0-4           0.00           0.00           ~     (all equal)
+/0-4           1.00 ± 0%      0.00       -100.00%  (p=0.000 n=20+20)
 /1-4           1.00 ± 0%      2.00 ± 0%  +100.00%  (p=0.000 n=20+20)
-/10-4          10.0 ± 0%      15.0 ± 0%   +50.00%  (p=0.000 n=20+20)
-/100-4          106 ± 0%       107 ± 0%    +0.94%  (p=0.000 n=20+20)
-/1000-4       1.01k ± 0%     1.02k ± 0%    +0.89%  (p=0.000 n=20+20)
-/10000-4      10.0k ± 0%     10.2k ± 0%    +1.43%  (p=0.000 n=20+20)
+/10-4          15.0 ± 0%      15.0 ± 0%      ~     (all equal)
+/100-4          111 ± 0%       107 ± 0%    -3.60%  (p=0.000 n=20+20)
+/1000-4       1.02k ± 0%     1.02k ± 0%    +0.39%  (p=0.000 n=20+20)
+/10000-4      10.0k ± 0%     10.2k ± 0%    +1.38%  (p=0.000 n=20+20)
 /100000-4      100k ± 0%      102k ± 0%    +1.54%  (p=0.000 n=20+20)
 ```
 Impl7 is:
-- Up to ~18% faster (1.18ns vs 1.45ns) than gammazero for init time (0 items)
-- Up to ~3x faster (3.1ms vs 12.0ms) than gammazero for 10k items
-- Uses ~1/2 memory (2.43MB vs 7.09MB) than gammazero for 10k items
+- Up to ~23x faster (1.2ns vs 28.1ns) than phf for init time (0 items)
+- Up to ~3x faster (3.1ms vs 11.7ms) than phf for 100k items
+- Uses ~1/2 memory (2.43MB vs 7.09MB) than phf for 100k items
 
 ---
 
@@ -600,14 +666,14 @@ name       old allocs/op  new allocs/op  delta
 ```
 Impl7 is:
 - Up to ~25x faster (1.2ns vs 30.2ns) than channels for init time (0 items)
-- Up to ~2x faster (3.07ms vs 6.76ms) than channels for 10k items
-- Uses ~50% MORE memory (2.43MB vs 1.60MB) than channels for 10k items
+- Up to ~2x faster (3.07ms vs 6.76ms) than channels for 100k items
+- Uses ~50% MORE memory (2.43MB vs 1.60MB) than channels for 100k items
 
 Above is not really a fair comparison as standard buffered channels doesn't
 scale (at all) and they are meant for routine synchronization. Nonetheless, they
-can and make for an excellent FIFO queue option. Still, impl7 is consistenly
-faster than channels across the board, but uses considerably more memory than
-channels.
+can and make for an excellent bounded FIFO queue option. Still, impl7 is
+consistently faster than channels across the board, but uses considerably more
+memory than channels.
 
 ---
 
@@ -673,7 +739,7 @@ As nil values are considered valid queue values, similarly to the map data
 structure, "Front" and "Pop" returns a second bool parameter to indicate whether
 the returned value is valid and whether the queue is empty or not.
 
-The reasonale for above method names and signatures are the need to keep
+The resonale for above method names and signatures are the need to keep
 compatibility with existing Go data structures such as the
 [list](https://github.com/golang/go/blob/master/src/container/list/list.go),
 [ring](https://github.com/golang/go/blob/master/src/container/ring/ring.go) and
@@ -705,13 +771,17 @@ for their queue implementation.
 
 
 ### Range Support
-Just like the current container data strucutures such as the list, ring and
-heap, Impl7 doesn't support the range keyword for navigation.
+Just like the current container data strucutures such as
+[list](https://github.com/golang/go/blob/master/src/container/list/list.go),
+[ring](https://github.com/golang/go/blob/master/src/container/ring/ring.go) and
+[heap](https://github.com/golang/go/tree/master/src/container/heap), Impl7
+doesn't support the range keyword for navigation.
 
 The API offers two ways to iterate over the queue items.
 
 Either use "Pop" to retrieve the first current element and the second bool
 parameter to check for an empty queue.
+
 ```go
 for v, ok := q.Pop(); ok; v, ok = q.Pop() {
     // Do something with v
@@ -810,12 +880,13 @@ func TestSafeQueue(t *testing.T) {
     for v, ok := q.Pop(); ok; v, ok = q.Pop() {
         fmt.Println(v)
    }
-  
+
    // Output:
    // 1
    // 2
 }
 ```
+
 
 ### Drawbacks
 The biggest drawback of the proposed implementation is the potentially extra
@@ -888,51 +959,10 @@ fmt.Println(fmt.Sprintf("%d bytes", unsafe.Sizeof(q)+(unsafe.Sizeof(internalSlic
 // Output for a 64bit system (Intel(R) Core(TM) i5-7267U CPU @ 3.10GHz): 4072 bytes
 ```
 
-Above code were run on Go version "go1.11 darwin/amd64".
+Above code was run on Go version "go1.11 darwin/amd64".
 
 
-### Alternative Solutions
-Buffered channels provide an excellent option to be used as a simple FIFO queue.
-However, there's a few drawbacks when using buffered channels as queues.
-
-1) Channels block the consumers once its internal limit (initialized length) has
-   been reached
-2) Channels can't be used as data store to store sequential data as it require
-   immediate consumers
-3) Channels are meant for routine synchronization, not as a data structure, so
-   they are safe for concurrent use, which is not a feature that is always
-   desired in a queue
-
-The use of the standard list package as an unbounded queue seems to be the
-perfect candidate for large data sets. However, its performance is dramatically
-slower than impl7 and displays a much bigger memory footprint.
-
-Similarly, the use of dynamic slices to implement queues doesn't offer very good
-performance or memory footprint either, as confirmed by the [benchmark test
-results](https://github.com/christianrpetrin/queue-tests/blob/master/bench_queue.md).
-
-
-## Compatibility
-This is a new package; existing code continues to compile, in keeping with the
-[compatibility guidelines](https://golang.org/doc/go1compat).
-
-
-## Implementation
-A complete implementation can be found
-[here](https://github.com/christianrpetrin/queue-tests/blob/master/queueimpl7).
-Only a few changes such as package name and comments would need to be changed,
-besides other changes the Go community feels are necessary. I'll be porting the
-code to the standard library by submitting PR, addressing comments, merging,
-etc.
-
-The goal, subject to proposal approval, is to have the new package checked in
-for the Go 1.12 release.
-
-
-## Open issues
-If this queue proposal is accepted, it would make sense to research and
-implement similar approach for a stack implementation as well.
-
+## Open Questions/Issues
 Should this be a deque (double-ended queue) implementation instead? The deque
 could be used as a stack as well, but it would make more sense to have a queue
 and stack implementations (like most mainstream languages have) instead of a
@@ -949,18 +979,16 @@ implication of the change is adding nil values wouldn't be valid anymore so
 avoided in libraries.
 
 The memory footprint for a 128 sized internal slice causes, in the worst case
-scenario, a 4072 bytes of memory allocated but not used. Switching to 64 means
-roughly half the memory would be used with a slight ~2.89% performance drop
-(252813ns vs 260137ns). The extra memory footprint is not worth the extra
-performance gain is a very good point to make. Should we change this value to 64
-or maybe make it configurable?
+scenario, a 2040 bytes of memory allocated (on a 64bit system) but not used.
+Switching to 64 means roughly half the memory would be used with a slight ~2.89%
+performance drop (252813ns vs 260137ns). The extra memory footprint is not worth
+the extra performance gain is a very good point to make. Should we change this
+value to 64 or maybe make it configurable?
 
 Should we also provide a safe for concurrent use implementation? A specialized
 implementation that would rely on atomic operations to update its internal
 indices and length could offer a much better performance when comparing to a
-similar implementation that relies on mutexes. Maybe a linked channel approach
-would be the best solution for a safe for concurrent use, yet very performant
-solution. I'll be testing this approach in the near future.
+similar implementation that relies on a mutex.
 
 With the impending release of generics, should we wait to release the new queue
 package once the new generics framework is released?
@@ -968,6 +996,7 @@ package once the new generics framework is released?
 Should we implement support for the range keyword for the new queue? It could be
 done in a generic way so other data structures could also benefit from this
 feature. For now, IMO, this is a topic for another proposal/discussion.
+
 
 
 ## Summary
@@ -984,11 +1013,8 @@ I feel strongly this proposal should be accepted due to below reasons.
 2) The proposed solution uses a new, unique approach to building queues, yet its
    [implementation](https://github.com/christianrpetrin/queue-tests/blob/master/queueimpl7/queueimpl7.go)
    is clean and extremely simple. Both main methods, "Push" and "Pop", are
-   composed of only 13 and 14 lines of code, respectively. The proposed
-   implementation also have proper tests with 100% test coverage. I feel
-   strongly the proposed solution will require minimal maintenance moving
-   forward
-3) I'll implement any changes the Go community feels are needed for the proposed
+   composed of only 16 and 19 lines of code (total), respectively. The proposed
+   implementation also have proper tests with 100% test coverage and should
+   require minimal maintenance moving forward
+3) I'll implement any changes the Go community feel are needed for the proposed
    solution to be worth of the standard library and the Go community
-
-Design document with more details at https://golang.org/issue/NNNNN.
