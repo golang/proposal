@@ -11,7 +11,7 @@ Discussion at:
 
    - [golang.org/issue/19308](https://golang.org/issue/19308) (binary integer literals) 
    - [golang.org/issue/12711](https://golang.org/issue/12711) (octal integer literals) 
-   - [golang.org/issue/28493](https://golang.orgissue/28493) (digit separator)
+   - [golang.org/issue/28493](https://golang.org/issue/28493) (digit separator)
    - [golang.org/issue/29008](https://golang.org/issue/29008) (hexadecimal floating point)
 
 ## Abstract
