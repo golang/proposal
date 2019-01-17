@@ -5,6 +5,8 @@ Robert Griesemer
 
 Last updated: January 16, 2019
 
+[golang.org/design/19308-number-literals](https://golang.org/design/19308-number-literals)
+
 Discussion at:
 
    - [golang.org/issue/19308](https://golang.org/issue/19308) (binary integer literals) 
