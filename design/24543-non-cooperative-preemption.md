@@ -558,6 +558,44 @@ instruction cache pressure) as well as stack size.
 Safe-points everywhere increase binary size, but not code size or
 stack size.
 
+### Jump rewriting
+
+We can solve the problems of single-stepping by instead rewriting the
+next safe-point jump instruction after the interruption point to jump
+to a preemption path and resuming execution like usual.
+To make this easy, the compiler could leave enough room (via padding
+NOPs) so only the jump target needs to be modified.
+
+This approach has the usual drawbacks of modifiable code.
+It's a security risk, it breaks text page sharing, and simply isn't
+allowed on iOS.
+It also can't target an individual goroutine (since another goroutine
+could be executing the same code) and may have odd interactions with
+concurrent execution on other cores.
+
+### Out-of-line execution
+
+A further alternative in the same vein, but that doesn't require
+modifying existing text is out-of-line execution.
+In this approach, the signal handler relocates the instruction stream
+from the interruption point to the next safe-point jump into a
+temporary buffer, patches it to jump into the runtime at the end, and
+resumes execution in this relocated sequence.
+
+This solves most of the problems with single-stepping and jump
+rewriting, but is quite complex to implement and requires substantial
+implementation effort for each platform.
+It also isn't allowed on iOS.
+
+There is precedent for this sort of approach.
+For example, when Linux uprobes injects an INT3, it relocates the
+overwritten instructions into an "execute out-of-line" area to avoid
+the usual problems with resuming from an INT3 instruction.
+[The
+implementation](https://github.com/torvalds/linux/blob/v4.18/arch/x86/kernel/uprobes.c)
+is surprisingly simple given the complexity of the x86 instruction
+encoding, but is still quite complex.
+
 ### Conservative inner frame
 
 The runtime could conservatively scan the inner-most stack frame and
