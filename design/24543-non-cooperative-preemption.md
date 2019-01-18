@@ -46,8 +46,19 @@ linked from this document.
 Up to and including Go 1.10, Go has used cooperative preemption with
 safe-points only at function calls (and even then, not if the function
 is small or gets inlined).
-This can result in infrequent safe-points, which leads to many
-problems:
+This means that Go can only switch between concurrently-executing
+goroutines at specific points.
+The main advantage of this is that the compiler can ensure useful
+invariants at these safe-points.
+In particular, the compiler ensures that all local garbage collection
+roots are known at all safe-points, which is critical to precise
+garbage collection.
+It can also ensure that no registers are live at safe-points, which
+means the Go runtime can switch goroutines without having to save and
+restore a large register set.
+
+However, this can result in infrequent safe-points, which leads to
+many problems:
 
 1. The most common in production code is that this can delay STW
    operations, such as starting and ending a GC cycle.
@@ -76,14 +87,10 @@ These problems impede developer productivity and production efficiency
 and expose Go's users to implementation details they shouldn't have to
 worry about.
 
-<!-- TODO: Give background on non-cooperative preemption in general.
-Cover how general-purpose operating systems do this and special
-considerations in a garbage-collected language. -->
-
-### Loop preemption
+### Cooperative loop preemption
 
 @dr2chase put significant effort into trying to solve these problems
-using explicit *loop preemption* (#10958).
+using cooperative *loop preemption* (#10958).
 This is a standard approach for runtimes employing cooperative
 preemption in which the compiler inserts preemption checks and
 safe-points at back-edges in the flow graph.
@@ -116,6 +123,33 @@ Finally, it interferes with debuggers, which assume bad memory
 references are a good reason to stop a program.
 It's not clear it can work at all under many debuggers on OS X due to
 a [kernel bug](https://bugs.llvm.org/show_bug.cgi?id=22868).
+
+
+## Non-cooperative preemption
+
+*Non-cooperative preemption* switches between concurrent execution
+contexts without explicit preemption checks or assistance from those
+contexts.
+This is used by all modern desktop and server operating systems to
+switch between threads.
+Without this, a single poorly-behaved application could wedge the
+entire system, much like how a single poorly-behaved goroutine can
+currently wedge a Go application.
+It is also a convenient abstraction: it lets us program as if there
+are an infinite number of CPUs available, hiding the fact that the OS
+is time-multiplexing a finite number of CPUs.
+
+Operating system schedulers use hardware interrupt support to switch a
+running thread into the OS scheduler, which can save that thread's
+state such as its CPU registers so that it can be resumed later.
+In Go, we would use operating system support to do the same thing.
+On UNIX-like operating systems, this can be done using signals.
+
+However, because of the garbage collector, Go has requirements that an
+operating system does not: Go must be able to find the live pointers
+on a goroutine's stack wherever it stops it.
+Most of the complexity of non-cooperative preemption in Go derives
+from this requirement.
 
 
 ## Proposal
@@ -444,10 +478,10 @@ debuggers since both the debugger and the operating system assume the
 debugger owns single-stepping, not the process itself.
 This would also require the compiler to provide register flushing
 stubs for these safe-points, which increases code size (and hence
-instruction cache pressure) as well as stack size, much like explicit
-loop preemption.
-However, unlike explicit loop preemption, this approach would have no
-effect on mainline code size or performance.
+instruction cache pressure) as well as stack size, much like
+cooperative loop preemption.
+However, unlike cooperative loop preemption, this approach would have
+no effect on mainline code size or performance.
 
 ### Jump rewriting
 
