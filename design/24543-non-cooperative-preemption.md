@@ -154,7 +154,16 @@ from this requirement.
 
 ## Proposal
 
-I propose that Go implement non-cooperative goroutine preemption.
+I propose that Go implement non-cooperative goroutine preemption by
+sending a POSIX signal (or using an equivalent OS mechanism) to stop a
+running goroutine and capture its CPU state.
+If a goroutine is interrupted at a point that must be GC atomic, as
+detailed in the ["Handling unsafe-points"](#handling-unsafe-points)
+section, the runtime can simply resume the goroutine and try again
+later.
+
+The key difficulty of implementing non-cooperative preemption for Go
+is finding live pointers in the stack of a preempted goroutine.
 There are many possible ways to do this, which are detailed in these
 sub-proposals:
 
@@ -165,9 +174,11 @@ sub-proposals:
   This allows the runtime to halt a goroutine anywhere and find its GC
   roots.
 
-<!-- TODO(austin): Write and link to conservative inner-frame
-proposal.
-Write a "trade-offs" section comparing the sub-proposals. -->
+* The [conservative inner-frame scanning
+  proposal](24543/conservative-inner-frame.md) describes an
+  implementation that uses conservative GC techniques to find pointers
+  in the inner-most stack frame of a preempted goroutine.
+  This can be done without any extra safe-point metadata.
 
 
 ## Handling unsafe-points
@@ -520,27 +531,3 @@ the usual problems with resuming from an INT3 instruction.
 implementation](https://github.com/torvalds/linux/blob/v4.18/arch/x86/kernel/uprobes.c)
 is surprisingly simple given the complexity of the x86 instruction
 encoding, but is still quite complex.
-
-### Conservative inner frame
-
-The runtime could conservatively scan the inner-most stack frame and
-registers, while using the existing call-site stack maps to precisely
-scan all other frames.
-The compiler would still have to emit information about where it's
-*unsafe* to stop a goroutine, but wouldn't need to emit additional
-stack maps or any register maps.
-
-This has the usual leakage dangers of conservative GC, but in a
-severely limited scope.
-Unlike conservatively scanning the whole stack, it's unlikely that any
-incorrectly retained objects would last more than one GC cycle because
-it's unlikely that an inner frame would remain the inner frame across
-multiple cycles.
-
-However, its scope is more limited.
-This can't be used for debugger call injection because the injected
-function call tree may need to grow the stack, which can't be done
-without precise pointer information for the entire stack.
-It's also potentially problematic for scheduler preemptions, since
-that may keep leaked pointers live for longer than a GC pause or stack
-scan.
