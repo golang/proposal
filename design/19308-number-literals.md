@@ -3,7 +3,7 @@
 Russ Cox\
 Robert Griesemer
 
-Last updated: January 16, 2019
+Last updated: January 23, 2019
 
 [golang.org/design/19308-number-literals](https://golang.org/design/19308-number-literals)
 
@@ -344,8 +344,8 @@ The https://golang.org/ref/spec#Floating-point_literals section would be amended
 >                         "." decimals [ exponent ] .
 >     decimals  = decimal_digit { [ "_" ] decimal_digit } .
 >     exponent  = ( "e" | "E" ) [ "+" | "-" ] decimals .
->     hex_float_lit = hex_prefix hex_digits "." [ hex_digits ] hex_exponent |
->                     hex_prefix hex_digits hex_exponent |
+>     hex_float_lit = hex_prefix [ "_" ] hex_digits "." [ hex_digits ] hex_exponent |
+>                     hex_prefix [ "_" ] hex_digits hex_exponent |
 >                     hex_prefix "." hex_digits hex_exponent .
 >     hex_prefix = "0" ( "x" | "X" ) .
 >     hex_digits  = hex_digit { [ "_" ] hex_digit } .
@@ -364,6 +364,7 @@ The https://golang.org/ref/spec#Floating-point_literals section would be amended
 >     0x2.p10       // == 2048.0
 >     0x1.Fp+0      // == 1.9375
 >     0X.8p-0       // == 0.5
+>     0X_1FFFP-16   // == 0.1249847412109375
 >     0x.p1         // illegal: must have hex digit
 >     1p-2          // illegal: p exponent requires hexadecimal mantissa
 >     0x1.5e-2      // illegal: hexadecimal mantissa requires p exponent
@@ -375,6 +376,11 @@ The https://golang.org/ref/spec#Floating-point_literals section would be amended
 >     1.5_e1        // illegal: _ must separate digits
 >     1.5e_1        // illegal: _ must separate digits
 >     1.5e1_        // illegal: _ must separate digits
+
+The syntax in https://golang.org/ref/spec#Imaginary_literals section would be amended to read:
+
+
+>     imaginary_lit = (decimals | decimal_float_lit) .
 
 ### Library Changes
 
