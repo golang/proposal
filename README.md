@@ -80,10 +80,16 @@ Any proposed change must not break this promise.
 
 ### Language changes
 
-Go is a mature language and, as such, significant language changes are unlikely
-to be accepted.
-A "language change" in this context means a change to the
-[Go language specification](https://golang.org/ref/spec).
+In 2018 we started a Go 2 process during which we may change the
+language, as described on [the Go
+blog](https://blog.golang.org/go2-here-we-come).
+Language changes should follow the proposal process described here.
+As explained in the blog entry, language change proposals should
+
+- address an important issue for many people,
+- have minimal impact on everybody else, and
+- come with a clear and well-understood solution.
+
 (See the [release notes](https://golang.org/doc/devel/release.html) for
 examples of recent language changes.)
 
