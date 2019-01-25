@@ -5,7 +5,7 @@ Russ Cox\
 Marcel van Lohuizen\
 Damien Neil
 
-Last updated: January 24, 2019
+Last updated: January 25, 2019
 
 Discussion at: https://golang.org/issue/29934
 
@@ -244,10 +244,14 @@ with both Go 1.13 and earlier versions and will provide the following:
   formatting implementation. An error implementation can make sure earlier Go
   versions call its `FormatError` method by adding this `Format` method:
   ```
-  type MyError …
+  type MyError ...
+
   func (m *MyError) Format(f fmt.State, c rune) { // implements fmt.Formatter
-      xerrors.FormatError(m, f, c)
+      xerrors.FormatError(m, f, c) // will call m.FormatError
   }
+  
+  func (m *MyError) Error() string { ... }
+  func (m *MyError) FormatError(p xerrors.Printer) error { ... } 
   ```
 
 ## Rationale
