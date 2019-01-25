@@ -7,7 +7,7 @@ Damien Neil
 
 Last updated: January 24, 2019
 
-Discussion at: TODO NEW ISSUE
+Discussion at: https://golang.org/issue/29934
 
 Past discussion at:
 - https://golang.org/design/go2draft-error-inspection
