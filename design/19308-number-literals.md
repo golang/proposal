@@ -448,6 +448,22 @@ This will provide the new literals to both
 and
 [`text/template`](https://golang.org/pkg/html/template/).
 
+### Tool Changes
+
+Gofmt will understand the new syntax once
+[`go/scanner`](https://golang.org/pkg/go/scanner/)
+is updated.
+For legibility, 
+gofmt will also rewrite capitalized base prefixes `0B`, `0O`, and `0X`
+and exponent prefixes `E` and `P`
+to their lowercase equivalents `0b`, `0o`, `0x`, `e`, and `p`.
+This is especially important for `0O377` vs `0o377`.
+
+To avoid introducing incompatibilities into 
+otherwise backward-compatible code,
+gofmt will not rewrite `0377` to `0o377`.
+(Perhaps in a few years we will be able to consider doing that.)
+
 ## Rationale
 
 As discussed in the background section,
@@ -483,7 +499,8 @@ For backwards compatibility,
 we must keep the existing `0377` syntax in Go 1,
 so Go will have two octal integer syntaxes,
 like Python 2.7 and non-strict JavaScript.
-After a few years, once there are no supported Go releases
+As noted earlier, 
+after a few years, once there are no supported Go releases
 missing the `0o377` syntax,
 we could consider changing
 `gofmt` to at least reformat `0377` to `0o377` for clarity.
