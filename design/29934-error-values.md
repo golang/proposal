@@ -205,13 +205,17 @@ multiple lines, as shown here:
 ```
 write users database:
     more detail here
-    /path/to/database.go:111
+    mypkg/db.Open
+        /path/to/database.go:111
   - call myserver.Method:
-    /path/to/grpc.go:222
+    google.golang.org/grpc.Invoke
+        /path/to/grpc.go:222
   - dial myserver:3333:
-    /path/to/net/dial.go:333
+    net.Dial
+        /path/to/net/dial.go:333
   - open /etc/resolv.conf:
-    /path/to/os/open.go:444
+    os.Open
+        /path/to/os/open.go:444
   - permission denied
 ```
 
