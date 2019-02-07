@@ -29,8 +29,8 @@ To do this, we would modify the compiler to produce register maps in
 addition to stack maps, and to emit these for as many program counters
 as possible.
 The runtime would use a signal (or `GetThreadContext` on Windows, or a
-note on Plan9) to retrieve each thread's register state, including the
-stack and register map at the interrupted PC.
+note on Plan9) to retrieve each thread's register state, from which it
+could get the stack and register map for the interrupted PC.
 The garbage collector would then treat live pointers in registers just
 as it treats live pointers on the stack.
 
