@@ -115,6 +115,10 @@ behavior.
 func As(err error, target interface{}) bool
 ```
 
+A [vet check](https://golang.org/cmd/vet) will be implemented to check that
+the `target` argument is valid.
+
+
 The `Opaque` function hides a wrapped error from programmatic inspection.
 ```
 // Opaque returns an error with the same error formatting as err
