@@ -232,6 +232,16 @@ argument is an error `err` and the format string ends with `: %s`, `: %v`, or
 the case of the new verb `%w`, the returned error will also implement
 `errors.Wrapper` with an `Unwrap` method returning `err`.
 
+### Changes to the `os` package
+
+The `os` package contains a several predicate functions which test
+an error against a condition: `IsExist`, `IsNotExist`, `IsPermission`,
+and `IsTimeout`.  For each of these conditions, we modify the `os`
+package so that `errors.Is(err, os.ErrX)` returns true when
+`os.IsX(err)` is true for any error in `err`'s chain. The `os` package
+already contains `ErrExist`, `ErrIsNotExist`, and `ErrPermission`
+sentinel values; we will add `ErrTimeout`.
+
 ### Transition
 
 If we add this functionality to the standard library in Go 1.13, code that needs
