@@ -65,7 +65,8 @@ many problems:
    This increases STW latency, and on large core counts can
    significantly impact throughput (if, for example, most threads are
    stopped while the runtime waits on a straggler for a long time).
-   (#17831, #19241)
+   ([#17831](https://golang.org/issue/17831),
+   [#19241](https://golang.org/issue/19241))
 
 2. This can delay scheduling, preventing competing goroutines from
    executing in a timely manner.
@@ -81,7 +82,14 @@ many problems:
    This often indicates bad or buggy code, but is surprising
    nonetheless and has clearly wasted a lot of developer time on
    debugging.
-   (#543, #12553, #13546, #14561, #15442, #17174, #20793, #21053)
+   ([#543](https://golang.org/issue/543),
+   [#12553](https://golang.org/issue/12553),
+   [#13546](https://golang.org/issue/13546),
+   [#14561](https://golang.org/issue/14561),
+   [#15442](https://golang.org/issue/15442),
+   [#17174](https://golang.org/issue/17174),
+   [#20793](https://golang.org/issue/20793),
+   [#21053](https://golang.org/issue/21053))
 
 These problems impede developer productivity and production efficiency
 and expose Go's users to implementation details they shouldn't have to
@@ -90,7 +98,8 @@ worry about.
 ### Cooperative loop preemption
 
 @dr2chase put significant effort into trying to solve these problems
-using cooperative *loop preemption* (#10958).
+using cooperative *loop preemption*
+([#10958](https://golang.org/issue/10958)).
 This is a standard approach for runtimes employing cooperative
 preemption in which the compiler inserts preemption checks and
 safe-points at back-edges in the flow graph.
@@ -361,7 +370,7 @@ out like the runtime.
 Perhaps more troubling is that some of the Windows syscall package
 types have uintptr fields that are actually pointers, hence forcing
 callers to perform unsafe pointer conversions.
-For example, see issue [#21376](golang.org/issue/21376).
+For example, see issue [#21376](https://golang.org/issue/21376).
 
 ### Ensuring progress with unsafe-points
 

@@ -41,7 +41,7 @@ The compiler just needs to make *most* instructions safe-points.
 
 To @minux's credit, he suggested this in [the very first
 reply](https://github.com/golang/go/issues/10958#issuecomment-105678822)
-to #10958.
+to [#10958](https://golang.org/issue/10958).
 At the time we thought adding safe-points everywhere would be too
 difficult and that the overhead of explicit loop preemption would be
 lower than it turned out to be.
@@ -116,7 +116,7 @@ This is useful in at least two situations:
    handling.
    Having safe-points everywhere could simplify this.
 
-2. Debugger function calls (#21678).
+2. Debugger function calls ([#21678](https://golang.org/issue/21678)).
    Currently it's essentially impossible for a debugger to dynamically
    invoke a Go function call because of poor interactions with stack
    scanning and the garbage collector.
