@@ -3,7 +3,7 @@
 Russ Cox\
 Robert Griesemer
 
-Last updated: January 23, 2019
+Last updated: March 6, 2019
 
 [golang.org/design/19308-number-literals](https://golang.org/design/19308-number-literals)
 
@@ -272,6 +272,9 @@ to add hexadecimal floating-point literals,
 and to add underscore as a base-prefix-or-digit separator
 (case 0b0011 above; see rationale below),
 along with appropriate library support.
+Finally, to fit the existing imaginary literals seemlessly
+into the new number literals, we propose that the imaginary
+suffix `i` may be used on any (non-imaginary) number literal.
 
 ### Language Changes
 
@@ -285,33 +288,38 @@ The https://golang.org/ref/spec#Integer_literals section would be amended to rea
 > An integer literal is a sequence of digits representing an integer constant. 
 > An optional prefix sets a non-decimal base:
 > 0, 0o, or 0O for octal, 0b or 0B for binary, 0x or 0X for hexadecimal.
+> A single 0 is considered a decimal zero.
 > In hexadecimal literals, letters a-f and A-F represent values 10 through 15.
 > For readability, an underscore may appear after a base prefix or
 > between successive digits; such underscores do not change the literal value.
 >
->     int_lit     = decimal_lit | octal_lit | binary_lit | hex_lit .
->     decimal_lit = ( "1" … "9" ) { [ "_" ] decimal_digit } .
->     octal_lit   = "0" [ "o" | "O" ] { [ "_" ] octal_digit } .
->     binary_lit  = "0" ( "b" | "B" ) [ "_" ] binary_digit { [ "_" ] binary_digit } .
->     hex_lit     = "0" ( "x" | "X" ) [ "_" ] hex_digit { [ "_" ] hex_digit } .
+>     int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
+>     decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digits ] .
+>     binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digits .
+>     octal_lit      = "0" [ "o" | "O" ] [ "_" ] octal_digits .
+>     hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digits .
+>     
+>     decimal_digits = decimal_digit { [ "_" ] decimal_digit } .
+>     binary_digits  = binary_digit { [ "_" ] binary_digit } .
+>     octal_digits   = octal_digit { [ "_" ] octal_digit } .
+>     hex_digits     = hex_digit { [ "_" ] hex_digit } .
 >
 >     42
 >     4_2
->     _42 // an identifier, not a number
->     42_ // illegal: _ must separate digits
->     4__2 // illegal: only one _ at a time
 >     0600
->     0_660
+>     0_600
 >     0o600
->     0O600 // second character is capital letter O
->     0b01111000
->     0b0111_1000
+>     0O600       // second character is capital letter 'O'
 >     0xBadFace
 >     0xBad_Face
 >     0x_67_7a_2f_cc_40_c6
->     0_xBadFace // illegal: _ must separate digits
 >     170141183460469231731687303715884105727
 >     170_141183_460469_231731_687303_715884_105727
+>     
+>     _42         // an identifier, not an integer literal
+>     42_         // invalid: _ must separate successive digits
+>     4__2        // invalid: only one _ at a time
+>     0_xBadFace  // invalid: _ must separate successive digits
 
 The https://golang.org/ref/spec#Floating-point_literals section would be amended to read:
 
@@ -338,49 +346,77 @@ The https://golang.org/ref/spec#Floating-point_literals section would be amended
 > For readability, an underscore may appear after a base prefix or
 > between successive digits; such underscores do not change the literal value.
 >
->     float_lit = decimal_float_lit | hexadecimal_float_lit .
->     decimal_float_lit = decimals "." [ decimals ] [ exponent ] |
->                         decimals exponent |
->                         "." decimals [ exponent ] .
->     decimals  = decimal_digit { [ "_" ] decimal_digit } .
->     exponent  = ( "e" | "E" ) [ "+" | "-" ] decimals .
->     hex_float_lit = hex_prefix [ "_" ] hex_digits "." [ hex_digits ] hex_exponent |
->                     hex_prefix [ "_" ] hex_digits hex_exponent |
->                     hex_prefix "." hex_digits hex_exponent .
->     hex_prefix = "0" ( "x" | "X" ) .
->     hex_digits  = hex_digit { [ "_" ] hex_digit } .
->     hex_exponent  = ( "p" | "P" ) [ "+" | "-" ] decimals .
+>
+>     float_lit         = decimal_float_lit | hex_float_lit .
+>     
+>     decimal_float_lit = decimal_digits "." [ decimal_digits ] [ decimal_exponent ] |
+>                         decimal_digits decimal_exponent |
+>                         "." decimal_digits [ decimal_exponent ] .
+>     decimal_exponent  = ( "e" | "E" ) [ "+" | "-" ] decimal_digits .
+>     
+>     hex_float_lit     = "0" ( "x" | "X" ) hex_mantissa hex_exponent .
+>     hex_mantissa      = [ "_" ] hex_digits "." [ hex_digits ] |
+>                         [ "_" ] hex_digits |
+>                         "." hex_digits .
+>     hex_exponent      = ( "p" | "P" ) [ "+" | "-" ] decimal_digits .
+>
 >
 >     0.
 >     72.40
->     072.40        // == 72.40
+>     072.40       // == 72.40
 >     2.71828
 >     1.e+0
 >     6.67428e-11
 >     1E6
 >     .25
 >     .12345E+5
->     0x1p-2        // == 0.25
->     0x2.p10       // == 2048.0
->     0x1.Fp+0      // == 1.9375
->     0X.8p-0       // == 0.5
->     0X_1FFFP-16   // == 0.1249847412109375
->     0x.p1         // illegal: must have hex digit
->     1p-2          // illegal: p exponent requires hexadecimal mantissa
->     0x1.5e-2      // illegal: hexadecimal mantissa requires p exponent
->     0x15e-2       // == 0x15e - 2 (integer subtraction)
->     1_5.          // == 15.0
->     0.15e+0_2     // == 15.0
->     1_.5          // illegal: _ must separate digits
->     1._5          // illegal: _ must separate digits
->     1.5_e1        // illegal: _ must separate digits
->     1.5e_1        // illegal: _ must separate digits
->     1.5e1_        // illegal: _ must separate digits
+>     1_5.         // == 15.0
+>     0.15e+0_2    // == 15.0
+>     
+>     0x1p-2       // == 0.25
+>     0x2.p10      // == 2048.0
+>     0x1.Fp+0     // == 1.9375
+>     0X.8p-0      // == 0.5
+>     0X_1FFFP-16  // == 0.1249847412109375
+>     0x15e-2      // == 0x15e - 2 (integer subtraction)
+>     
+>     0x.p1        // invalid: mantissa has no digits
+>     1p-2         // invalid: p exponent requires hexadecimal mantissa
+>     0x1.5e-2     // invalid: hexadecimal mantissa requires p exponent
+>     1_.5         // invalid: _ must separate successive digits
+>     1._5         // invalid: _ must separate successive digits
+>     1.5_e1       // invalid: _ must separate successive digits
+>     1.5e_1       // invalid: _ must separate successive digits
+>     1.5e1_       // invalid: _ must separate successive digits
+
 
 The syntax in https://golang.org/ref/spec#Imaginary_literals section would be amended to read:
 
 
->     imaginary_lit = (decimals | decimal_float_lit) .
+> An imaginary literal represents the imaginary part of a complex constant.
+> It consists of an integer or floating-point literal followed by the lower-case
+> letter i.
+> The value of an imaginary literal is the value of the respective
+> integer or floating-point literal multiplied by the imaginary unit i.
+> 
+>     imaginary_lit = (decimal_digits | int_lit | float_lit) "i" .
+> 
+> For backward-compatibility, an imaginary literal's integer part consisting
+> entirely of decimal digits (and possibly underscores) is considered a decimal
+> integer, not octal, even if it starts with a leading 0.
+> 
+>     0i
+>     0123i         // == 123i for backward-compatibility
+>     0o123i        // == 0o123 * 1i == 83i
+>     0xabci        // == 0xabc * 1i == 2748i
+>     0.i
+>     2.71828i
+>     1.e+0i
+>     6.67428e-11i
+>     1E6i
+>     .25i
+>     .12345E+5i
+>     0x1p-2i       // == 0x1p-2 * 1i == 0.25i
 
 ### Library Changes
 
