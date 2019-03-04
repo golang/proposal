@@ -148,6 +148,10 @@ that the server really is behaving correctly.
 
 For details about the data structure, see Russ Cox’s blog post,
 “[Transparent Logs for Skeptical Clients](https://research.swtch.com/tlog).”
+For a high-level overview of Certificate Transparency
+along with additional motivation and context,
+see Ben Laurie's ACM Queue article,
+“[Certificate Transparency: Public, verifiable, append-only logs](https://queue.acm.org/detail.cfm?id=2668154).”
 
 The use of a transparent log for module hashes aligns with
 a broader trend of using transparent logs to enable detection
