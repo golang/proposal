@@ -3,7 +3,7 @@
 Russ Cox\
 Filippo Valsorda
 
-Last updated: February 26, 2019.
+Last updated: March 4, 2019.
 
 [golang.org/design/25530-notary](https://golang.org/design/25530-notary)
 
