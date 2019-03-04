@@ -30,7 +30,7 @@ When you run `go` `get` `rsc.io/quote@v1.5.2`, `go` `get` first fetches
 	<meta name="go-import"
 	      content="rsc.io/quote git https://github.com/rsc/quote">
 
-which tells the code is in a Git repository on `github.com`.
+which tells it the code is in a Git repository on `github.com`.
 Next it runs `git clone https://github.com/rsc/quote` to fetch
 the Git repository and then extracts the file tree from the `v1.5.2` tag,
 producing the actual module archive.
@@ -127,7 +127,7 @@ since that would become the next attractive target for an attacker.
 ### Transparent Logs
 
 The [Certificate Transparency](https://www.certificate-transparency.org/) project
-is based on a data structure called a _transparent _log_.
+is based on a data structure called a _transparent log_.
 The transparent log is hosted on a server and made accessible to clients for random access,
 but clients are still able to verify that a particular log record really is in the log
 and also that the server never removes any log record from the log.
