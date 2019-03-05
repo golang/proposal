@@ -177,12 +177,13 @@ The Go notary will run at `https://notary.golang.org/` and serve the following e
  - `/latest` will serve a signed tree size and hash for the latest log.
    
  - `/lookup/M@V` will serve the log record number for the entry about module M version V,
-   followed by the data for the record.
+   followed by the data for the record (that is, the `go.sum` lines for module M version V).
    If the module version is not yet recorded in the log, the notary will try to fetch it before replying.
    Note that the data should never be used without first
    authenticating it against a signed tree hash.
 
- - `/record/R` will serve the data for record number R.
+ - `/record/R` will serve the data for record number R (that is, the `go.sum` lines for
+   module M version V).
  
  - `/tile/H/L/K[.p/W]` will serve a [log tile](https://research.swtch.com/tlog#serving_tiles).
    The optional `.p/W` suffix indicates a partial log tile with only `W` hashes.
