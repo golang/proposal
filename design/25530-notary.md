@@ -298,99 +298,258 @@ Two topics are worth further discussion:
 first, having a single notary service for the entire Go ecosystem,
 and second, the privacy implications of a notary.
 
-### One Notary
+### Security
 
 The Go team at Google will run the Go notary as a service to the Go ecosystem,
 similar to running `godoc.org` and `golang.org`.
-There is no plan to allow use of alternate notaries,
-which would add complexity and potentially reduce the overall
-security of the system,
-allowing different users to be attacked by compromising different notaries.
+It is important that the service be secure.
+Our thinking about the security design of the notary has evolved over time,
+and it is useful to outline the evolution that led to the
+current design.
 
-We originally considered having multiple notaries
-signing individual `go.sum` entries and
-requiring the `go` command to collect signatures
-from a quorum of notaries before accepting an entry.
-That design depended on the uptime of multiple services
-and could still be compromised undetectably by
-compromising enough notaries.
-That is, that design would blindly trust a quorum of notaries.
+The simplest possible approach, which we never seriously considered,
+is to have one trusted notary service that issues a signed certificate for each
+module version.
+The drawback of this approach is that a compromised server
+can be used to sign a certificate for a compromised module version,
+and then that compromised module version and certificate
+can be served to a target victim without easy detection.
 
-The design presented here uses the transparent log
-eliminates blind trust in a quorum of notaries
-and instead uses a “trust but verify” model with
-a single notary.
-In this design, the notary’s published `go.sum` lines
-are accepted by the `go` command client,
-but the published lines are also verifiably preserved
-for auditing by any interested third party.
-In fact, we hope that proxies run by various
-organizations in the Go community will serve as auditors
+One way to address this weakness is strength in numbers:
+have, say, N=3 or N=5 organizations run independent notary services
+gather certificates from all of them, and accept a module version
+as valid when, say, (N+1)/2 certificates agree.
+The two drawbacks of this approach are that it is significantly more expensive
+and still provides no detection of actual attacks.
+The payoff from targeted replacement of source code
+could be high enough to justify silently compromising (N+1)/2
+notaries and then making very selective use of the certificates.
+So our focus turned to detection of compromise.
+
+Requiring a notary to log a `go.sum` entry in a
+[transparent log](https://research.swtch.com/tlog)
+before accepting it does raise the likelihood of detection.
+If the compromised `go.sum` entry is stored in the
+actual log, an auditor can find it.
+And if the compromised `go.sum` entry is served in
+a forked, victim-specific log, the server must always serve
+that forked log to the victim, and only to the victim,
+or else the `go` command's consistency checks will fail
+loudly, and with enough information to cryptographically
+prove the compromise of the server.
+
+An ecosystem with multiple proxies run by different organizations
+makes a successful “forked log” attack even harder:
+the attacker would have to not only compromise the notary,
+it would also have to compromise each possible proxy the
+victim might use and arrange to identify the victim well enough
+to always serve the forked log to the victim
+and to never serve it to any non-victim.
+
+The serving of the transparent log in tile form helps
+caching and proxying but also makes victim identification
+that much harder.
+When using Certificate Transparency's proof endpoints,
+the proof requests might be arranged to carry enough
+material to identify a victim, for example by only ever serving an
+even log sizes to the victim and odd log sizes to others
+and then adjusting the log-size-specific proofs accordingly.
+But complete tile fetches expose no information about the cached log size,
+making it that much harder to serve modified tiles only to the victim.
+
+We hope that proxies run by various
+organizations in the Go community will also serve as auditors
 and double-check Go notary log entries
 as part of their ordinary operation.
-Another useful
+(Another useful
 service that could be enabled by
 the notary is a notification service to alert
-authors about new versions of their own modules.
+authors about new versions of their own modules.)
+
+As described earlier,
+users who want to ensure their own compromise requires
+compromising multiple organizations can use Google's notary
+and a different organization's proxy to access it.
+
+Generalizing that approach,
+the usual way to further improve detection of fork attacks is to add gossip,
+so that different users can check whether they are seeing
+different logs.
+In effect, the proxy protocol already supports this,
+so that any available proxy that proxies the notary
+can be a gossip source.
+If we add a  `go fetch-latest-notary-log-from-goproxy` (obviously not the final name)
+and 
+
+	GOPROXY=https://other.proxy/ go fetch-latest-notary-log-from-goproxy
+
+succeeds, then the client and other.proxy are seeing the same log.
+
+Compared to the original scenario of a single notary with
+no transparent log, the use of a single transparent log 
+and the ability to proxy the notary and gossip improves
+detection of attacks so much that there is little incremental
+security benefit to adding the complexity of multiple notaries.
+At some point in the future, it might make sense for the
+Go ecosystem to support using multiple notaries,
+but to begin with we have opted for the simpler 
+(but still reasonably secure) ecosystem design
+of a single notary.
 
 ### Privacy
 
 Contacting the Go notary to authenticate a new dependency
 requires sending the module path and version to the notary.
-There are two potential privacy concerns.
-First, a misconfigured `go` command might send
-the names of private module paths 
-(for example, `rsc.io/private/secret-plan`)
-to the notary.
-The notary would try to fetch the module and fail,
-but the path would have been exposed in the network traffic.
-Second, even using only public modules,
-there might be a concern that contacting the notary
-at all would expose information about how popular particular modules
-are in a particular organization (or at least in a particular client IP block).
 
-The design addresses these two privacy concerns
-in two ways: with both a lightweight, partial solution
-for each and a heavier, complete solution.
+The notary will of course need to publish a privacy policy,
+and it should be written as clearly as
+the [Google Public DNS Privacy Policy](https://developers.google.com/speed/public-dns/privacy)
+and be sure to include information about log retention windows.
+That policy is still under development.
+But the privacy policy only matters for data the notary receives.
+The design of the notary protocol and usage is meant to minimize
+what the `go` command even sends.
 
-The lightweight, partial solution for a misconfigured `go` command
-that asks the notary about a non-public module
-is to make it fail as loudly as possible.
-If the `go` command is configured to ask the notary
-about a particular module, and the notary cannot return
-information about that module, the download fails
-and the `go` command stops.
+There are two main privacy concerns:
+exposing the text of private modules paths to the notary,
+and exposing usage information for public modules to the notary.
+
+#### Private Module Paths
+
+The first main privacy concern is that a misconfigured `go` command
+could send the text of a private module path
+(for example, `secret-machine.rsc.io/private/secret-plan`) to the notary.
+The notary will try to resolve the module, triggering a DNS lookup
+for `secret-machine.rsc.io` and, if that resolves, an HTTPS fetch
+for the longer URL.
+Even if the notary then discards that path immediately upon failure,
+it has still been sent over the network.
+
+Such misconfiguration must not go unnoticed.
+For this reason (and also to avoid downgrade attacks),
+if the notary cannot return information about a module,
+the download fails loudly and the `go` command stops.
 This ensures both that all public modules are in fact
 authenticated and also that any misconfiguration
 must be corrected (by setting `$GONOVERIFY` to avoid
 the notary for those private modules)
 in order to achieve a successful build.
-This way, the frequency of misconfiguration should be minimized.
+This way, the frequency of misconfiguration-induced
+notary lookups should be minimized.
+Misconfigurations fail; they will be noticed and fixed.
 
-The lightweight, partial solution for exposing information about
-module usage is to only contact the notary when there is not
-already an entry in `go.sum`. If a module version is already listed
-in `go.sum`, it is assumed to be correct, with no notary interaction.
-This allows authentication of previously-downloaded private
-modules and also ensures that only the first use of a new module
-version is exposed to the notary.
+One possibility to further reduce exposure of private module path text
+is to provide additional ways to
+set `$GONOVERIFY`, although it is not clear what those
+should be.
+A top-level module's source code repository is an attractive place to
+want to store configuration such as `$GONOVERIFY`
+and `$GOPROXY`, but then that configuration changes
+depending on which version of the repo is checked out,
+which would cause interesting behavior when testing old
+versions, whether by hand or using tools like `git bisect`.
 
-These lightweight solutions are meant to make the notary
-usable out of the box for most Go developers.
-If there are additional lightweight solutions that can be adopted
-to further reduce privacy concerns,
-we would be happy to consider them.
+(The nice thing about environment variables is that most
+corporate computer management systems already provide
+ways to preset environment variables.)
 
-The heavier, complete solution for notary privacy concerns
-is for developers to put their usage behind a proxy,
+#### Private Module SHA256s 
+
+Another possibility to reduce exposure is to support and
+use by default an alternate lookup `/lookup/SHA256(module)@version`,
+which sends the SHA256 hash of the module path instead of the
+module path instead.
+If the notary was already aware of that module path,
+it would recognize the SHA256 and perform the lookup,
+even potentially fetching a new version of the module.
+If a misconfigured `go` command sends the SHA256 of
+a private module path, that is far less information.
+
+The SHA256 scheme does require, however, that the first use of a
+public module be accompanied by some operation that sends
+its module path text to the notary, so that the notary
+can update its inverse-SHA256 database.
+That operation—for now, let's call it `go notify <modulepath>`—would
+need to be run just once ever across the whole Go ecosystem
+for each module path.
+Most likely the author would do it, perhaps as part of the 
+still-hypothetical `go release` command,
+or else the first user of the module would need to do it
+(perhaps thinking carefully about being the first-ever user of the module!).
+
+A modification of the SHA256 scheme might be to send a truncated hash,
+designed to produce [K-anonymity](https://en.wikipedia.org/wiki/K-anonymity),
+but this would cause significant notary expense:
+if the notary identified K public modules with the truncated hash,
+it would have to look up the given version tag for all K of them
+before returning an answer. This seems needlessly expensive
+and of little practical benefit.
+(An attacker might even create a long list of module paths 
+that collide with a popular module, just to slow down requests.)
+
+The SHA256 + `go notify` scheme is not part of this proposal today,
+but we are considering adding it,
+with full hashes, not truncated ones.
+
+#### Public Module Usage Information
+
+The second main privacy concern is that even developers who use only
+public modules would expose information about their module usage habits
+by requesting new `go.sum` lines from the notary.
+
+Remember that the `go` command only contacts the notary
+in order to find new lines to add to `go.sum`.
+When `go.sum` is up-to-date, as it is during ordinary development,
+the notary is never contacted.
+That is, the notary is only involved at all when adding a new dependency
+or changing the version of an existing one.
+That significantly reduces the amount of usage information
+being sent to the notary in the first place.
+
+Note also that even `go get -u` does not request information
+about every dependency from the notary:
+it only requests information about dependencies with
+updates available.
+
+One avenue worth exploring would be to cache notary lookup results
+(reauthenticating them against cached tiles at each use),
+so that using a single computer to 
+upgrade the version of a particular dependency used by N different modules
+would result in only one notary lookup, not N.
+That would further reduce the strength of any usage signal.
+
+One possible way to further reduce the usage signal
+observable by the notary might be to use a truncated hash
+for K-anonymity, as described in the previous section,
+but the efficiency problems described earlier still apply.
+Also, even if any particular fetch downloaded information
+for K different module paths, the likely-very-lopsided popularity
+distribution might make it easy to guess which module
+path a typical client was really looking for,
+especially combined with version information.
+Truncated hashes appear to cost more than the benefit
+they would bring.
+
+The complete solution for not exposing either
+private module path text or public module usage information
+is to us a proxy or a bulk download.
+
+#### Privacy by Proxy
+
+A complete solution for notary privacy concerns is to for
+developers to access the notary only through a proxy,
 such as a local Athens instance or JFrog’s GoCenter,
 assuming those proxies add support for proxying and
 caching the Go notary service endpoints.
-(Those endpoints are designed to be highly cacheable
-for exactly this reason, and a proxy with a full copy
-of the notary log doesn’t have to leak any information
-about what modules are in use, at the cost of maintaining
-its own index to answer lookup requests.)
+
+The proxy can be configured with a list of private module patterns,
+so that even requests from a misconfigured `go` command never
+not make it past the proxy.
+The notary endpoints are designed for cacheability,
+so that a proxy can avoid making any request more than once.
+Requests for new versions of modules would still need to be 
+relayed to the notary.
+
 We anticipate that there will be many proxies available
 for use in the Go ecosystem.
 Part of the motivation for the Go notary is to allow
@@ -398,6 +557,48 @@ the use of any available proxy to download modules,
 without any reduction in security.
 Developers can then use any proxy they are comfortable using,
 or run their own.
+
+#### Privacy by Bulk Download
+
+What little usage signal leaks from a proxy that aggressively caches
+notary queries can be removed entirely by instead downloading
+the entire notary database and answering requests using the
+local copy.
+We estimate that the Go ecosystem has around 3 million module versions.
+At an estimated footprint of 200 bytes per module version,
+a much larger, complete notary database of even 100 million module versions would still only be 20 GB.
+Bandwidth can be exchanged for complete anonymity
+by downloading the full database once and thereafter updating it incrementally
+(easy, since it is append-only).
+Any queries can be answered using only the local copy,
+ensuring that neither private module paths nor
+public module usage is exposed.
+The cost of this approach is the need for a clients to download the entire database
+despite only needing an ever-smaller fraction of it.
+(Today, assuming only a 3-million-entry database,
+a module with even 100 dependencies would be downloading
+30,000 times more database than it actually needs.
+As the Go ecosystem grows, so too does the overhead factor.)
+
+Downloading the entire database might be a good strategy
+for a corporate proxy, however.
+
+#### Privacy in CI/CD Systems
+
+A question was raised about privacy of notary operations especially
+in CI/CD systems.
+We expect that a CI/CD system would _never_ contact the notary.
+
+First, in typical usage, you only push code to a CI/CD system after
+first at least building (and hopefully also testing!) any changes locally.
+Building any changes locally will update `go.mod` and `go.sum`
+as needed, and then the `go.sum` pushed to the CI/CD system
+will be up-to-date. The notary is only involved when adding to `go.sum`.
+
+Second, module-aware CI/CD systems should already be using `-mod=readonly`,
+to fail on out-of-date `go.mod` files instead of silently updating them.
+We will ensure that `-mod=readonly` also fails on out-of-date `go.sum` files
+if it does not already ([#30667](https://golang.org/issue/30667)).
 
 ## Compatibility
 
