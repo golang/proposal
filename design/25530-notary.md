@@ -538,7 +538,7 @@ is to us a proxy or a bulk download.
 
 A complete solution for notary privacy concerns is to for
 developers to access the notary only through a proxy,
-such as a local Athens instance or JFrog’s GoCenter,
+such as a local Athens instance or JFrog Artifactory instance,
 assuming those proxies add support for proxying and
 caching the Go notary service endpoints.
 
