@@ -172,30 +172,35 @@ to be correct.
 
 ### Notary Server
 
-The Go notary will run at `https://notary.golang.org/` and serve the following endpoints:
+The Go notary will run at `https://sum.golang.org/` and serve the following endpoints:
 
  - `/latest` will serve a signed tree size and hash for the latest log.
    
  - `/lookup/M@V` will serve the log record number for the entry about module M version V,
-   followed by the data for the record (that is, the `go.sum` lines for module M version V).
+   along with the data for the record (that is, the `go.sum` lines for module M version V),
+   and a signed tree hash for a tree that contains the record.
    If the module version is not yet recorded in the log, the notary will try to fetch it before replying.
    Note that the data should never be used without first
    authenticating it against a signed tree hash.
 
- - `/record/R` will serve the data for record number R (that is, the `go.sum` lines for
-   module M version V).
+ - `/records/N?limit=C` will serve the data (that is, the `go.sum` lines) for up to
+   C records starting at record number N.
  
  - `/tile/H/L/K[.p/W]` will serve a [log tile](https://research.swtch.com/tlog#serving_tiles).
    The optional `.p/W` suffix indicates a partial log tile with only `W` hashes.
+   Clients must fall back to fetching the full tile if a partial tile is not found.
+
+Clients are expected to use `/lookup` and `/tile` during normal operations,
+while auditors will want to use `/latest` and `/records`.
 
 ### Proxying a Notary
 
 A module proxy can also proxy requests to the notary.
 The general proxy URL form is `<proxyURL>/notary/<notaryURL>`.
 If `GOPROXY=https://proxy.site` then the latest signed tree would be fetched using
-`https://proxy.site/notary/notary.golang.org/latest`.
+`https://proxy.site/notary/sum.golang.org/latest`.
 Including the full notary URL allows a transition to a new notary log,
-such as `notary.golang.org/v2`.
+such as `sum.golang.org/v2`.
 
 Before accessing any notary URL using a proxy,
 the proxy client should first fetch `<proxyURL>/notary/supported`.
@@ -214,7 +219,7 @@ never make any direct notary connections
 The optional `/notary/supported` endpoint, along with
 proxying actual notary requests, lets such a proxy
 ensure that a `go` command using the proxy
-never makes a direct connection to notary.golang.org.
+never makes a direct connection to sum.golang.org.
 But simpler proxies may wish to focus on serving
 only modules and not notary data—in particular,
 module-only proxies can be served from entirely static file systems,
@@ -237,8 +242,8 @@ That file will also contain the default starting signed tree size and tree hash,
 updated with each major release.
 
 The `go` command will then cache the latest signed tree size and tree hash
-in `$GOPATH/pkg/notary/notary.golang.org/latest`.
-It will cache tiles in `$GOPATH/pkg/mod/download/cache/notary/notary.golang.org/tile/H/L/K[.W]`.
+in `$GOPATH/pkg/notary/sum.golang.org/latest`.
+It will cache tiles in `$GOPATH/pkg/mod/download/cache/notary/sum.golang.org/tile/H/L/K[.W]`.
 These two different locations let `go clean -modcache` delete any cached tiles as well,
 but no `go` command (only a manual `rm -rf $GOPATH/pkg`)
 will wipe out the memory of the latest observed tree size and hash.
