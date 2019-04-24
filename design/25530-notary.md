@@ -1,4 +1,4 @@
-# Proposal: Secure the Public Go Module Ecosystem with the Go Notary
+# Proposal: Secure the Public Go Module Ecosystem
 
 Russ Cox\
 Filippo Valsorda
@@ -12,7 +12,7 @@ Discussion at [golang.org/issue/25530](https://golang.org/issue/25530).
 ## Abstract
 
 We propose to secure the public Go module ecosystem
-by introducing a new server, the Go notary,
+by introducing a new server, the Go checksum database,
 which serves what is in effect a `go.sum` file
 listing all publicly-available Go modules.
 The `go` command will use this service to fill in gaps
@@ -21,6 +21,11 @@ such as during `go get -u`.
 This ensures that unexpected code changes cannot
 be introduced when first adding a dependency to a module
 or when upgrading a dependency.
+
+The original name for the Go checksum database was “the Go notary,”
+but we have stopped using that name to avoid confusion
+with the CNCF Notary project, itself written in Go,
+not to mention the Apple Notary.
 
 ## Background
 
@@ -163,25 +168,27 @@ what the Trillian team calls
 
 We propose to publish the `go.sum` lines for all publicly-available Go modules
 in a transparent log,
-served by a new server called the Go notary.
+served by a new server called the Go checksum database.
 When a publicly-available module is not yet listed in
 the main module’s `go.sum` file,
 the `go` command will fetch the relevant `go.sum` lines
-from the notary instead of trusting the initial download
+from the checksum database instead of trusting the initial download
 to be correct.
 
-### Notary Server
+### Checksum Database
 
-The Go notary will run at `https://sum.golang.org/` and serve the following endpoints:
+The Go checksum database will run at `https://sum.golang.org/` and serve the following endpoints:
 
  - `/latest` will serve a signed tree size and hash for the latest log.
    
  - `/lookup/M@V` will serve the log record number for the entry about module M version V,
-   along with the data for the record (that is, the `go.sum` lines for module M version V),
+   followed by the data for the record (that is, the `go.sum` lines for module M version V)
    and a signed tree hash for a tree that contains the record.
    If the module version is not yet recorded in the log, the notary will try to fetch it before replying.
    Note that the data should never be used without first
-   authenticating it against a signed tree hash.
+   authenticating it against the signed tree hash
+   and authenticating the signed tree hash against the client's
+   timeline of signed tree hashes.
 
  - `/records/N?limit=C` will serve the data (that is, the `go.sum` lines) for up to
    C records starting at record number N.
@@ -193,57 +200,58 @@ The Go notary will run at `https://sum.golang.org/` and serve the following endp
 Clients are expected to use `/lookup` and `/tile` during normal operations,
 while auditors will want to use `/latest` and `/records`.
 
-### Proxying a Notary
+### Proxying a Checksum Database
 
-A module proxy can also proxy requests to the notary.
-The general proxy URL form is `<proxyURL>/notary/<notaryURL>`.
+A module proxy can also proxy requests to the checksum database.
+The general proxy URL form is `<proxyURL>/sumdb/<databaseURL>`.
 If `GOPROXY=https://proxy.site` then the latest signed tree would be fetched using
-`https://proxy.site/notary/sum.golang.org/latest`.
-Including the full notary URL allows a transition to a new notary log,
+`https://proxy.site/sumdb/sum.golang.org/latest`.
+Including the full database URL allows a transition to a new database log,
 such as `sum.golang.org/v2`.
 
-Before accessing any notary URL using a proxy,
-the proxy client should first fetch `<proxyURL>/notary/supported`.
+Before accessing any checksum database URL using a proxy,
+the proxy client should first fetch `<proxyURL>/sumdb/supported`.
 If that request returns a successful (HTTP 200) response,
-then the proxy supports proxying notary requests.
-In that case, the client should use the proxied notary only,
-never falling back to a direct connection to the notary.
-If the `/notary/supported` check fails with a “not found” (HTTP 404) response,
-the proxy is unwilling to proxy the notary,
-and the client should connect directly to the notary.
-Any other response is treated as the notary being unavailable.
+then the proxy supports proxying checksum database requests.
+In that case, the client should use the proxied access method only,
+never falling back to a direct connection to the database.
+If the `/sumdb/supported` check fails with a “not found” (HTTP 404)
+or “gone” (HTTP 410) response,
+the proxy is unwilling to proxy the checksum database,
+and the client should connect directly to the database.
+Any other response is treated as the database being unavailable.
 
 A corporate proxy may want to ensure that clients
-never make any direct notary connections
+never make any direct database connections
 (for example, for privacy; see the “Rationale” section below).
-The optional `/notary/supported` endpoint, along with
-proxying actual notary requests, lets such a proxy
+The optional `/sumdb/supported` endpoint, along with
+proxying actual database requests, lets such a proxy
 ensure that a `go` command using the proxy
 never makes a direct connection to sum.golang.org.
 But simpler proxies may wish to focus on serving
-only modules and not notary data—in particular,
+only modules and not checksum data—in particular,
 module-only proxies can be served from entirely static file systems,
 with no special infrastructure at all.
-Such proxies can respoond with an HTTP 404 to
-the `/notary/supported` endpoint, so that clients
-will connect to the notary directly.
+Such proxies can respoond with an HTTP 404 or HTTP 410 to
+the `/sumdb/supported` endpoint, so that clients
+will connect to the database directly.
 
 ### `go` command client
 
-The `go` command is the primary consumer of the notary’s published log.
+The `go` command is the primary consumer of the database’s published log.
 The `go` command will [verify the log](https://research.swtch.com/tlog#verifying_a_log)
 as it uses it,
 ensuring that every record it reads is actually in the log
 and that no observed log ever drops a record from an earlier observed log.
 
-The `go` command will store the notary’s public key in 
-`$GOROOT/lib/notary/notary.cfg`.
+The `go` command will store the database’s public key in 
+`$GOROOT/lib/sumdb/sumdb.cfg`.
 That file will also contain the default starting signed tree size and tree hash,
 updated with each major release.
 
 The `go` command will then cache the latest signed tree size and tree hash
-in `$GOPATH/pkg/notary/sum.golang.org/latest`.
-It will cache tiles in `$GOPATH/pkg/mod/download/cache/notary/sum.golang.org/tile/H/L/K[.W]`.
+in `$GOPATH/pkg/sumdb/sum.golang.org/latest`.
+It will cache tiles in `$GOPATH/pkg/mod/download/cache/sumdb/sum.golang.org/tile/H/L/K[.W]`.
 These two different locations let `go clean -modcache` delete any cached tiles as well,
 but no `go` command (only a manual `rm -rf $GOPATH/pkg`)
 will wipe out the memory of the latest observed tree size and hash.
@@ -251,10 +259,10 @@ If the `go` command ever does observe a pair of inconsistent signed tree sizes a
 it will complain loudly on standard error and fail the build.
 
 The `go` command must be configured to know which modules are
-publicly available and therefore can be verified by the notary,
-versus those that are closed source and must not be verified,
+publicly available and therefore can be looked up in the checksum database,
+versus those that are closed source and must not be looked up,
 especially since that would transmit potentially private import paths
-over the network to the notary `/lookup` endpoint.
+over the network to the database `/lookup` endpoint.
 A few new environment variables control this configuration.
 (See the [`go env -w` proposal](https://golang.org/design/30411-env)
 for a way to manage these variables more easily.)
@@ -271,25 +279,26 @@ for a way to manage these variables more easily.)
   though not rsc.io/privateer (the patterns are path prefixes, not string prefixes).
 
 - `GONOVERIFY=prefix1,prefix2,prefix3` sets a list of module path prefixes,
-   again possibly containing globs, that should not be verified using the notary.
+   again possibly containing globs, that should not be looked up using the database.
    
    We expect that corporate environments may fetch all modules, public and private,
    through an internal proxy;
-   `GONOVERIFY` allows them to disable notary-based verification of
+   `GONOVERIFY` allows them to disable checksum database lookups for
    internal modules while still verifying public modules.
    Therefore, `GONOVERIFY` must not imply `GONOPROXY`.
 
    We also expect that other users may prefer to connect directly to source origins
-   but still want verification of open source modules or proxying of the notary itself;
+   but still want verification of open source modules or proxying of the database itself;
    `GONOPROXY` allows them to arrange that and therefore must not imply `GONOVERIFY`.
 
-The notary not being able to report `go.sum` lines for a module version
+The database not being able to report `go.sum` lines for a module version
 is a hard failure:
 any private modules must be explicitly listed in `$GONOVERIFY`.
-(Otherwise an attacker could block traffic to the notary
-and make all module versions appear to verify.)
-The notary can be disabled entirely with `GONOVERIFY=*`.
-The command `go get -insecure` will report but not stop after notary failures.
+(Otherwise an attacker could block traffic to the database
+and make all module versions appear to be genuine.)
+The database can be disabled entirely with `GONOVERIFY=*`.
+The command `go get -insecure` will report but not stop after database lookup
+failures or database mismatches.
 
 ## Rationale
 
@@ -300,20 +309,20 @@ obtained both from direct connections to code-hosting servers
 and from module proxies.
 
 Two topics are worth further discussion:
-first, having a single notary service for the entire Go ecosystem,
-and second, the privacy implications of a notary.
+first, having a single database server for the entire Go ecosystem,
+and second, the privacy implications of a database server.
 
 ### Security
 
-The Go team at Google will run the Go notary as a service to the Go ecosystem,
+The Go team at Google will run the Go checksum database as a service to the Go ecosystem,
 similar to running `godoc.org` and `golang.org`.
 It is important that the service be secure.
-Our thinking about the security design of the notary has evolved over time,
+Our thinking about the security design of the database has evolved over time,
 and it is useful to outline the evolution that led to the
 current design.
 
 The simplest possible approach, which we never seriously considered,
-is to have one trusted notary service that issues a signed certificate for each
+is to have one trusted server that issues a signed certificate for each
 module version.
 The drawback of this approach is that a compromised server
 can be used to sign a certificate for a compromised module version,
@@ -321,7 +330,7 @@ and then that compromised module version and certificate
 can be served to a target victim without easy detection.
 
 One way to address this weakness is strength in numbers:
-have, say, N=3 or N=5 organizations run independent notary services
+have, say, N=3 or N=5 organizations run independent servers,
 gather certificates from all of them, and accept a module version
 as valid when, say, (N+1)/2 certificates agree.
 The two drawbacks of this approach are that it is significantly more expensive
@@ -331,7 +340,7 @@ could be high enough to justify silently compromising (N+1)/2
 notaries and then making very selective use of the certificates.
 So our focus turned to detection of compromise.
 
-Requiring a notary to log a `go.sum` entry in a
+Requiring a checksum database to log a `go.sum` entry in a
 [transparent log](https://research.swtch.com/tlog)
 before accepting it does raise the likelihood of detection.
 If the compromised `go.sum` entry is stored in the
@@ -345,7 +354,7 @@ prove the compromise of the server.
 
 An ecosystem with multiple proxies run by different organizations
 makes a successful “forked log” attack even harder:
-the attacker would have to not only compromise the notary,
+the attacker would have to not only compromise the database,
 it would also have to compromise each possible proxy the
 victim might use and arrange to identify the victim well enough
 to always serve the forked log to the victim
@@ -364,16 +373,16 @@ making it that much harder to serve modified tiles only to the victim.
 
 We hope that proxies run by various
 organizations in the Go community will also serve as auditors
-and double-check Go notary log entries
+and double-check Go checksum database log entries
 as part of their ordinary operation.
 (Another useful
 service that could be enabled by
-the notary is a notification service to alert
+the database is a notification service to alert
 authors about new versions of their own modules.)
 
 As described earlier,
 users who want to ensure their own compromise requires
-compromising multiple organizations can use Google's notary
+compromising multiple organizations can use Google's checksum database
 and a different organization's proxy to access it.
 
 Generalizing that approach,
@@ -381,66 +390,66 @@ the usual way to further improve detection of fork attacks is to add gossip,
 so that different users can check whether they are seeing
 different logs.
 In effect, the proxy protocol already supports this,
-so that any available proxy that proxies the notary
+so that any available proxy that proxies the database
 can be a gossip source.
-If we add a  `go fetch-latest-notary-log-from-goproxy` (obviously not the final name)
+If we add a  `go fetch-latest-chccksum-log-from-goproxy` (obviously not the final name)
 and 
 
-	GOPROXY=https://other.proxy/ go fetch-latest-notary-log-from-goproxy
+	GOPROXY=https://other.proxy/ go fetch-latest-checksum-log-from-goproxy
 
 succeeds, then the client and other.proxy are seeing the same log.
 
-Compared to the original scenario of a single notary with
+Compared to the original scenario of a single checksum database with
 no transparent log, the use of a single transparent log 
-and the ability to proxy the notary and gossip improves
+and the ability to proxy the database and gossip improves
 detection of attacks so much that there is little incremental
 security benefit to adding the complexity of multiple notaries.
 At some point in the future, it might make sense for the
-Go ecosystem to support using multiple notaries,
+Go ecosystem to support using multiple databases,
 but to begin with we have opted for the simpler 
 (but still reasonably secure) ecosystem design
-of a single notary.
+of a single database.
 
 ### Privacy
 
-Contacting the Go notary to authenticate a new dependency
-requires sending the module path and version to the notary.
+Contacting the Go checksum database to authenticate a new dependency
+requires sending the module path and version to the database server.
 
-The notary will of course need to publish a privacy policy,
+The database server will of course need to publish a privacy policy,
 and it should be written as clearly as
 the [Google Public DNS Privacy Policy](https://developers.google.com/speed/public-dns/privacy)
 and be sure to include information about log retention windows.
 That policy is still under development.
-But the privacy policy only matters for data the notary receives.
-The design of the notary protocol and usage is meant to minimize
+But the privacy policy only matters for data the database receives.
+The design of the database protocol and usage is meant to minimize
 what the `go` command even sends.
 
 There are two main privacy concerns:
-exposing the text of private modules paths to the notary,
-and exposing usage information for public modules to the notary.
+exposing the text of private modules paths to the database,
+and exposing usage information for public modules to the databas.
 
 #### Private Module Paths
 
 The first main privacy concern is that a misconfigured `go` command
 could send the text of a private module path
-(for example, `secret-machine.rsc.io/private/secret-plan`) to the notary.
-The notary will try to resolve the module, triggering a DNS lookup
+(for example, `secret-machine.rsc.io/private/secret-plan`) to the database.
+The database will try to resolve the module, triggering a DNS lookup
 for `secret-machine.rsc.io` and, if that resolves, an HTTPS fetch
 for the longer URL.
-Even if the notary then discards that path immediately upon failure,
+Even if the database then discards that path immediately upon failure,
 it has still been sent over the network.
 
 Such misconfiguration must not go unnoticed.
 For this reason (and also to avoid downgrade attacks),
-if the notary cannot return information about a module,
+if the database cannot return information about a module,
 the download fails loudly and the `go` command stops.
 This ensures both that all public modules are in fact
 authenticated and also that any misconfiguration
 must be corrected (by setting `$GONOVERIFY` to avoid
-the notary for those private modules)
+the database for those private modules)
 in order to achieve a successful build.
 This way, the frequency of misconfiguration-induced
-notary lookups should be minimized.
+database lookups should be minimized.
 Misconfigurations fail; they will be noticed and fixed.
 
 One possibility to further reduce exposure of private module path text
@@ -464,7 +473,7 @@ Another possibility to reduce exposure is to support and
 use by default an alternate lookup `/lookup/SHA256(module)@version`,
 which sends the SHA256 hash of the module path instead of the
 module path instead.
-If the notary was already aware of that module path,
+If the database was already aware of that module path,
 it would recognize the SHA256 and perform the lookup,
 even potentially fetching a new version of the module.
 If a misconfigured `go` command sends the SHA256 of
@@ -472,8 +481,8 @@ a private module path, that is far less information.
 
 The SHA256 scheme does require, however, that the first use of a
 public module be accompanied by some operation that sends
-its module path text to the notary, so that the notary
-can update its inverse-SHA256 database.
+its module path text to the database, so that the database
+can update its inverse-SHA256 index.
 That operation—for now, let's call it `go notify <modulepath>`—would
 need to be run just once ever across the whole Go ecosystem
 for each module path.
@@ -484,8 +493,8 @@ or else the first user of the module would need to do it
 
 A modification of the SHA256 scheme might be to send a truncated hash,
 designed to produce [K-anonymity](https://en.wikipedia.org/wiki/K-anonymity),
-but this would cause significant notary expense:
-if the notary identified K public modules with the truncated hash,
+but this would cause significant expense:
+if the database identified K public modules with the truncated hash,
 it would have to look up the given version tag for all K of them
 before returning an answer. This seems needlessly expensive
 and of little practical benefit.
@@ -500,31 +509,31 @@ with full hashes, not truncated ones.
 
 The second main privacy concern is that even developers who use only
 public modules would expose information about their module usage habits
-by requesting new `go.sum` lines from the notary.
+by requesting new `go.sum` lines from the database.
 
-Remember that the `go` command only contacts the notary
+Remember that the `go` command only contacts the database
 in order to find new lines to add to `go.sum`.
 When `go.sum` is up-to-date, as it is during ordinary development,
-the notary is never contacted.
-That is, the notary is only involved at all when adding a new dependency
+the database is never contacted.
+That is, the database is only involved at all when adding a new dependency
 or changing the version of an existing one.
 That significantly reduces the amount of usage information
-being sent to the notary in the first place.
+being sent to the database in the first place.
 
 Note also that even `go get -u` does not request information
-about every dependency from the notary:
+about every dependency from the database:
 it only requests information about dependencies with
 updates available.
 
-One avenue worth exploring would be to cache notary lookup results
+One avenue worth exploring would be to cache database lookup results
 (reauthenticating them against cached tiles at each use),
 so that using a single computer to 
 upgrade the version of a particular dependency used by N different modules
-would result in only one notary lookup, not N.
+would result in only one database lookup, not N.
 That would further reduce the strength of any usage signal.
 
 One possible way to further reduce the usage signal
-observable by the notary might be to use a truncated hash
+observable by the database might be to use a truncated hash
 for K-anonymity, as described in the previous section,
 but the efficiency problems described earlier still apply.
 Also, even if any particular fetch downloaded information
@@ -541,23 +550,23 @@ is to us a proxy or a bulk download.
 
 #### Privacy by Proxy
 
-A complete solution for notary privacy concerns is to for
-developers to access the notary only through a proxy,
+A complete solution for database privacy concerns is to for
+developers to access the database only through a proxy,
 such as a local Athens instance or JFrog Artifactory instance,
 assuming those proxies add support for proxying and
-caching the Go notary service endpoints.
+caching the Go database service endpoints.
 
 The proxy can be configured with a list of private module patterns,
 so that even requests from a misconfigured `go` command never
 not make it past the proxy.
-The notary endpoints are designed for cacheability,
+The database endpoints are designed for cacheability,
 so that a proxy can avoid making any request more than once.
 Requests for new versions of modules would still need to be 
-relayed to the notary.
+relayed to the database.
 
 We anticipate that there will be many proxies available
 for use in the Go ecosystem.
-Part of the motivation for the Go notary is to allow
+Part of the motivation for the Go checksum database is to allow
 the use of any available proxy to download modules,
 without any reduction in security.
 Developers can then use any proxy they are comfortable using,
@@ -566,12 +575,12 @@ or run their own.
 #### Privacy by Bulk Download
 
 What little usage signal leaks from a proxy that aggressively caches
-notary queries can be removed entirely by instead downloading
-the entire notary database and answering requests using the
+database queries can be removed entirely by instead downloading
+the entire checksum database and answering requests using the
 local copy.
 We estimate that the Go ecosystem has around 3 million module versions.
 At an estimated footprint of 200 bytes per module version,
-a much larger, complete notary database of even 100 million module versions would still only be 20 GB.
+a much larger, complete checksum database of even 100 million module versions would still only be 20 GB.
 Bandwidth can be exchanged for complete anonymity
 by downloading the full database once and thereafter updating it incrementally
 (easy, since it is append-only).
@@ -590,15 +599,15 @@ for a corporate proxy, however.
 
 #### Privacy in CI/CD Systems
 
-A question was raised about privacy of notary operations especially
+A question was raised about privacy of database operations especially
 in CI/CD systems.
-We expect that a CI/CD system would _never_ contact the notary.
+We expect that a CI/CD system would _never_ contact the database.
 
 First, in typical usage, you only push code to a CI/CD system after
 first at least building (and hopefully also testing!) any changes locally.
 Building any changes locally will update `go.mod` and `go.sum`
 as needed, and then the `go.sum` pushed to the CI/CD system
-will be up-to-date. The notary is only involved when adding to `go.sum`.
+will be up-to-date. The database is only involved when adding to `go.sum`.
 
 Second, module-aware CI/CD systems should already be using `-mod=readonly`,
 to fail on out-of-date `go.mod` files instead of silently updating them.
@@ -607,21 +616,21 @@ if it does not already ([#30667](https://golang.org/issue/30667)).
 
 ## Compatibility
 
-The introduction of the notary does not have any compatibility
+The introduction of the checksum database does not have any compatibility
 concerns at the command or language level.
 However, proxies that serve modified copies of public modules
-will be incompatible with the notary and stop being usable.
+will be incompatible with the new checks and stop being usable.
 This is by design: such proxies are indistinguishable from man-in-the-middle attacks.
 
 ## Implementation
 
 The Go team at Google is working on a production implementation
-of both a Go module proxy and the Go notary,
+of both a Go module proxy and the Go checksum database,
 as we described in the blog post “[Go Modules in 2019](https://blog.golang.org/modules2019).”
 
-We will publish a notary client as part of the `go` command,
-as well as an example notary implementation.
-We intend to ship support for the notary, enabled by default, in Go 1.13.
+We will publish a checksum database client as part of the `go` command,
+as well as an example database implementation.
+We intend to ship support for the checksum database, enabled by default, in Go 1.13.
 
 Russ Cox will lead the `go` command integration
 and has posted a [stack of changes in golang.org/x/exp/notary](https://go-review.googlesource.com/q/f:notary).
