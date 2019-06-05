@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 6/4/2019
+Last update: 2019-06-05
 
 Discussion at [golang.org/issue/32437](https://golang.org/issue/32437).
 
@@ -32,6 +32,8 @@ The current proposal, while different in detail, was influenced by these three i
 
 For completeness, we note that more error-handling related proposals can be found [here](https://github.com/golang/go/wiki/Go2ErrorHandlingFeedback#labeled-error-handlers). Also noteworthy, [Liam](https://gist.github.com/networkimprov) came up with an extensive menu of [requirements](https://gist.github.com/networkimprov/961c9caa2631ad3b95413f7d44a2c98a) to consider.
 
+Finally, we learned after publishing this proposal that [Ryan Hileman](https://github.com/lunixbochs) implemented `try` five years ago via the [`og` rewriter tool](https://github.com/lunixbochs/og) and used it with success in real projects. See also https://news.ycombinator.com/item?id=20101417.
+
 ## The `try` built-in
 
 ### Proposal
@@ -39,12 +41,12 @@ For completeness, we note that more error-handling related proposals can be foun
 We propose to add a new function-like built-in called `try` with signature (pseudo-code)
 
 ```Go
-func try(t1 T1, t1 T2, … tn Tn, te error) (T1, T2, … Tn)
+func try(t1 T1, t2 T2, … tn Tn, te error) (T1, T2, … Tn)
 ```
 
 At each call site of `try`, the types `T1` to `Tn` and `error` match the types of the incoming arguments, usually the results of a (n+1)-valued function call. There may be no incoming `T` arguments at all (n may zero) in which case `try` doesn’t return any results either. But the last incoming parameter, which must be of type `error` (see also the FAQ), is always present. Calling `try` without arguments or with a last argument that is not of type `error` leads to a compile-time error.
 
-The `try` built-in may _only_ be used inside a function with at least one result parameter where the last result is of type `error`. Calling `try` in a different context leads to a compile-time error. 
+The `try` built-in may _only_ be used inside a function with at least one result parameter where the last result is of type `error`. Calling `try` in a different context leads to a compile-time error.
 
 Invoking `try` with a function call `f()` as in (pseudo-code)
 
@@ -140,18 +142,18 @@ In practice, we envision suitable helper functions such as
 ```Go
 func HandleErrorf(err *error, format string, args ...interface{}) {
         if *err != nil {
-                *err = fmt.Errorf(format, args…)
+                *err = fmt.Errorf(format + ": %v", append(args, *err)...)
         }
 }
 ```
 
-or similar; the `fmt` package would be a natural place for such helpers (it already provides `fmt.Errorf`). Using a helper function, the declaration of an error handler will be reduced to a one-liner in many cases. For instance, one might write
+or similar; the `fmt` package would be a natural place for such helpers (it already provides `fmt.Errorf`). Using a helper function, the declaration of an error handler will be reduced to a one-liner in many cases. For instance, to augment an error returned by a "copy" function, one might write
 
 ```Go
-defer fmt.HandleErrorf(&err, “foobar”)
+defer fmt.HandleErrorf(&err, "copy %s %s", src, dst)
 ```
 
-which reads reasonably well and has the advantage that it can be implemented without the need for new language features.
+if `fmt.HandleErrorf` implicitly adds the error information. This reads reasonably well and has the advantage that it can be implemented without the need for new language features.
 
 The main drawback of this approach is that the error result parameter needs to be named, possibly leading to less pretty APIs (but see the FAQs on this subject). We believe that we will get used to it once this style has established itself.
 
@@ -300,7 +302,7 @@ func CopyFile(src, dst string) (err error) {
 Using a helper function as discussed in the section on handling errors, the first `defer` in `CopyFile` becomes a one-liner:
 
 ```Go
-defer fmt.HandleErrorf(&err, "copy %s %s: %v", src, dst, err)
+defer fmt.HandleErrorf(&err, "copy %s %s", src, dst)
 ```
 
 It is still possible to have multiple handlers, and even chaining of handlers (via the stack of `defer`’s), but now the control flow is defined by existing `defer` semantics, rather than a new, unfamiliar mechanism that needs to be learned first.
