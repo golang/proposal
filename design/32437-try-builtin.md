@@ -4,7 +4,7 @@ Author: Robert Griesemer
 
 Created: 5/28/2019
 Last update: 6/4/2019
- 
+
 Discussion at [golang.org/issue/32437](https://golang.org/issue/32437).
 
 ## Summary
@@ -55,12 +55,12 @@ x1, x2, … xn = try(f())
 turns into the following (in-lined) code:
 
 ```Go
-t1, … tn, te := f()	// t1, … tn, te are local (invisible) temporaries
+t1, … tn, te := f()  // t1, … tn, te are local (invisible) temporaries
 if te != nil {
-	err = te	// assign te to the error result parameter
-	return		// return from enclosing function
+        err = te     // assign te to the error result parameter
+        return       // return from enclosing function
 }
-x1, … xn = t1, … tn	// assignment only if there was no error
+x1, … xn = t1, … tn  // assignment only if there was no error
 ```
 
 In other words, if the last argument supplied to `try`, of type `error`, is not nil, the enclosing function’s error result variable (called `err` in the pseudo-code above, but it may have any other name or be unnamed) is set to that non-nil error value before the enclosing function returns. If the enclosing function declares other named result parameters, those result parameters keep whatever value they have. If the function declares other unnamed result parameters, they assume their corresponding zero values (which is the same as keeping the value they already have).
@@ -70,7 +70,7 @@ If `try` happens to be used in a multiple assignment as in this illustration, an
 ```Go
 a, b, err = f()
 if err != nil {
-	return
+        return
 }
 ```
 
@@ -89,7 +89,7 @@ The definition of `try` directly suggests its use: many `if` statements checking
 ```Go
 f, err := os.Open(filename)
 if err != nil {
-	return …, err  // zero values for other results, if any
+        return …, err  // zero values for other results, if any
 }
 ```
 
@@ -128,8 +128,8 @@ This proposal reduces the original draft design to its essence. If error augment
 
 ```Go
 defer func() {
-        if err != nil {	// no error may have occurred - check for it
-                err = …	// wrap/augment error
+        if err != nil {  // no error may have occurred - check for it
+                err = …  // wrap/augment error
         }
 }()
 ```
@@ -140,9 +140,9 @@ In practice, we envision suitable helper functions such as
 
 ```Go
 func HandleErrorf(err *error, format string, args ...interface{}) {
-	if *err != nil {
-		*err = fmt.Errorf(format, args…)
-	}
+        if *err != nil {
+                *err = fmt.Errorf(format, args…)
+        }
 }
 ```
 
@@ -192,10 +192,10 @@ Our first iteration of this proposal was inspired by two ideas from [Key Parts o
 
 ```Go
 handler := func(err error) error {
-	return fmt.Errorf("foo failed: %v", err)  // wrap error
+        return fmt.Errorf("foo failed: %v", err)  // wrap error
 }
 
-f := try(os.Open(filename), handler)  // handler will be called in error case
+f := try(os.Open(filename), handler)              // handler will be called in error case
 ```
 
 While this approach permitted the specification of efficient user-defined error handlers, it also opened a lot of questions which didn’t have obviously correct answers: What should happen if the handler is provided but is nil? Should `try` panic or treat it as an absent error handler? What if the handler is invoked with a non-nil error and then returns a nil result? Does this mean the error is “cancelled”? Or should the enclosing function return with a nil error? It was also not clear if permitting an optional error handler would lead programmers to ignore proper error handling altogether. It would also be easy to do proper error handling everywhere but miss a single occurrence of a `try`. And so forth.
@@ -275,26 +275,26 @@ The `CopyFile` example from the [overview](https://go.googlesource.com/proposal/
 
 ```Go
 func CopyFile(src, dst string) (err error) {
-defer func() {
-	if err != nil {
-		err = fmt.Errorf("copy %s %s: %v", src, dst, err)
-	}
-}()
+        defer func() {
+                if err != nil {
+                        err = fmt.Errorf("copy %s %s: %v", src, dst, err)
+                }
+        }()
 
-r := try(os.Open(src))
-defer r.Close()
+        r := try(os.Open(src))
+        defer r.Close()
 
-w := try(os.Create(dst))
-defer func() {
-	w.Close()
-if err != nil {
-os.Remove(dst) // only if a “try” fails
-}
-}()
+        w := try(os.Create(dst))
+        defer func() {
+                w.Close()
+                if err != nil {
+                        os.Remove(dst) // only if a “try” fails
+                }
+        }()
 
-try(io.Copy(w, r))
-try(w.Close())
-return nil
+        try(io.Copy(w, r))
+        try(w.Close())
+        return nil
 }
 ```
 
@@ -310,10 +310,10 @@ The `printSum` example from the [draft design](https://go.googlesource.com/propo
 
 ```Go
 func printSum(a, b string) error {
-x := try(strconv.Atoi(a))
-y := try(strconv.Atoi(b))
-fmt.Println("result:", x + y)
-return nil
+        x := try(strconv.Atoi(a))
+        y := try(strconv.Atoi(b))
+        fmt.Println("result:", x + y)
+        return nil
 }
 ```
 
@@ -321,11 +321,11 @@ or even simpler:
 
 ```Go
 func printSum(a, b string) error {
-fmt.Println(
-"result:",
-try(strconv.Atoi(a)) + try(strconv.Atoi(b)),
-)
-return nil
+        fmt.Println(
+                "result:",
+                try(strconv.Atoi(a)) + try(strconv.Atoi(b)),
+        )
+        return nil
 }
 ```
 
@@ -333,16 +333,16 @@ The `main` function of [this useful but trivial program](https://github.com/rsc/
 
 ```Go
 func localMain() error {
-hex := try(ioutil.ReadAll(os.Stdin))
-	data := try(parseHexdump(string(hex)))
-	try(os.Stdout.Write(data))
-	return nil
+        hex := try(ioutil.ReadAll(os.Stdin))
+        data := try(parseHexdump(string(hex)))
+        try(os.Stdout.Write(data))
+        return nil
 }
 
 func main() {
-	if err := localMain(); err != nil {
-		log.Fatal(err)
-	}
+        if err := localMain(); err != nil {
+                log.Fatal(err)
+        }
 }
 ```
 
@@ -351,7 +351,7 @@ Since `try` requires at a minimum an `error` argument, it may be used to check f
 ```Go
 n, err := src.Read(buf)
 if err == io.EOF {
-	break
+        break
 }
 try(err)
 ```
@@ -360,33 +360,47 @@ try(err)
 
 This section is expected to grow as necessary.
 
-Q: What were the main criticisms of the original [draft design](https://go.googlesource.com/proposal/+/master/design/go2draft-error-handling.md)?
+__Q: What were the main criticisms of the original [draft design](https://go.googlesource.com/proposal/+/master/design/go2draft-error-handling.md)?__
+
 A: The draft design introduced two new keywords `check` and `handle` which made the proposal not backward-compatible. Furthermore, the semantics of `handle` was quite complicated and its functionality significantly overlapped with `defer`, making `handle` a non-orthogonal language feature.
 
-Q: Why is `try` a built-in?
+__Q: Why is `try` a built-in?__
+
 A: By making `try` a built-in, there is no need for a new keyword or operator in Go. Introducing a new keyword is not a backward-compatible language change because the keyword may conflict with identifiers in existing programs. Introducing a new operator requires new syntax, and the choice of a suitable operator, which we would like to avoid. Using ordinary function call syntax has also advantages as explained in the section on Properties of the proposed design. And `try` can not be an ordinary function, because the number and types of its results depend on its input.
 
-Q: Why is `try` called `try`?
-A: We have considered various alternatives, including `check`, `must`, and `do`. Even though `try` is a built-in and therefore does not conflict with existing identifiers, such identifiers may still shadow the built-in and thus make it inaccessible. `try` seems less common a user-defined identifier than `check` (probably because it is a keyword in some other languages) and thus it is less likely to be shadowed inadvertently. It is also shorter, and does convey its semantics fairly well. In the standard library we use the pattern of user-defined `must` functions to raise a panic if an error occurs in a variable initialization expression; `try` does not panic. Finally, both Rust and Swift use `try` to annotate explicitly-checked function calls as well. It makes sense to use the same word for the same idea.
+__Q: Why is `try` called `try`?__
 
-Q: Having to name the final (error) result parameter of a function just so that `defer` has access to it screws up `go doc` output. Isn’t there a better approach?
+A: We have considered various alternatives, including `check`, `must`, and `do`. Even though `try` is a built-in and therefore does not conflict with existing identifiers, such identifiers may still shadow the built-in and thus make it inaccessible. `try` seems less common a user-defined identifier than `check` (probably because it is a keyword in some other languages) and thus it is less likely to be shadowed inadvertently. It is also shorter, and does convey its semantics fairly well. In the standard library we use the pattern of user-defined `must` functions to raise a panic if an error occurs in a variable initialization expression; `try` does not panic. Finally, both Rust and Swift use `try` to annotate explicitly-checked function calls as well (but see the next question). It makes sense to use the same word for the same idea.
+
+__Q: Why can’t we use `?` like Rust?__
+
+A: Go has been designed with strong emphasis on readability; we want even people unfamiliar with the language to be able to make some sense of Go code (that doesn’t imply that each name needs to be self-explanatory; we still have a language spec, after all). So far we have avoided cryptic abbreviations or symbols in the language, including unusual operators such as `?`, which have ambiguous or non-obvious meanings. Generally, identifiers defined by the language are either fully spelled out (`package`, `interface`, `if`, `append`, `recover`, etc.), or shortened if the shortened version is unambiguous and well-understood (`struct`, `var`, `func`, `int`, `len`, `imag`, etc.). Rust introduced `?` to alleviate issues with `try` and chaining - this is much less of an issue in Go where statements tend to be simpler and chaining (as opposed to nesting) less common. Finally, using `?` would introduce a new post-fix operator into the language. This would require a new token and new syntax and with that adjustments to a multitude of packages (scanners, parsers, etc.) and tools. It would also make it much harder to make future changes. Using a built-in eliminates all these problems while keeping the design flexible.
+
+__Q: Having to name the final (error) result parameter of a function just so that `defer` has access to it screws up `go doc` output. Isn’t there a better approach?__
+
 A: We could adjust `go doc` to recognize the specific case where all results of a function except for the final error result have a blank (_) name, and omit the result names for that case. For instance, the signature `func f() (_ A, _ B, err error)` could be presented by `go doc` as `func f() (A, B, error)`. Ultimately this is a matter of style, and we believe we will adapt to expecting the new style, much as we adapted to not having semicolons.
 
-Q: Isn’t using `defer` for wrapping errors going to be slow?
+__Q: Isn’t using `defer` for wrapping errors going to be slow?__
+
 A: Currently a `defer` statement is relatively expensive compared to ordinary control flow. However, we believe that it is possible to make common use cases of `defer` for error handling comparable in performance with the current “manual” approach. See also [CL 171758](https://golang.org/cl/171758/) which is expected to improve the performance of `defer` by around 30%.
 
-Q: Won't this design discourage adding context information to errors?
+__Q: Won't this design discourage adding context information to errors?__
+
 A: We think the verbosity of checking error results is a separate issue from adding context. The context a typical function should add to its errors (most commonly, information about its arguments) usually applies to multiple error checks. The plan to encourage the use of `defer` to add context to errors is mostly a separate concern from having shorter checks, which this proposal focuses on. The design of the exact `defer` helpers is part of [golang.org/issue/29934](https://golang.org/issue/29934) (Go 2 error values), not this proposal.
 
-Q: The last argument passed to `try` _must_ be of type `error`. Why is it not sufficient for the incoming argument to be _assignable_ to `error`?
+__Q: The last argument passed to `try` _must_ be of type `error`. Why is it not sufficient for the incoming argument to be _assignable_ to `error`?__
+
 A: A [common novice mistake](https://golang.org/doc/faq#nil_error) is to assign a concrete nil pointer value to a variable of type `error` (which is an interface) only to find that that variable is not nil. Requiring the incoming argument to be of type `error` prevents this bug from occurring through the use of `try`. (We can revisit this decision in the future if necessary. Relaxing this rule would be a backward-compatible change.)
 
-Q: If Go had “generics”, couldn’t we implement `try` as a generic function?
+__Q: If Go had “generics”, couldn’t we implement `try` as a generic function?__
+
 A: Implementing `try` requires the ability to return from the function enclosing the `try` call. Absent such a “super return” statement, `try` cannot be implemented in Go even if there were generic functions. `try` also requires a variadic parameter list with parameters of different types. We do not anticipate support for such variadic generic functions.
 
-Q: I can’t use `try` in my code, my error checks don’t fit the required pattern. What should I do?
+__Q: I can’t use `try` in my code, my error checks don’t fit the required pattern. What should I do?__
+
 A: `try` is not designed to address _all_ error handling situations; it is designed to handle the most common case well, to keep the design simple and clear. If it doesn’t make sense (or it isn’t possible) to change your code such that `try` can be used, stick with what you have. `if` statements are code, too.
 
-Q: In my function, most of the error tests require different error handling. I can use `try` just fine but it gets complicated or even impossible to use `defer` for error handling. What can I do?
+__Q: In my function, most of the error tests require different error handling. I can use `try` just fine but it gets complicated or even impossible to use `defer` for error handling. What can I do?__
+
 A: You may be able to split your function into smaller functions of code that shares the same error handling. Also, see the previous question.
 
