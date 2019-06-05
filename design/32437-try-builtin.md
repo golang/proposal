@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 6/4/2019
+Last update: 2019-06-04
 
 Discussion at [golang.org/issue/32437](https://golang.org/issue/32437).
 
