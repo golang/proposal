@@ -2,7 +2,6 @@
 
 Author: Robert Griesemer
 
-Created: 5/28/2019
 Last update: 6/4/2019
 
 Discussion at [golang.org/issue/32437](https://golang.org/issue/32437).
@@ -374,7 +373,7 @@ A: We have considered various alternatives, including `check`, `must`, and `do`.
 
 __Q: Why can’t we use `?` like Rust?__
 
-A: Go has been designed with strong emphasis on readability; we want even people unfamiliar with the language to be able to make some sense of Go code (that doesn’t imply that each name needs to be self-explanatory; we still have a language spec, after all). So far we have avoided cryptic abbreviations or symbols in the language, including unusual operators such as `?`, which have ambiguous or non-obvious meanings. Generally, identifiers defined by the language are either fully spelled out (`package`, `interface`, `if`, `append`, `recover`, etc.), or shortened if the shortened version is unambiguous and well-understood (`struct`, `var`, `func`, `int`, `len`, `imag`, etc.). Rust introduced `?` to alleviate issues with `try` and chaining - this is much less of an issue in Go where statements tend to be simpler and chaining (as opposed to nesting) less common. Finally, using `?` would introduce a new post-fix operator into the language. This would require a new token and new syntax and with that adjustments to a multitude of packages (scanners, parsers, etc.) and tools. It would also make it much harder to make future changes. Using a built-in eliminates all these problems while keeping the design flexible.
+A: Go has been designed with a strong emphasis on readability; we want even people unfamiliar with the language to be able to make some sense of Go code (that doesn’t imply that each name needs to be self-explanatory; we still have a language spec, after all). So far we have avoided cryptic abbreviations or symbols in the language, including unusual operators such as `?`, which have ambiguous or non-obvious meanings. Generally, identifiers defined by the language are either fully spelled out (`package`, `interface`, `if`, `append`, `recover`, etc.), or shortened if the shortened version is unambiguous and well-understood (`struct`, `var`, `func`, `int`, `len`, `imag`, etc.). Rust introduced `?` to alleviate issues with `try` and chaining - this is much less of an issue in Go where statements tend to be simpler and chaining (as opposed to nesting) less common. Finally, using `?` would introduce a new post-fix operator into the language. This would require a new token and new syntax and with that adjustments to a multitude of packages (scanners, parsers, etc.) and tools. It would also make it much harder to make future changes. Using a built-in eliminates all these problems while keeping the design flexible.
 
 __Q: Having to name the final (error) result parameter of a function just so that `defer` has access to it screws up `go doc` output. Isn’t there a better approach?__
 
