@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 2019-06-05
+Last update: 2019-06-06
 
 Discussion at [golang.org/issue/32437](https://golang.org/issue/32437).
 
@@ -30,7 +30,7 @@ Much of the immediate feedback we received focused on the details and complexity
 
 The current proposal, while different in detail, was influenced by these three issues and the general feedback received on last year’s draft design.
 
-For completeness, we note that more error-handling related proposals can be found [here](https://github.com/golang/go/wiki/Go2ErrorHandlingFeedback#labeled-error-handlers). Also noteworthy, [Liam](https://gist.github.com/networkimprov) came up with an extensive menu of [requirements](https://gist.github.com/networkimprov/961c9caa2631ad3b95413f7d44a2c98a) to consider.
+For completeness, we note that more error-handling related proposals can be found [here](https://github.com/golang/go/wiki/Go2ErrorHandlingFeedback). Also noteworthy, [Liam Breck](https://gist.github.com/networkimprov) came up with an extensive menu of [requirements](https://gist.github.com/networkimprov/961c9caa2631ad3b95413f7d44a2c98a) to consider.
 
 Finally, we learned after publishing this proposal that [Ryan Hileman](https://github.com/lunixbochs) implemented `try` five years ago via the [`og` rewriter tool](https://github.com/lunixbochs/og) and used it with success in real projects. See also https://news.ycombinator.com/item?id=20101417.
 
@@ -379,7 +379,7 @@ A: Go has been designed with a strong emphasis on readability; we want even peop
 
 __Q: Having to name the final (error) result parameter of a function just so that `defer` has access to it screws up `go doc` output. Isn’t there a better approach?__
 
-A: We could adjust `go doc` to recognize the specific case where all results of a function except for the final error result have a blank (_) name, and omit the result names for that case. For instance, the signature `func f() (_ A, _ B, err error)` could be presented by `go doc` as `func f() (A, B, error)`. Ultimately this is a matter of style, and we believe we will adapt to expecting the new style, much as we adapted to not having semicolons.
+A: We could adjust `go doc` to recognize the specific case where all results of a function except for the final error result have a blank (_) name, and omit the result names for that case. For instance, the signature `func f() (_ A, _ B, err error)` could be presented by `go doc` as `func f() (A, B, error)`. Ultimately this is a matter of style, and we believe we will adapt to expecting the new style, much as we adapted to not having semicolons. That said, if we are willing to add more new mechanisms to the language, there are other ways to address this. For instance, one could define a new, suitably named, built-in _variable_ that is an alias for the final error result parameter, perhaps only visible inside a deferred function literal. Alternatively, [Jonathan Geddes](https://github.com/jargv) [proposed](https://golang.org/issue/32437#issuecomment-499594811) that calling `try()` with no arguments could return an `*error` pointing to the error result variable.
 
 __Q: Isn’t using `defer` for wrapping errors going to be slow?__
 
@@ -405,3 +405,7 @@ __Q: In my function, most of the error tests require different error handling. I
 
 A: You may be able to split your function into smaller functions of code that shares the same error handling. Also, see the previous question.
 
+__Q: How is `try` different from exception handling (and where is the `catch`)?__
+
+A: `try` is simply syntactic sugar (a "macro") for extracting the non-error values of an expression followed by a conditional `return` (if a non-nil error was found) from the enclosing function. `try` is always explicit; it must be literally present in the source code. Its effect on control flow is limited to the current function. There is also no mechanism to "catch" an error. After the function has returned, execution continues as usual at the call site. In summary, `try` is a shortcut for a conditional `return`.
+Exception handling on the other hand, which in some languages involves `throw` and `try`-`catch` statements, is akin to handling Go panics. An exception, which may be explicitly `throw`n but also implicitly raised (for instance a division-by-0 exception), terminates the currently active function (by returning from it) and then continues to unwind the activation stack by terminating the callee and so forth. An exception may be "caught" if it occurs within a `try`-`catch` statement at which point the exception is not further propagated. An exception that is not caught may cause the entire program to terminate. In Go, the equivalent of an exception is a panic. Throwing an exception is equivalent to calling `panic`. And catching an exception is equivalent to `recover`ing from a panic.
