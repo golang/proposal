@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 2019-06-06
+Last update: 2019-06-12
 
 Discussion at [golang.org/issue/32437](https://golang.org/issue/32437).
 
@@ -41,10 +41,10 @@ Finally, we learned after publishing this proposal that [Ryan Hileman](https://g
 We propose to add a new function-like built-in called `try` with signature (pseudo-code)
 
 ```Go
-func try(t1 T1, t2 T2, … tn Tn, te error) (T1, T2, … Tn)
+func try(expr) (T1, T2, … Tn)
 ```
 
-At each call site of `try`, the types `T1` to `Tn` and `error` match the types of the incoming arguments, usually the results of a (n+1)-valued function call. There may be no incoming `T` arguments at all (n may zero) in which case `try` doesn’t return any results either. But the last incoming parameter, which must be of type `error` (see also the FAQ), is always present. Calling `try` without arguments or with a last argument that is not of type `error` leads to a compile-time error.
+where `expr` stands for an incoming argument expression (usually a function call) producing n+1 result values of types `T1`, `T2`, ... `Tn`, and `error` for the last value. If `expr` evaluates to a single value (n is 0), that value must be of type `error` and `try` doesn't return a result. Calling `try` with an expression that does not produce a last value of type `error` leads to a compile-time error.
 
 The `try` built-in may _only_ be used inside a function with at least one result parameter where the last result is of type `error`. Calling `try` in a different context leads to a compile-time error.
 
@@ -64,7 +64,7 @@ if te != nil {
 x1, … xn = t1, … tn  // assignment only if there was no error
 ```
 
-In other words, if the last argument supplied to `try`, of type `error`, is not nil, the enclosing function’s error result variable (called `err` in the pseudo-code above, but it may have any other name or be unnamed) is set to that non-nil error value and the enclosing function returns. If the enclosing function declares other named result parameters, those result parameters keep whatever value they have. If the function declares other unnamed result parameters, they assume their corresponding zero values (which is the same as keeping the value they already have).
+In other words, if the last value produced by "expr", of type `error`, is nil, `try` simply returns the first n values, with the final nil error stripped. If the last value produced by "expr" is not nil, the enclosing function’s error result variable (called `err` in the pseudo-code above, but it may have any other name or be unnamed) is set to that non-nil error value and the enclosing function returns. If the enclosing function declares other named result parameters, those result parameters keep whatever value they have. If the function declares other unnamed result parameters, they assume their corresponding zero values (which is the same as keeping the value they already have).
 
 If `try` happens to be used in a multiple assignment as in this illustration, and a non-nil error is detected, the assignment (to the user-defined variables) is _not_ executed and none of the variables on the left-hand side of the assignment are changed. That is, `try` behaves like a function call: its results are only available if `try` returns to the actual call site (as opposed to returning from the enclosing function). As a consequence, if the variables on the left-hand side are named result parameters, using `try` will lead to a different result than typical code found today. For instance, if `a`, `b`, and `err` are all named result parameters of the enclosing function, this code
 
