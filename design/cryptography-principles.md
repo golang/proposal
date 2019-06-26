@@ -1,8 +1,8 @@
 # Cryptography Principles
 
-Author: Filippo Valsorda
-
-Last updated: June 2019
+Author: Filippo Valsorda\
+Last updated: June 2019\
+Discussion: [golang.org/issue/32466](https://golang.org/issue/32466)
 
 https://golang.org/design/cryptography-principles
 
