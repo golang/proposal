@@ -25,9 +25,9 @@ different.
 There have been many [requests to add additional support for generic
 programming](https://github.com/golang/go/wiki/ExperienceReports#generics)
 in Go.
-There has been extensive discussion on [the issue tracker]
-(https://golang.org/issue/15292) and on [a living document]
-(https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view).
+There has been extensive discussion on
+[the issue tracker](https://golang.org/issue/15292) and on
+[a living document](https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view).
 
 There have been several proposals for adding type parameters, which
 can be found through the links above.
@@ -1300,7 +1300,7 @@ func Join(type T byteseq)(a []T, sep T) (ret T) {
 	for i := 0; i < len(a); i++ {
 		n += len(a[i]) // len works for both string and []byte
 	}
-	
+
 	b := make([]byte, n)
 	bp := copy(b, a[0])
 	for _, s := range a[1:] {
@@ -1439,7 +1439,7 @@ contract integer2(T1, T2) {
 	integer(T1)
 	integer(T2)
 }
-	
+
 func Convert(type To, From integer2)(from From) To {
 	to := To(from)
 	if From(to) != from {
