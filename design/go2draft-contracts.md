@@ -1658,7 +1658,7 @@ supported.
   to support type arguments that do not already satisfy the contract,
   such as, for example, defining an `==` operator in terms of an
   `Equal` method, or vice-versa.
-* No parameterization on non-type values such as constants
+* No parameterization on non-type values such as constants.
   This arises most obviously for arrays, where it might sometimes be
   convenient to write `type Matrix(type n int) [n][n]float64`.
   It might also sometimes be useful to specify significant values for
