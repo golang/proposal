@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 2019-06-11
+Last update: 2019-07-30
 
 Discussion at [golang.org/issue/6977](https://golang.org/issue/6977).
 
@@ -101,3 +101,40 @@ Separately, Ian Lance Taylor will look into the gccgo changes, which is released
 As noted in our [“Go 2, here we come!” blog post](https://blog.golang.org/go2-here-we-come), the development cycle will serve as a way to collect experience about these new features and feedback from (very) early adopters.
 
 At the release freeze, November 1, we will revisit this proposed feature and decide whether to include it in Go 1.14.
+
+## Apendix: More examples
+
+Starlark is a Python dialect implemented in Go. The base `starlark.Value` interface defines a set of methods that every value must implement, such as `String`, `Type`, and `Truth`, but additional interfaces define optional facets of a type. For example, a value `x` that satisfies the `Iterable` interface may be used in a `for y in x` statement, a value that satisfies `HasFields` may be used in a `x.field` expression, and a value that satisfies `Mapping` may be used in a variadic call `f(**x)`. ([Example from #6977.](https://github.com/golang/go/issues/6977#issuecomment-450440293))
+
+```Go
+package starlark
+
+type Value interface {
+    String() string
+    Type() string
+    Truth() bool
+    ...
+}
+
+type Mapping interface {
+    Value
+    Get(key Value) Value
+}
+
+type Iterable interface{
+     Value
+     Iterate() Iterator
+}
+```
+
+Often a situation arises in which one needs to test whether a value satisfies two interfaces, such as an iterable mapping, but the `Iterable` and `Mapping` interfaces both embed the `Value` interface, and thus contain overlapping sets of methods.
+
+```Go
+package mypkg
+
+type IterableMapping interface {
+    starlark.Mapping
+    starlark.Iterable // error: duplicate method String (et al)
+}
+```
+With the proposed rule change, `IterableMapping` will become a valid type declaration.
