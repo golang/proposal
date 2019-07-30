@@ -551,7 +551,7 @@ For example, consider these type definitions in some other package:
 type Vertex struct { ... }
 func (v *Vertex) Edges() []*FromTo { ... }
 type FromTo struct { ... }
-type (ft *FromTo) Nodes() (*Vertex, *Vertex) { ... }
+func (ft *FromTo) Nodes() (*Vertex, *Vertex) { ... }
 ```
 
 There are no interface types here, but we can instantiate
