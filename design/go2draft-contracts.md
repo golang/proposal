@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-July 25, 2019
+July 31, 2019
 
 ## Abstract
 
@@ -453,7 +453,7 @@ This is equivalent to
 
 ```Go
 contract PrintStringer(X) {
-	X string() string
+	X String() string
 	X Print()
 }
 ```
@@ -984,6 +984,41 @@ var f1 func(_ x(T))
 var f2 func((x(T)))
 ```
 
+### Embedding a parameterized interface type
+
+There is a parsing ambiguity when embedding a parameterized interface
+type in another interface type.
+
+```Go
+type I1(type T) interface {
+	M(T)
+}
+
+type I2 interface {
+	I1(int)
+}
+```
+
+In this example we don't know whether interface `I2` has a single
+method named `I1` that takes an argument of type `int`, or whether we
+are trying to embed the instantiated type `I1(int)` into `I2`.
+
+For backward compatibility, we treat this as the former case: `I2` has
+a method named `I1`.
+
+In order to embed an instantiated interface, we could require that
+extra parentheses be used.
+
+```Go
+type I2 interface {
+	(I1(int))
+}
+```
+
+This is currently not supported by the language, so this would suggest
+generally extending the language to permit embedded interface types to
+be parenthesized.
+
 ### Reflection
 
 We do not propose to change the reflect package in any way.
@@ -1018,9 +1053,81 @@ body.
 It will take argument and result types as specified in the contract
 body.
 
-In order to avoid worrying about the distinction between value methods
-and pointer methods, in a generic function body all method calls will
-be pointer method calls.
+#### Pointer methods
+
+In some cases we need to require that a method be a pointer method.
+This will happen when a function needs to declare variables whose
+type is the type parameter, and also needs to call methods that are
+defined for the pointer to the type parameter.
+
+For example:
+
+```Go
+contract setter(T) {
+	T Set(string)
+}
+
+func Init(type T setter)(s string) T {
+	var r T
+	r.Set(s)
+	return r
+}
+
+type MyInt int
+
+func (p *MyInt) Set(s string) {
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		log.Fatal("Init failed", err)
+	}
+	*p = MyInt(v)
+}
+
+// INVALID
+// MyInt does not have a Set method, only *MyInt has one.
+var Init1 = Init(MyInt)("1")
+
+// DOES NOT WORK
+// r in Init is type *MyInt with value nil,
+// so the Set method does a nil pointer deference.
+var Init2 = Init(*MyInt)("2")
+```
+
+The function `Init` cannot be instantiated with the type `MyInt`, as
+that type does not have a method `Set`; only `*MyInt` has `Set`.
+
+But instantiating `Init` with `*MyInt` doesn't work either, as then
+the local variable `r` in `Init` is a value of type `*MyInt`
+initialized to the zero value, which for a pointer is `nil`.
+The `Init` function then invokes the `Set` method on a `nil` pointer,
+causing a `nil` pointer dereference at the line `*p = MyInt(v)`.
+
+In order to permit this kind of code, contracts permit specifying that
+for a type parameter `T` the pointer type `*T` has a method.
+
+```Go
+contract setter(T) {
+	*T Set(string)
+}
+```
+
+With this definition of `setter`, instantiating `Init` with `MyInt` is
+valid and the code works.
+The local variable `r` has type `MyInt`, and the address of `r` is
+passed as the receiver of the `Set` pointer method.
+Instantiating `Init` with `*MyInt` is now invalid, as the type
+`**MyInt` does not have a method `Set`.
+
+Listing a `*T` method in a contract means that the method must be on
+the type `*T`, and it means that the parameterized function is only
+permitted to call the method on an addressable value of type `T`.
+
+#### Pointer or value methods
+
+If a method is listed in a contract with a plain `T` rather than `*T`,
+then it may be either a pointer method or a value method of `T`.
+In order to avoid worrying about this distinction, in a generic
+function body all method calls will be pointer method calls.
 If necessary, the function body will insert temporary variables,
 not seen by the user, in order to get an addressable variable to use
 to call the method.
@@ -1050,6 +1157,9 @@ It may be possible to add a vet warning for a case where a generic
 function uses a temporary variable for a method call and the function
 is instantiated with a type that has only a pointer method, not a
 value method.
+
+(Note: we should revisit this decision if it leads to confusion or
+incorrect code.)
 
 #### Operators
 
@@ -1106,7 +1216,7 @@ as discussed below.
 For example,
 
 ```Go
-constract SignedInteger(T) {
+contract SignedInteger(T) {
 	T int, int8, int16, int32, int64
 }
 ```
@@ -1129,7 +1239,7 @@ this:
 ```Go
 contract Ordered(T) {
 	T int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr
+		uint, uint8, uint16, uint32, uint64, uintptr,
 		float32, float64,
 		string
 }
@@ -1311,7 +1421,7 @@ func Join(type T byteseq)(a []T, sep T) (ret T) {
 }
 ```
 
-#### Aggregates of type parameters in contract
+#### Aggregates of type parameters in contracts
 
 A type literal in a contract can refer not only to predeclared types,
 but also to type parameters.
@@ -1329,10 +1439,10 @@ We can use the `Slice` contract to define a function that takes an
 argument of a slice type and returns a result of that same type.
 
 ```Go
-func Map(type S, Element)(s S, f func(Element) Element) S {
+func Map(type S, Element Slice)(s S, f func(Element) Element) S {
 	r := make(S, len(s))
 	for i, v := range s {
-		r[i] = f(s)
+		r[i] = f(v)
 	}
 	return r
 }
@@ -1353,6 +1463,19 @@ that are careful to return the same result type as input type.
 Similarly, we would consider extending the type inference rules to
 permit inferring the type `Edge` from the type `Node` in the
 `graph.New` example shown earlier.)
+
+To avoid a parsing ambiguity, when a type literal in a contract refers
+to a parameterized type, extra parentheses are required, so that it is
+not confused with a method.
+
+```Go
+type M(type T) []T
+
+contract C(T) {
+	T M(T)   // T must implement the method M with an argument of type T
+	T (M(T)) // T must be the type M(T)
+}
+```
 
 #### Comparable types in contracts
 
@@ -2029,7 +2152,7 @@ need for boilerplate definitions in order to use `sort.Sort`.
 With this design, we can add to the sort package as follows:
 
 ```Go
-type orderedSlice(type Elem comparable) []Elem
+type orderedSlice(type Elem Ordered) []Elem
 
 func (s orderedSlice(Elem)) Len() int           { return len(s) }
 func (s orderedSlice(Elem)) Less(i, j int) bool { return s[i] < s[j] }
@@ -2037,7 +2160,7 @@ func (s orderedSlice(Elem)) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // OrderedSlice sorts the slice s in ascending order.
 // The elements of s must be ordered using the < operator.
-func OrderedSlice(type Elem comparable)(s []Elem) {
+func OrderedSlice(type Elem Ordered)(s []Elem) {
 	sort.Sort(orderedSlice(Elem)(s))
 }
 ```
