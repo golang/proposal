@@ -53,6 +53,11 @@ in cryptography engineering.
 > expected that most functionality will be implemented by
 > third-party projects first, and that’s ok.
 
+Note that this is an ordered list, from highest to lowest
+priority. For example, an insecure implementation or unsafe API
+will not be considered, even if it enables more use cases or is
+more performant.
+
 ---
 
 The Go cryptography libraries are the `crypto/...` and
