@@ -20,7 +20,7 @@ maintainable code (e.g., if a `panic` is later introduced, the "optimization" is
 no longer correct), and discourages people from using a language feature when it
 would otherwise be an appropriate solution to a problem.
 
-We propose a way to make most `defer`s no more expensive than open-coding the
+We propose a way to make most `defer` calls no more expensive than open-coding the
 call, hence eliminating the incentives to shy away from using this language
 feature to its fullest extent.
 
@@ -134,9 +134,9 @@ panics](https://golang.org/ref/spec#Handling_panics).
    As mentioned, the call stack must also include any outstanding previous
    panics.
    If a defer call is executed because of a run-time panic, the same condition
-   applies, except that ‘runtime.gopanic’ does not necessarily need to be on the
+   applies, except that `runtime.gopanic` does not necessarily need to be on the
    stack.
-   (In the current gc-go implementation, runtime.gopanic does appear on
+   (In the current gc-go implementation, `runtime.gopanic` does appear on
    the stack even for run-time panics.)
 
 ## Proposal
@@ -170,7 +170,7 @@ tmpA = a
 if cond {
  deferBits |= 1<<1
  tmpF2 = f2
-tmpB = b
+ tmpB = b
 }
 body...
 exit:
@@ -208,10 +208,23 @@ Note that any sharing of defer-exit code code may lead to less specific line
 numbers (which don’t indicate the exact exit location) if the user happens to
 look at the call stack while in a call made by the defer exit code.
 
+For any function that contains a defer which could be executed more than once
+(e.g. occurs in a loop), we will fall back to the current way of handling
+defers.
+That is, we will create a defer object at each defer statement and push it on to
+the defer chain.
+At function exit, we will call deferreturn to execute an active defer objects
+for that function.
+We may similarly revert to the defer chain implementation if there are too many
+defers or too many function exits.
+Our goal is to optimize the common cases where current defers overheads show up,
+which is typically in small functions with only a small number of defers
+statements.
+
 ## Panic processing
 
 Because no actual defer records have been created, panic processing is quite
-different and somewhat more complex in this approach.
+different and somewhat more complex in the open-coded approach.
 When generating the code for a function, the compiler also emits an extra set of
 `FUNCDATA` information that records information about each of the open-coded
 defers.
@@ -229,7 +242,7 @@ to unwind the stack properly when a panic is successfully recovered.
 To handle a `panic`, the runtime conceptually walks the defer chain in parallel
 with the stack in order to interleave execution of pushed defers with defers in
 open-coded frames.
-When the runtime encounters an open-coded frame `F` executing function ‘f’, it
+When the runtime encounters an open-coded frame `F` executing function `f`, it
 executes the following steps.
 
 1. The runtime reads the funcdata for function `f` that contains the open-defer
@@ -275,6 +288,12 @@ For any frame with open-coded defers that has already run some defers, the
 deferBits value at the specified stack slot will always accurately reflect the
 remaining defers that need to be run.
 
+The processing for `runtime.Goexit` is similar.
+The main difference is that there is no panic happening, so there is no need to
+check for or do special handling for recovery in `runtime.Goexit`.
+A panic could happen while running defer functions for `runtime.Goexit`, but
+that will be handled in `runtime.gopanic`.
+
 ## Rationale
 
 One other approach that we extensively considered (and prototyped) also has
@@ -296,7 +315,7 @@ guidelines](https://golang.org/doc/go1compat).
 ## Implementation
 
 An implementation has been mostly done.
-The change is [here](https://go-review.googlesource.com/c/go/+/190098/6)
+The change is [here](https://go-review.googlesource.com/c/go/+/190098/6).
 Comments on the design or implementation are very welcome.
 
 Some miscellaneous implementation details:
@@ -305,9 +324,11 @@ Some miscellaneous implementation details:
    deferBits bitmask.
    To minimize code size, we currently make deferBits to be 8 bits, and don’t do
    open-coded defers if there are more than 8 defers in a function.
+   If there are more than 8 defers in a function, we revert to the standard
+   defer chain implementation.
 
-2. The deferBits variable and defer arguments variables (such as ‘tmpA’) must be
-   declared (via OpVarDef) in the entry block, since the unconditional defer
+2. The deferBits variable and defer arguments variables (such as `tmpA`) must be
+   declared (via `OpVarDef`) in the entry block, since the unconditional defer
    exit code at the bottom of the function will access them, so these variables
    are live throughout the entire function.
    (And, of course, they can be accessed by panic processing at any point within
@@ -318,7 +339,7 @@ Some miscellaneous implementation details:
    which of these defer arguments are active (i.e. which of the defer sites have
    been reached, but the corresponding defer call has not yet happened)
 
-2. Because the `deferreturn` code segment is disconnected from the rest of the
+3. Because the `deferreturn` code segment is disconnected from the rest of the
    function, it would not normally indicate that any stack slots are live.
    However, we want the liveness information at the `deferreturn` call to
    indicate that all of the stack slots associated with defers (which may
