@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 2019-07-30
+Last update: 2019-10-10
 
 Discussion at [golang.org/issue/6977](https://golang.org/issue/6977).
 
@@ -39,13 +39,46 @@ Currently, in the section on [Interface types](https://golang.org/ref/spec#Inter
 
 We propose to change this to:
 
-> An interface `T` may use a (possibly qualified) interface type name `E` in place of a method specification. This is called _embedding_ interface `E` in `T`. The method set of the resulting interface `T` is the _union_ of the method set of `T`’s explicitly declared methods and the method sets of all of `T`’s embedded interfaces.
+> An interface `T` may use a (possibly qualified) interface type name `E` in place of a method specification. This is called _embedding_ interface `E` in `T`. The method set of  `T` is the _union_ of the method sets of `T`’s explicitly declared methods and of `T`’s embedded interfaces.
 
 And to add the following paragraph:
 
-> The union of two method sets A and B is the method set containing each method of A and B exactly once. If a method in A has the same name as a method in B, both these methods must have identical signatures.
+> A _union_ of method sets contains the (exported and non-exported) methods of each method set exactly once, and methods with the same names must have identical signatures.
 
 Alternatively, this new paragraph could be added to the section on [Method sets](https://golang.org/ref/spec#Method_sets).
+
+## Examples
+
+As before, it will not be permitted to _explicitly_ declare the same method multiple times:
+
+```Go
+type I interface {
+	m()
+	m()  // invalid; m was already explicitly declared
+}
+```
+
+The current spec permits multiple embeddings of an _empty_ interface:
+
+```Go
+type E interface {}
+type I interface { E; E }  // always been valid
+```
+
+With this proposal, multiple embeddings of the same interface is generalized to _any_ (not just the empty) interface:
+
+```Go
+type E interface { m() }
+type I interface { E; E }  // becomes valid with this proposal
+```
+
+If different embedded interfaces provide a method with the same name, their signatures must match, otherwise the embedding interface is invalid:
+
+```Go
+type E1 interface { m(x int) bool }
+type E2 interface { m(x float32) bool }
+type I  interface { E1; E2 }  // invalid since E1.m and E2.m have the same name but different signatures
+```
 
 ## Discussion
 
@@ -87,14 +120,14 @@ This is a backward-compatible language change; any valid existing program will r
 The implementation requires:
 
 - Adjusting the compiler’s type-checker to allow overlapping embedded interfaces.
-- Adjusting go/types analogously.
+- Adjusting `go/types` analogously.
 - Adjusting the Go spec as outlined earlier.
 - Adjusting gccgo accordingly (type-checker).
 - Testing the changes by adding new tests.
 
 No library changes are required. In particular, reflect only allows listing the methods in an interface; it does not expose information about embedding or other details of the interface definition.
 
-Robert Griesemer will do the spec and go/types changes including additional tests, and (probably) also the cmd/compile compiler changes. We aim to have all the changes ready at the start of the [Go 1.14 cycle](https://golang.org/wiki/Go-Release-Cycle), around August 1, 2019.
+Robert Griesemer will do the spec and `go/types` changes including additional tests, and (probably) also the `cmd/compile` compiler changes. We aim to have all the changes ready at the start of the [Go 1.14 cycle](https://golang.org/wiki/Go-Release-Cycle), around August 1, 2019.
 
 Separately, Ian Lance Taylor will look into the gccgo changes, which is released according to a different schedule.
 
@@ -102,39 +135,52 @@ As noted in our [“Go 2, here we come!” blog post](https://blog.golang.org/go
 
 At the release freeze, November 1, we will revisit this proposed feature and decide whether to include it in Go 1.14.
 
-## Apendix: More examples
+**Update**: These changes were implemented around the beginning of August 2019. The [`cmd/compile` compiler changes](https://golang.org/cl/187519) were done by Matthew Dempsky and turned out to be small. The [`go/types` changes](https://golang.org/cl/191257) required a rewrite of the way type checking of interfaces was implemented because the old code was not easily adjustable to the new semantics. That rewrite led to a significant simplification with a code savings of approx. 400 lines. This proposal forced the rewrite, but the proposal was not the reason for the code savings; the rewrite would have been beneficial either way. (Had the rewrite been done before and independently of this proposal, the change required would have been as small as it was for `cmd/compile` since the relevant code in `go/types` and the compiler closely corresponds.)
 
-Starlark is a Python dialect implemented in Go. The base `starlark.Value` interface defines a set of methods that every value must implement, such as `String`, `Type`, and `Truth`, but additional interfaces define optional facets of a type. For example, a value `x` that satisfies the `Iterable` interface may be used in a `for y in x` statement, a value that satisfies `HasFields` may be used in a `x.field` expression, and a value that satisfies `Mapping` may be used in a variadic call `f(**x)`. ([Example from #6977.](https://github.com/golang/go/issues/6977#issuecomment-450440293))
+## Apendix: A typical example
+
+Below is [an example](https://golang.org/issues/6977#issuecomment-218985935) by [Hasty Granbery](https://github.com/hasty); this example is representative for a common situation - diamond shaped embedding graphs - where people run into problems with the status quo. A few more examples can be found in [issue 6977](https://golang.org/issue/6977). 
+
+In this specific scenario, various different database APIs are defined via interfaces to fully hide the implementation and to simplify testing (it's easy to install a mock implementation in the interface). A typical interface might be:
 
 ```Go
-package starlark
+package user
 
-type Value interface {
-    String() string
-    Type() string
-    Truth() bool
-    ...
-}
-
-type Mapping interface {
-    Value
-    Get(key Value) Value
-}
-
-type Iterable interface{
-     Value
-     Iterate() Iterator
+type Database interface {
+    GetAccount(accountID uint64) (model.Account, error)
 }
 ```
 
-Often a situation arises in which one needs to test whether a value satisfies two interfaces, such as an iterable mapping, but the `Iterable` and `Mapping` interfaces both embed the `Value` interface, and thus contain overlapping sets of methods.
+A few other packages may want to be able to fetch accounts under some circumstances, so they require their databases to have all of `user.Database`'s methods:
 
 ```Go
-package mypkg
+package hardware
 
-type IterableMapping interface {
-    starlark.Mapping
-    starlark.Iterable // error: duplicate method String (et al)
+type Database interface {
+    user.Database
+    SaveDevice(accountID uint64, device model.Device) error
 }
 ```
-With the proposed rule change, `IterableMapping` will become a valid type declaration.
+
+```Go
+package wallet
+
+type Database interface {
+    user.Database
+    ReadWallet(accountID uint64) (model.Wallet, error)
+}
+```
+
+Finally, there is a package that needs both the `hardware` and `wallet` `Database`:
+
+```Go
+package shopping
+
+type Database interface {
+    wallet.Database
+    device.Database
+    Buy(accountID uint64, deviceID uint64) error
+}
+```
+
+Since both `wallet.Database` and `device.Database` have the `GetAccount` method, `shopping.Database` is invalid with the current spec. If this proposal is accepted, this code will become valid.
