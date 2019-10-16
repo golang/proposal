@@ -2,7 +2,7 @@
 
 Author: Robert Griesemer
 
-Last update: 2019-10-10
+Last update: 2019-10-16
 
 Discussion at [golang.org/issue/6977](https://golang.org/issue/6977).
 
@@ -154,7 +154,7 @@ type Database interface {
 A few other packages may want to be able to fetch accounts under some circumstances, so they require their databases to have all of `user.Database`'s methods:
 
 ```Go
-package hardware
+package device
 
 type Database interface {
     user.Database
@@ -171,16 +171,16 @@ type Database interface {
 }
 ```
 
-Finally, there is a package that needs both the `hardware` and `wallet` `Database`:
+Finally, there is a package that needs both the `device` and `wallet` `Database`:
 
 ```Go
 package shopping
 
 type Database interface {
-    wallet.Database
     device.Database
+    wallet.Database
     Buy(accountID uint64, deviceID uint64) error
 }
 ```
 
-Since both `wallet.Database` and `device.Database` have the `GetAccount` method, `shopping.Database` is invalid with the current spec. If this proposal is accepted, this code will become valid.
+Since both `device.Database` and `wallet.Database` have the `GetAccount` method, `shopping.Database` is invalid with the current spec. If this proposal is accepted, this code will become valid.
