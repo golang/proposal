@@ -61,10 +61,11 @@ package lockedfile
 // the lock but may not do so promptly: callers must ensure that all locked
 // files are closed before exiting.
 type File struct {
-    // contains filtered or unexported fields
+    // contains unexported fields
 }
 
 // Create is like os.Create, but returns a write-locked file.
+// If the file already exists, it is truncated.
 func Create(name string) (*File, error)
 
 // Edit creates the named file with mode 0666 (before umask),
@@ -78,8 +79,8 @@ func Edit(name string) (*File, error)
 func Open(name string) (*File, error)
 
 // OpenFile is like os.OpenFile, but returns a locked file.
-// If flag includes os.O_WRONLY or os.O_RDWR, the file is write-locked;
-// otherwise, it is read-locked.
+// If flag implies edition (ie: os.O_TRUNC, os.O_WRONLY or os.O_RDWR), the file
+// is write-locked; otherwise, it is read-locked.
 func OpenFile(name string, flag int, perm os.FileMode) (*File, error)
 
 // Close unlocks and closes the underlying file.
