@@ -15,11 +15,11 @@ Move already existing code residing in
 
 A few open source Go projects are implementing file locking mechanisms but they
 do not seem to be maintained anymore:
- https://github.com/gofrs/flock : This repo has accepted PRs as recently as
+* https://github.com/gofrs/flock : This repo has accepted PRs as recently as
    this March, so this implementation may be maintained — but it is not (yet?)
    portable to as many platforms as the implementation in the Go project, and
    we could argue that our `lockedfile` package API is more ergonomic anyway.
- https://github.com/juju/fslock : Note that this implementation is both
+* https://github.com/juju/fslock : Note that this implementation is both
    unmaintained and LGPL-licensed, so even folks who would like to use it might
    not be able to. Also not that this repo [was selected for removal in
    2017](https://github.com/juju/fslock/issues/4) 
@@ -123,11 +123,11 @@ func (mu *Mutex) String() string
 The golang/go/src/cmd/go/internal/lockedfile already exists but has untrusted &
 unmaintained alternatives.
 
-Making this package public will make it more used. A tiny surge of issues
-  might come in the beginning; at the benefits of everyone. ( Unless it's
-  bug free !! ).
+* Exporting this package public will make it more used. A tiny surge of issues
+  might come in the beginning; at the benefits of everyone. ( Unless it's bug
+  free !! ).
 
-There exists a https://godoc.org/github.com/rogpeppe/go-internal package that
+* There exists a https://godoc.org/github.com/rogpeppe/go-internal package that
   exports a lot of internal packages from the go repo. But if go-internal
   became wildly popular; in order to have a bug fixed or a feature introduced
   in; a user would still need to open a PR on the go repo; then the author of
@@ -135,9 +135,13 @@ There exists a https://godoc.org/github.com/rogpeppe/go-internal package that
 
 ## Compatibility
 
-There are no compatibility issues. Since this will be a code addition.
+There are no compatibility issues. Since this will be a code addition but
+Ideally we don't want to maintain two copies of this package going forward, and
+we probably don't want to vendor `x/exp` into the `cmd` module.
+
+Perhaps that implies that this should go in the `x/sys` or `x/sync` repo instead?
 
 ## Implementation
 
-Adrien Delorme plans to do copy the internal/lockedfile package from cmd/go to
-`x/exp`.
+Adrien Delorme plans to do copy the exported types in the proposal section from
+ `cmd/go/internal/lockedfile` to `x/sync`.
