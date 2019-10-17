@@ -188,3 +188,6 @@ Perhaps that implies that this should go in the `x/sys` or `x/sync` repo instead
 
 Adrien Delorme plans to do copy the exported types in the proposal section from
  `cmd/go/internal/lockedfile` to `x/sync`.
+
+Adrien Delorme plans to change the references to the `lockedfile` package in
+`cmd`.
