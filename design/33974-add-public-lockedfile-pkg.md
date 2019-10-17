@@ -53,13 +53,6 @@ Exported names and comments as can be currently found in
 // change atomically.
 package lockedfile
 
-// Read opens the named file with a read-lock and returns its contents.
-func Read(name string) ([]byte, error)
-
-// Write opens the named file (creating it with the given permissions if
-// needed), then write-locks it and overwrites it with the given content.
-func Write(name string, content io.Reader, perm os.FileMode) (err error)
-
 // A File is a locked *os.File.
 //
 // Closing the file releases the lock.
