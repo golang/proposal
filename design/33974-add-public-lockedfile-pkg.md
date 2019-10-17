@@ -9,7 +9,7 @@ Discussion at https://golang.org/issue/33974.
 ## Abstract
 
 Move already existing code residing in
-`golang/go/src/cmd/go/internal/lockedfile` to `x/exp`. At `x/exp/lockedfile`.
+`golang/go/src/cmd/go/internal/lockedfile` to `x/sync`.
 
 ## Background
 
