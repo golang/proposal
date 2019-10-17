@@ -83,6 +83,37 @@ func Open(name string) (*File, error)
 // is write-locked; otherwise, it is read-locked.
 func OpenFile(name string, flag int, perm os.FileMode) (*File, error)
 
+// Read reads up to len(b) bytes from the File.
+// It returns the number of bytes read and any error encountered.
+// At end of file, Read returns 0, io.EOF.
+//
+// File can be read-locked or write-locked.
+func (f *File) Read(b []byte) (n int, err error)
+
+// ReadAt reads len(b) bytes from the File starting at byte offset off.
+// It returns the number of bytes read and the error, if any.
+// ReadAt always returns a non-nil error when n < len(b).
+// At end of file, that error is io.EOF.
+//
+// File can be read-locked or write-locked.
+func (f *File) ReadAt(b []byte, off int64) (n int, err error)
+
+// Write writes len(b) bytes to the File.
+// It returns the number of bytes written and an error, if any.
+// Write returns a non-nil error when n != len(b).
+//
+// If File is not write-locked Write returns an error.
+func (f *File) Write(b []byte) (n int, err error)
+
+// WriteAt writes len(b) bytes to the File starting at byte offset off.
+// It returns the number of bytes written and an error, if any.
+// WriteAt returns a non-nil error when n != len(b).
+//
+// If file was opened with the O_APPEND flag, WriteAt returns an error.
+// 
+// If File is not write-locked WriteAt returns an error.
+func (f *File) WriteAt(b []byte, off int64) (n int, err error)
+
 // Close unlocks and closes the underlying file.
 //
 // Close may be called multiple times; all calls after the first will return a
@@ -121,12 +152,16 @@ func (mu *Mutex) String() string
 
 ## Rationale
 
-The golang/go/src/cmd/go/internal/lockedfile already exists but has untrusted &
-unmaintained alternatives.
+* The `lockedfile.File` implements a subset of the `os.File` but with file
+  locking protection.
 
-* Exporting this package public will make it more used. A tiny surge of issues
+* `lockedfile` adds an `Edit` function; `Edit` is not currently part of the
+  `file` package. Edit exists to make it easier to implement locked
+  read-modify-write operation.
+
+* Making this package public will make it more used. A tiny surge of issues
   might come in the beginning; at the benefits of everyone. ( Unless it's bug
-  free !! ).
+  free !!).
 
 * There exists a https://godoc.org/github.com/rogpeppe/go-internal package that
   exports a lot of internal packages from the go repo. But if go-internal
