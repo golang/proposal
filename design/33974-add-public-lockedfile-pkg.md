@@ -132,7 +132,10 @@ func (f *File) Close() error
 // must not be copied after first use. The Path field must be set before first
 // use and must not be change thereafter.
 type Mutex struct {
-    Path string // The path to the well-known lock file. Must be non-empty.
+    // Path to the well-known lock file. Must be non-empty.
+    //
+    // Path must not change on a locked mutex.
+    Path string 
     // contains filtered or unexported fields
 }
 
@@ -154,6 +157,10 @@ func (mu *Mutex) String() string
 
 * The `lockedfile.File` implements a subset of the `os.File` but with file
   locking protection.
+
+* The `lockedfile.Mutex` does not implement `sync.Locker`: unlike a
+  `sync.Mutex`, a `lockedfile.Mutex` can fail to lock (e.g. if there is a
+  permission error in the filesystem).
 
 * `lockedfile` adds an `Edit` function; `Edit` is not currently part of the
   `file` package. Edit exists to make it easier to implement locked
