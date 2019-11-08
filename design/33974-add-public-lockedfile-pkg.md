@@ -171,9 +171,11 @@ func (mu *Mutex) String() string
   `sync.Mutex`, a `lockedfile.Mutex` can fail to lock (e.g. if there is a
   permission error in the filesystem).
 
-* `lockedfile` adds an `Edit` function; `Edit` is not currently part of the
-  `file` package. Edit exists to make it easier to implement locked
-  read-modify-write operation.
+* `lockedfile` adds an `Edit` and a `Transform` function; `Edit` is not
+  currently part of the `file` package. Edit exists to make it easier to
+  implement locked read-modify-write operation. Transform simplifies the act of
+  reading and then writing to a locked file.
+  
 
 * Making this package public will make it more used. A tiny surge of issues
   might come in the beginning; at the benefits of everyone. ( Unless it's bug
