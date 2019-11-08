@@ -75,6 +75,15 @@ func Create(name string) (*File, error)
 // The associated file descriptor has mode O_RDWR and the file is write-locked.
 func Edit(name string) (*File, error)
 
+// Transform invokes t with the result of reading the named file, with its lock
+// still held.
+//
+// If t returns a nil error, Transform then writes the returned contents back to
+// the file, making a best effort to preserve existing contents on error.
+//
+// t must not modify the slice passed to it.
+func Transform(name string, t func([]byte) ([]byte, error)) (err error) {
+
 // Open is like os.Open, but returns a read-locked file.
 func Open(name string) (*File, error)
 
