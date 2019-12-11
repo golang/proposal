@@ -2323,7 +2323,7 @@ func (s Set(Elem)) Iterate(f func(Elem)) {
 Example use:
 
 ```Go
-	s := set.Make(int)
+	s := set.Make(int)()
 	s.Add(1)
 	if s.Contains(2) { panic("unexpected 2") }
 ```
