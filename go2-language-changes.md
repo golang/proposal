@@ -13,9 +13,9 @@ entire Go ecosystem, so many factors come into consideration.
 
 If you just have an idea for a language change, and would like help
 turning it into a complete proposal, we ask that you not open an
-issue, but instead discuss the idea on a forum such as (the
+issue, but instead discuss the idea on a forum such as [the
 golang-nuts mailing
-list)[https://groups.google.com/forum/#!forum/golang-nuts].
+list](https://groups.google.com/forum/#!forum/golang-nuts).
 
 Before proceeding with a full proposal, please review the requirements
 listed in the Go blog article [Go 2, here we
@@ -40,7 +40,7 @@ You do not have to answer every question but please do your best.
   - If so, how does this proposal differ?
 - Who does this proposal help, and why?
 - Is this change backward compatible?
-  - Breaking the (Go 1 compatibility guarantee)[https://golang.org/doc/go1compat] is a large cost and requires a large benefit.
+  - Breaking the [Go 1 compatibility guarantee](https://golang.org/doc/go1compat) is a large cost and requires a large benefit.
 - Show example code before and after the change.
 - What is the cost of this proposal? (Every language change has a cost).
   - How many tools (such as vet, gopls, gofmt, goimports, etc.) would be affected?
