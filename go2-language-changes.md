@@ -39,6 +39,10 @@ You do not have to answer every question but please do your best.
 - Has this idea, or one like it, been proposed before?
   - If so, how does this proposal differ?
 - Who does this proposal help, and why?
+- What is the proposed change?
+  - Please describe as precisely as possible the change to the language.
+  - What would change in the [https://golang.org/ref/spec](language spec)?
+  - Please also describe the change informally, as in a class teaching Go.
 - Is this change backward compatible?
   - Breaking the [Go 1 compatibility guarantee](https://golang.org/doc/go1compat) is a large cost and requires a large benefit.
 - Show example code before and after the change.
