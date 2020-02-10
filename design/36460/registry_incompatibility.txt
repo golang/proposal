@@ -1,0 +1,128 @@
+# This example illustrates a case in which a seemingly-irrelevant requirements
+# in one module fixes an incompatibility with a package in another.
+#
+# Two packages that do not import each other may interact via a third (mutual)
+# dependency, so their module requirements must be respected even if those
+# requirements do not directly correspond to package imports.
+
+
+# Before discovering the import of package c, we depend on b v1.0.0.
+
+$ go1.14rc1 list -m b
+b v1.0.0 => ./b0
+
+
+# When we import package c, we must update the selected version of b according
+# to c's requirements, _even though_ neither package imports the other.
+# Otherwise, the program will panic at run time.
+
+$ go1.14rc1 build c
+go: found c in c v1.0.0
+
+$ go1.14rc1 list -m b
+b v1.0.1 => ./b1
+
+
+-- go.mod --
+module main
+
+go 1.15
+
+require (
+	a v1.0.0
+	b v1.0.0
+	d v1.0.0
+)
+
+replace (
+	a v1.0.0 => ./a
+	b v1.0.0 => ./b0
+	b v1.0.1 => ./b1
+	c v1.0.0 => ./c
+	d v1.0.0 => ./d
+)
+-- main.go --
+package main
+
+import (
+	_ "a"
+
+	// Adding an import of c should increase the selected version of b to 1.0.1
+	// in order to avoid a registration collision caused by a bug in b 1.0.0.
+	// Module b is not otherwise relevant to package c or its containing module.
+	_ "c"
+)
+
+func main() {}
+-- a/go.mod --
+module a
+
+go 1.15
+
+require b v1.0.0
+-- a/a.go --
+package a
+
+import _ "b"
+-- b0/go.mod --
+module b
+
+go 1.15
+
+require d v1.0.0
+-- b0/b.go --
+package b
+
+import "d"
+
+func init() { d.Register("c") }  // This is a bug that breaks package c.
+-- b1/go.mod --
+module b
+
+go 1.15
+
+require d v1.0.0
+-- b1/b.go --
+package b
+
+import "d"
+
+func init() { d.Register("b") }  // The bug has been fixed.
+-- c/go.mod --
+module c
+
+require (
+	b v1.0.1
+	d v1.0.0
+)
+-- c/c.go --
+package c
+
+import "d"
+
+func init() { d.Register("c") }
+
+-- c/tidy/tidy.go --
+// +build tidy-only
+
+package tidy
+
+// Maintain a false dependency on b v1.0.1, to prevent b v1.0.0
+// from erroneously registering itself with our path if anything
+// that imports us also imports package b.
+import _ "b"
+-- d/go.mod --
+module d
+
+go 1.15
+-- d/d.go --
+package d
+
+var registered = map[string]bool{}
+
+func Register(key string) {
+	if registered[key] {
+		panic("duplicate registation for  " + key)
+	}
+	registered[key] = true
+}

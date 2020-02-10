@@ -1,0 +1,146 @@
+# This example illustrates the relationship between the 'all' pattern and
+# the dependencies of the main module.
+
+
+# 'go list -deps' lists transitive imports of non-tests in the main module.
+
+$ go1.14rc1 list -f '{{with .Module}}{{.Path}}{{end}}' -deps ./... | sort -u
+example.com/a
+example.com/b
+example.com/main
+
+
+# 'go list -deps -test' lists transitive imports of tests and non-tests in the
+# main module.
+
+$ go1.14rc1 list -f '{{with .Module}}{{.Path}}{{end}}' -deps -test ./... | sort -u
+example.com/a
+example.com/b
+example.com/main
+example.com/t
+example.com/u
+
+
+# 'go list all' lists the fixpoint of iterating 'go list -deps -test' starting
+# with the packages in the main module.
+
+$ go1.14rc1 list -f '{{with .Module}}{{.Path}}{{end}}' all | sort -u
+example.com/a
+example.com/b
+example.com/c
+example.com/main
+example.com/t
+example.com/u
+example.com/w
+
+$ go1.14rc1 list -f '{{with .Module}}{{.Path}}{{end}}' -deps -test $(go1.14rc1 list -deps -test ./... | grep -v '[ .]') | sort -u
+example.com/a
+example.com/b
+example.com/c
+example.com/main
+example.com/t
+example.com/u
+example.com/w
+
+
+# 'go mod vendor' copies in only the packages transitively imported by the main
+# module. As a result, the 'all' and '...' patterns report fewer packages when
+# using '-mod=vendor'.
+
+$ go1.14rc1 mod vendor
+
+$ go1.14rc1 list -mod=vendor all
+example.com/a
+example.com/b
+example.com/main
+example.com/t
+example.com/u
+
+
+-- go.mod --
+module example.com/main
+
+go 1.14
+
+require (
+	example.com/a v0.1.0
+	example.com/b v0.1.0
+	example.com/t v0.1.0
+)
+
+replace (
+	example.com/a v0.1.0 => ./a
+	example.com/b v0.1.0 => ./b
+	example.com/c v0.1.0 => ./c
+	example.com/t v0.1.0 => ./t
+	example.com/u v0.1.0 => ./u
+	example.com/w v0.1.0 => ./w
+)
+-- main.go --
+package main
+
+import _ "example.com/a"
+
+func main() {}
+-- main_test.go --
+package main_test
+
+import _ "example.com/t"
+-- a/go.mod --
+module example.com/a
+
+go 1.14
+
+require (
+	example.com/b v0.1.0
+	example.com/c v0.1.0
+)
+-- a/a.go --
+package x
+
+import _ "example.com/b"
+-- a/a_test.go --
+package x_test
+
+import _ "example.com/c"
+-- b/go.mod --
+module example.com/b
+
+go 1.14
+-- b/b.go --
+package b
+-- c/go.mod --
+module example.com/c
+
+go 1.14
+-- c/c.go --
+package c
+-- t/go.mod --
+module example.com/t
+
+go 1.14
+
+require (
+	example.com/u v0.1.0
+	example.com/w v0.1.0
+)
+-- t/t.go --
+package t
+
+import _ "example.com/u"
+-- t/t_test.go --
+package t_test
+
+import _ "example.com/w"
+-- u/go.mod --
+module example.com/u
+
+go 1.14
+-- u/u.go --
+package u
+-- w/go.mod --
+module example.com/w
+
+go 1.14
+-- w/w.go --
+package w
