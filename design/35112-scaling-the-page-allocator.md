@@ -8,15 +8,15 @@ Last updated: 2019-10-18
 
 The Go runtime's page allocator (i.e. `(*mheap).alloc`) has scalability
 problems.
-In applications with a high rate of heap allocation and a high GOMAXPROCS,
-small regressions in the allocator can quickly become big problems.
+In applications with a high rate of heap allocation and a high GOMAXPROCS, small
+regressions in the allocator can quickly become big problems.
 
 Based on ideas from Austin about making P-specific land-grabs to reduce lock
 contention, and with evidence that most span allocations are one page in size
 and are for small objects (<=32 KiB in size), I propose we:
-  1. Remove the concept of spans for free memory and track free memory with a
-     bitmap.
-  1. Allow a P to cache free pages for uncontended allocation.
+1. Remove the concept of spans for free memory and track free memory with a
+   bitmap.
+1. Allow a P to cache free pages for uncontended allocation.
 Point (1) simplifies the allocator, reduces some constant overheads, and more
 importantly enables (2), which tackles lock contention directly.
 
@@ -52,13 +52,13 @@ state before the regressions in Go 1.12 were even introduced.
 ## Proposal
 
 I believe we can significantly improve the scalability of the page allocator if
-we eliminate as much lock contention in the heap as possible. We can achieve
-this in two ways:
-  1. Make the allocator faster.
-     The less time spent with the lock held the better the assumptions of e.g.
-     a futex hold up.
-  1. Come up with a design that avoids grabbing the lock at all in the common
-     case.
+we eliminate as much lock contention in the heap as possible.
+We can achieve this in two ways:
+1. Make the allocator faster.
+   The less time spent with the lock held the better the assumptions of e.g. a
+   futex hold up.
+1. Come up with a design that avoids grabbing the lock at all in the common
+   case.
 
 So, what is this common case? We currently have span allocation data for a
 couple large Go applications which reveal that an incredibly high fraction of
@@ -73,8 +73,8 @@ make very large allocations relatively frequently.
 classes, inclusive.
 
 Thus, I propose we:
-  * Track free pages in a bitmap that spans the heap's address space.
-  * Allow a P to cache a set of bits from the bitmap.
+* Track free pages in a bitmap that spans the heap's address space.
+* Allow a P to cache a set of bits from the bitmap.
 
 The goal is to have most (80%+) small object span allocations allocate quickly,
 and without a lock.
@@ -88,32 +88,30 @@ highest-address-first scavenging policy.
 ### Tracking free memory with bitmaps
 
 With a first-fit policy, allocation of one page (the common case) amounts to
-finding the first free page in the heap. One promising idea here is to use a
-bitmap because modern microarchitectures are really good at iterating over bits.
+finding the first free page in the heap.
+One promising idea here is to use a bitmap because modern microarchitectures are
+really good at iterating over bits.
 Each bit in the bitmap represents a single runtime page (8 KiB as of this
-writing), where 1 means in-use and 0 means free. "In-use" in the context of the
-new page allocator is now synonymous with "owned by a span".
+writing), where 1 means in-use and 0 means free.
+"In-use" in the context of the new page allocator is now synonymous with "owned
+by a span".
 The concept of a free span isn't useful here.
 
-I propose that the bitmap be divided up into shards each representing a single
-arena.
-Each shard would then live in its corresponding `heapArena` instance.
-For a 64 MiB arena and 8 KiB page size, this means 8192 bits (1 KiB) per arena.
-The main reason for sharding it in this way is for convenience in
-implementation.
-An alternative could be to maintain one large global bitmap and to map it in as
-needed.
+I propose that the bitmap be divided up into shards (called chunks) which are
+small enough to be quick to iterate over.
+512-bit shards would each represent 4 MiB (8 KiB pages) and fit in roughly 2
+cache lines.
+These shards could live in one global bitmap which is mapped in as needed, or to
+reduce the virtual memory footprint, we could use a sparse-array style structure
+like `(*mheap).arenas`.
+Picking a chunk size which is independent of arena size simplifies the
+implementation because arena sizes are platform-dependent.
 
-Simply iterating over one large bitmap is still fairly inefficient, especially
-for dense heaps.
+Simply iterating over the whole bitmap to find a free page is still fairly
+inefficient, especially for dense heaps.
 We want to be able to quickly skip over completely in-use sections of the heap.
-Therefore, I first propose we subdivide our shards further into chunks.
-Next, instead of running over each chunk directly, I propose we attach summary
-information to each chunk such that it's much faster to filter out chunks which
-couldn't possibly satisfy the allocation.
-We subdivide the shards further rather than just attaching summary information
-to shards directly in order to keep bitmap iteration work consistent across
-platforms (i.e. independent of arena size).
+Thus, I propose we attach summary information to each chunk such that it's much
+faster to filter out chunks which couldn't possibly satisfy the allocation.
 
 What should this summary information contain? I propose we augment each chunk
 with three fields: `start, max, end uintptr`.
@@ -163,10 +161,11 @@ bump the hint forward with every search, effectively eliminating the search
 space until new memory is freed.
 Most allocations are expected to allocate not far from the hint.
 
-There's still an inherent scalability issue with this design: larger allocations
-may require iterating over the whole heap, even with the hint address.
-This scalability issue arises from the fact that we now have an allocation
-algorithm with a time complexity linear in the size of the heap.
+There's still an inherent performance problem with this design: larger
+allocations may require iterating over the whole heap, even with the hint
+address.
+This issue arises from the fact that we now have an allocation algorithm with a
+time complexity linear in the size of the heap.
 Modern microarchitectures are good, but not quite good enough to just go with
 this.
 
@@ -216,21 +215,21 @@ A number of details were omitted from the previous section for brevity, but
 these details are key for an efficient implementation.
 
 Firstly, note that `start, max, end uintptr` is an awkward structure in size,
-requiring either 12 bytes or 24 bytes to store naively, neither of which fits
-a small multiple of a cache line comfortably.
+requiring either 12 bytes or 24 bytes to store naively, neither of which fits a
+small multiple of a cache line comfortably.
 To make this structure more cache-friendly, we can pack them tightly into
 64-bits if we constrain the height of the radix tree.
-The packing is straight-forward: we may dedicate 21 bits to each of these
-three numbers and pack them into 63 bits.
+The packing is straight-forward: we may dedicate 21 bits to each of these three
+numbers and pack them into 63 bits.
 A small quirk with this scheme is that each of `start`, `max`, and `end` are
 counts, and so we need to represent zero as well as the maximum value (`2^21`),
 which at first glance requires an extra bit per field.
 Luckily, in that case (i.e. when `max == 2^21`), then `start == max && max ==
 end`.
-We may use the last remaining bit to represent this case. A summary representing
-a completely full region is also conveniently `uint64(0)` in this
-representation, which enables us to very quickly skip over parts of the address
-space we don't care about with just one load and branch.
+We may use the last remaining bit to represent this case.
+A summary representing a completely full region is also conveniently `uint64(0)`
+in this representation, which enables us to very quickly skip over parts of the
+address space we don't care about with just one load and branch.
 
 As mentioned before, a consequence of this packing is that we need to place a
 restriction on our structure: each entry in the root level of the radix tree may
@@ -259,11 +258,11 @@ so that gives us a fanout of 8.
 
 Taking all this into account, for a 48-bit address space (such as how we treat
 `linux/amd64` in the runtime), I propose the following 5-level array structure:
-  * Level 0: `16384` entries (fanout = 1, root)
-  * Level 1: `16384*8` entries (fanout = 8)
-  * Level 2: `16384*8*8` entries (fanout = 8)
-  * Level 3: `16384*8*8*8` entries (fanout = 8)
-  * Level 4: `16384*8*8*8*8` entries (fanout = 8, leaves)
+* Level 0: `16384` entries (fanout = 1, root)
+* Level 1: `16384*8` entries (fanout = 8)
+* Level 2: `16384*8*8` entries (fanout = 8)
+* Level 3: `16384*8*8*8` entries (fanout = 8)
+* Level 4: `16384*8*8*8*8` entries (fanout = 8, leaves)
 
 Note that level 4 has `2^48 bytes / (512 * 8 KiB)` entries, which is exactly the
 number of chunks in a 48-bit address space.
@@ -287,17 +286,17 @@ then add an additional level to the tree, at the expense of some additional
 metadata overhead.
 
 Overall this uses between KiB and hundreds of MiB of address space on systems
-with smaller address spaces (~600 MiB for a 48-bit address space, ~12 KiB for a
+with smaller address spaces (~600 MiB for a 48-bit address space, ~128 KiB for a
 32-bit address space).
 For a full 64-bit address space, this layout requires ~37 TiB of reserved
 memory.
 
 At first glance, this seems like an enormous amount, but in reality that's an
-extremely small fraction (~0.00022%) of the full address space. Furthermore,
-this address space is very cheap since we'll only commit what we use, and to
-reduce the size of core dumps and eliminate issues with overcommit we will map
-the space as `PROT_NONE` (only `MEM_RESERVE` on Windows) and map it as
-read/write explicitly when we grow the heap (an infrequent operation).
+extremely small fraction (~0.00022%) of the full address space.
+Furthermore, this address space is very cheap since we'll only commit what we
+use, and to reduce the size of core dumps and eliminate issues with overcommit
+we will map the space as `PROT_NONE` (only `MEM_RESERVE` on Windows) and map it
+as read/write explicitly when we grow the heap (an infrequent operation).
 
 There are only two known adverse effects of this large mapping on Linux:
   1. `ulimit -v`, which restricts even `PROT_NONE` mappings.
@@ -435,10 +434,10 @@ With the exception of two applications, the rest all seem to have their free and
 unscavenged huge pages at higher addresses, so the simpler policy leads to a
 similar rate of releasing memory.
 The simulation is based on heap snapshots at the end of program execution, so
-it's a little non-representative since large, long-lived objects, or clusters
-of objects, could have gotten freed just before measurement.
-This misrepresentation actually acts in our favor, however, since it suggests
-an even smaller frequency of huge pages appearing in the middle of the heap.
+it's a little non-representative since large, long-lived objects, or clusters of
+objects, could have gotten freed just before measurement.
+This misrepresentation actually acts in our favor, however, since it suggests an
+even smaller frequency of huge pages appearing in the middle of the heap.
 
 ## Rationale
 
@@ -452,8 +451,9 @@ allocations, I took a trace from a 12-hour load test from Kubernetes when I was
 diagnosing
 [kubernetes/kubernetes#75833](https://github.com/kubernetes/kubernetes/issues/75833#issuecomment-477758829).
 92% of all span allocations were for the first 50 size classes (i.e. up and
-including 8 KiB objects). Each of those, on average, spent 4.0µs in the critical
-section with the heap locked, minus any time spent scavenging.
+including 8 KiB objects).
+Each of those, on average, spent 4.0µs in the critical section with the heap
+locked, minus any time spent scavenging.
 The mode of this latency was between 3 and 4µs, with the runner-up being between
 2 and 3µs.
 These numbers were taken with the load test built using Go 1.12.4 and from a
@@ -463,8 +463,8 @@ the heap lock; it is only the time in the critical section.
 
 I implemented a prototype of this proposal which lives outside of the Go
 runtime, and optimized it over the course of a few days.
-I then took heap samples from large, end-to-end benchmarks to get realistic
-heap layouts for benchmarking the prototype.
+I then took heap samples from large, end-to-end benchmarks to get realistic heap
+layouts for benchmarking the prototype.
 
 The prototype benchmark then started with these heap samples and allocated out
 of them until the heap was exhausted.
@@ -520,19 +520,32 @@ more processors generally require more memory to take advantage of parallelism.
 
 ### Prior Art
 
-As far as prior art is concerned, there hasn't been much work put into bitmap
-allocators in general.
-The reason is likely because most other points in the design space for memory
-management wouldn't really benefit from a bitmap-based page-level allocator.
-
+As far as prior art is concerned, there hasn't been much work with bitmap
+allocators for languages which have a GC.
 Consider Go against other other managed languages with a GC: Go's GC sits in a
 fairly unique point in the design space for GCs because it is a non-moving
 collector.
 Most allocators in other managed languages (e.g. Java) tend to be bump
 allocators, since they tend to have moving and compacting GCs.
+Other managed languages also tend to have many more allocations of smaller size
+compared to Go, so the "slow path" of allocating pages is usually just grabbing
+a fixed-size block out of a shared pool, which can be made to be quite fast.
+Go relies on being able to allocate blocks of different sizes to reduce
+fragmentation in its current allocator design.
 
-When considering non-GC'd languages, e.g C/C++, there has been very little work
-in using bitmaps, except for a few niche cases such as [GPU-accelerated
+However, when considering non-GC'd languages, e.g C/C++, there has been some
+notable work using bitmaps in memory allocators.
+In particular,
+[DieHard](https://github.com/emeryberger/DieHard/blob/master/docs/pldi2006-diehard.pdf),
+[DieHarder](https://www.usenix.org/legacy/event/woot/tech/final_files/Novark.pdf),
+and [Mesh](https://arxiv.org/pdf/1902.04738.pdf).
+DieHard and DieHarder in particular implement an effecient amortized `O(1)`
+bitmap-based allocator, though that was not their primary contribution.
+Mesh uses bitmaps for managing which slots are free in a span, like the Go
+allocator.
+We were not aware of DieHard(er) at the time of writing this proposal, though
+they use bitmaps to track individual objects instead of pages.
+There are also a few niche cases where they are used such as [GPU-accelerated
 allocation](https://arxiv.org/abs/1810.11765) and [real-time
 applications](http://www.gii.upv.es/tlsf/).
 
@@ -551,8 +564,7 @@ This bulk (de)allocation behavior would thus help explain why page allocator
 scalability hasn't been such a big issue for TCMalloc (again, as far as I'm
 aware).
 
-In sum, Go sits in a unique point in the memory management design space, and
-therefore warrants a unique solution.
+In sum, Go sits in a unique point in the memory management design space.
 The bitmap allocator fits this point in the design space well: bulk allocations
 and frees can be grouped together to amortize the cost of updating the summaries
 thanks to the GC.
@@ -569,8 +581,8 @@ without acquiring the heap lock.
 
 While this seems like a good idea in principle, one big limitation is that you
 can only cache contiguous regions of free memory.
-Suppose many heap fragments tend to just be one page in size: one ends up
-having to go back to the page allocator every single time anyway.
+Suppose many heap fragments tend to just be one page in size: one ends up having
+to go back to the page allocator every single time anyway.
 While it is true that one might only cache one page from the heap in the
 proposed design, this case is fairly rare in practice, since it picks up any
 available memory it can find in a given 64-page aligned region.
@@ -608,13 +620,13 @@ therefore Go 1 backwards compatible.
 Michael Knyszek will implement this proposal.
 
 The implementation will proceed as follows:
-  1. Change the scavenger to be self-paced to facilitate an easier transition.
-  1. Graft the prototype (without the P cache) into the runtime.
+1. Change the scavenger to be self-paced to facilitate an easier transition.
+1. Graft the prototype (without the P cache) into the runtime.
     * The plan is to do this as a few large changes which are purely additive
       and with tests.
     * The two allocators will live side-by-side, and we'll flip between the two
       in a single small change.
-  1. Delete unnecessary code from the old allocator.
-  1. Create a pool of `mspan` objects for each P.
-  1. Add a page cache to each P.
+1. Delete unnecessary code from the old allocator.
+1. Create a pool of `mspan` objects for each P.
+1. Add a page cache to each P.
 
