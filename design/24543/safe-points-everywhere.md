@@ -13,7 +13,7 @@ safe-points only at function calls.
 We propose that the Go implementation switch to *non-cooperative*
 preemption.
 The background and rationale for this proposal are detailed in the
-[top-level proposal document](../20543-non-cooperative-preemption.md).
+[top-level proposal document](../24543-non-cooperative-preemption.md).
 
 This document details a specific approach to non-cooperative
 preemption based on constructing stack and register maps at
