@@ -15,10 +15,9 @@ Move already existing code residing in
 
 A few open source Go projects are implementing file locking mechanisms but they
 do not seem to be maintained anymore:
-* https://github.com/gofrs/flock : This repo has accepted PRs as recently as
-   this March, so this implementation may be maintained — but it is not (yet?)
-   portable to as many platforms as the implementation in the Go project, and
-   we could argue that our `lockedfile` package API is more ergonomic anyway.
+* https://github.com/gofrs/flock : This repo has lastly accepted PRs in March
+   2019, so this implementation may be maintained and we could argue that the 
+   `lockedfile` package API is more ergonomic.
 * https://github.com/juju/fslock : Note that this implementation is both
    unmaintained and LGPL-licensed, so even folks who would like to use it might
    not be able to. Also not that this repo [was selected for removal in
@@ -82,14 +81,14 @@ func Edit(name string) (*File, error)
 // the file, making a best effort to preserve existing contents on error.
 //
 // t must not modify the slice passed to it.
-func Transform(name string, t func([]byte) ([]byte, error)) (err error) {
+func Transform(name string, t func([]byte) ([]byte, error)) (err error)
 
 // Open is like os.Open, but returns a read-locked file.
 func Open(name string) (*File, error)
 
 // OpenFile is like os.OpenFile, but returns a locked file.
-// If flag implies edition (ie: os.O_TRUNC, os.O_WRONLY or os.O_RDWR), the file
-// is write-locked; otherwise, it is read-locked.
+// If flag implies write access (ie: os.O_TRUNC, os.O_WRONLY or os.O_RDWR), the
+// file is write-locked; otherwise, it is read-locked.
 func OpenFile(name string, flag int, perm os.FileMode) (*File, error)
 
 // Read reads up to len(b) bytes from the File.
@@ -173,12 +172,12 @@ func (mu *Mutex) String() string
 
 * `lockedfile` adds an `Edit` and a `Transform` function; `Edit` is not
   currently part of the `file` package. Edit exists to make it easier to
-  implement locked read-modify-write operation. Transform simplifies the act of
-  reading and then writing to a locked file.
+  implement locked read-modify-write operation. `Transform` simplifies the act
+  of reading and then writing to a locked file.
   
 
 * Making this package public will make it more used. A tiny surge of issues
-  might come in the beginning; at the benefits of everyone. ( Unless it's bug
+  might come in the beginning; at the benefits of everyone. (Unless it's bug
   free !!).
 
 * There exists a https://godoc.org/github.com/rogpeppe/go-internal package that
@@ -189,9 +188,11 @@ func (mu *Mutex) String() string
 
 ## Compatibility
 
-There are no compatibility issues. Since this will be a code addition but
-Ideally we don't want to maintain two copies of this package going forward, and
+There are no retro-compatibility issues since this will be a code addition but
+ideally we don't want to maintain two copies of this package going forward, and
 we probably don't want to vendor `x/exp` into the `cmd` module.
+
+
 
 Perhaps that implies that this should go in the `x/sys` or `x/sync` repo instead?
 
