@@ -17,7 +17,9 @@ A few open source Go projects are implementing file locking mechanisms but they
 do not seem to be maintained anymore:
 * https://github.com/gofrs/flock : This repo has lastly accepted PRs in March
    2019, so this implementation may be maintained and we could argue that the 
-   `lockedfile` package API is more ergonomic.
+   `lockedfile` package API is more ergonomic. Incompatibilities with AIX,
+   Solaris and Illumos are preventing file locking on both projects, but it
+   looks like the go team is addressing for `lockedfile`.
 * https://github.com/juju/fslock : Note that this implementation is both
    unmaintained and LGPL-licensed, so even folks who would like to use it might
    not be able to. Also not that this repo [was selected for removal in
