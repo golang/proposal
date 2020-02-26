@@ -984,7 +984,42 @@ var f1 func(_ x(T))
 var f2 func((x(T)))
 ```
 
-### Embedding a parameterized interface type
+### Embedding a parameterized type in a struct
+
+There is a parsing ambiguity when embedding a parameterized type
+in a struct type.
+
+```Go
+type S1(type T) struct {
+	f T
+}
+
+type S2 struct {
+	S1(int)
+}
+```
+
+In this example we don't know whether struct `S2` has a single
+field named `S1` of type `(int)`, or whether we
+are trying to embed the instantiated type `S1(int)` into `S2`.
+
+For backward compatibility, we treat this as the former case: `S2` has
+a field named `S1`.
+
+In order to embed an instantiated type in a struct, we could require that
+extra parentheses be used.
+
+```Go
+type S2 struct {
+	(S1(int))
+}
+```
+
+This is currently not supported by the language, so this would suggest
+generally extending the language to permit types embedded in structs to
+be parenthesized.
+
+### Embedding a parameterized interface type in an interface
 
 There is a parsing ambiguity when embedding a parameterized interface
 type in another interface type.
