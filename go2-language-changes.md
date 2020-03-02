@@ -41,7 +41,7 @@ You do not have to answer every question but please do your best.
 - Who does this proposal help, and why?
 - What is the proposed change?
   - Please describe as precisely as possible the change to the language.
-  - What would change in the [https://golang.org/ref/spec](language spec)?
+  - What would change in the [language spec](https://golang.org/ref/spec)?
   - Please also describe the change informally, as in a class teaching Go.
 - Is this change backward compatible?
   - Breaking the [Go 1 compatibility guarantee](https://golang.org/doc/go1compat) is a large cost and requires a large benefit.
