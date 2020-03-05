@@ -134,9 +134,12 @@ the main module's `go.mod` file.
 If we encounter an import from any module that is not already _explicitly_
 required by the main module, we perform a <dfn>deepening scan</dfn>. To perform
 a deepening scan, we read the `go.mod` file for each module explicitly required
-by the main module, and add its requirements to the build list. (The deepening
-scan allows us to detect changes to the import graph without loading the whole
-graph explicitly: if we encounter a new import from within a
+by the main module, and add its requirements to the build list. If any
+explicitly-required module uses `go 1.14` or earlier, we also read the `go.mod`
+files for all of that module's (transitive) module dependencies.
+
+(The deepening scan allows us to detect changes to the import graph without
+loading the whole graph explicitly: if we encounter a new import from within a
 previously-irrelevant package, the deepening scan will re-read the requirements
 of the module containing that package, and will ensure that the selected version
 of that import is compatible with all other relevant packages.)
@@ -145,25 +148,20 @@ As we load each imported package, we also read the `go.mod` file for the module
 containing that package and add its requirements to the build list — even if
 that version of the module was already explicitly required by the main module.
 
-(If all dependencies satisfy the _import invariant_, then reading the `go.mod`
-file for existing dependencies is theoretically redundant: the requirements of
-the main module will already reflect any relevant dependencies, and the
-_deepening scan_ will catch any previously-irrelevant dependencies that
-subsequently _become_ relevant. However, reading the `go.mod` file for each
-imported package makes the `go` command much more robust to inconsistencies in
-the `go.mod` file — including manual edits, erroneous version-control merge
-resolutions, incomplete dependencies, and changes in `replace` directives and
-replacement directory contents.)
-
-In order to ensure that modules written against `go 1.14` or earlier retain
-their current dependencies, if at any point we read any `go.mod` file that
-specifies `go 1.14` or lower, we eagerly load all of the transitive requirements
-of that module and treat those transitive requirements as explicit.
+(This step is theoretically redundant: the requirements of the main module will
+already reflect any relevant dependencies, and the _deepening scan_ will catch
+any previously-irrelevant dependencies that subsequently _become_ relevant.
+However, reading the `go.mod` file for each imported package makes the `go`
+command much more robust to inconsistencies in the `go.mod` file — including
+manual edits, erroneous version-control merge resolutions, incomplete
+dependencies, and changes in `replace` directives and replacement directory
+contents.)
 
 If, after the _deepening scan,_ the package to be imported is still not found in
 any module in the build list, we resolve the `latest` version of a module
 containing that package and add it to the build list (following the same search
-procedure as in Go 1.14).
+procedure as in Go 1.14), then perform another deepening scan (this time
+including the newly added-module) to ensure consistency.
 
 ### The `all` pattern and `mod` subcommands
 
@@ -645,6 +643,96 @@ module example.com/c
 
 go 1.15
 -- c/c.go --
+package c
+```
+
+### Testing a package imported from a `go 1.14` dependency
+
+```txtar
+cp go.mod go.mod.old
+go mod tidy
+cmp go.mod go.mod.old
+
+# 'go list -m all' should include modules that cover the test dependencies of
+# the packages imported by the main module, found via a deepening scan.
+
+go list -m all
+stdout 'example.com/b v0.1.0'
+stdout 'example.com/c v0.1.0'
+cmp go.mod go.mod.old
+
+# 'go test' of any package in 'all' should use its existing dependencies without
+# updating the go.mod file.
+#
+# In order to satisfy reproducibility for the loaded packages, the deepening
+# scan must follow the transitive module dependencies of 'go 1.14' modules.
+
+go list all
+stdout example.com/a/x
+
+go test example.com/a/x
+cmp go.mod go.mod.old
+
+-- go.mod --
+module example.com/lazy
+
+go 1.15
+
+require example.com/a v0.1.0
+
+replace (
+    example.com/a v0.1.0 => ./a
+    example.com/b v0.1.0 => ./b
+    example.com/c v0.1.0 => ./c1
+    example.com/c v0.2.0 => ./c2
+)
+-- lazy.go --
+package lazy
+
+import (
+    _ "example.com/a/x"
+)
+-- a/go.mod --
+module example.com/a
+
+go 1.14
+
+require example.com/b v0.1.0
+-- a/x/x.go --
+package x
+-- a/x/x_test.go --
+package x
+
+import (
+    "testing"
+
+    _ "example.com/b"
+)
+
+func TestUsingB(t *testing.T) {
+    // …
+}
+-- b/go.mod --
+module example.com/b
+
+go 1.14
+
+require example.com/c v0.1.0
+-- b/b.go --
+package b
+
+import _ "example.com/c"
+-- c1/go.mod --
+module example.com/c
+
+go 1.14
+-- c1/c.go --
+package c
+-- c2/go.mod --
+module example.com/c
+
+go 1.14
+-- c2/c.go --
 package c
 ```
 
