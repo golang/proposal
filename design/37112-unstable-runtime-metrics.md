@@ -162,7 +162,64 @@ one such example).
 Distributions in particular can take on many different forms, for example if we
 wanted to have an HDR histogram of STW pause times.
 In the interest of being as extensible as possible, something like an empty
-interface value works well here.
+interface value could work here.
+
+However, an empty interface value has implications for performance.
+How do we efficiently populate that empty interface value without allocating?
+One idea is to only use pointer types, for example it might contain `*float64`
+or `*uint64` values.
+While this strategy allows us to re-use allocations between samples, it's
+starting to rely on the internal details of Go interface types for efficiency.
+
+Fundamentally, the problem we have here is that we want to include a fixed set
+of valid types as possible values.
+This concept maps well to the notion of a sum type in other languages.
+While Go lacks such a facility, we can emulate one.
+Consider the following representation for a value:
+
+```go
+type Kind int
+
+const (
+	KindBad Kind = iota
+	KindUint64
+	KindFloat64
+	KindFloat64Histogram
+)
+
+type Value struct {
+	// unexported fields
+}
+
+func (v Value) Kind() Kind
+
+// panics if v.Kind() != KindUint64
+func (v Value) Uint64() uint64
+
+// panics if v.Kind() != KindFloat64
+func (v Value) Float64() float64
+
+// panics if v.Kind() != KindFloat64Histogram
+func (v Value) Float64Histogram() *Float64Histogram
+```
+
+The advantage of such a representation means that we can hide away details about
+how each metric sample value is actually represented.
+For example, we could embed a `uint64` slot into the `Value` which is used to
+hold either a `uint64`, a `float64`, or an `int64`, and which is populated
+directly by the runtime without any additional allocations at all.
+For types which will require an indirection, such as histograms, we could also
+hold an `unsafe.Pointer` or `interface{}` value as an unexported field and pull
+out the correct type as needed.
+In these cases we would still need to allocate once up-front (the histogram
+needs to contain a slice for counts, for example).
+
+The downside of such a structure is mainly ergonomics.
+In order to use it effectively, one needs to `switch` on the result of the
+`Kind()` method, then call the appropriate method to get the underlying value.
+While in that case we lose some type safety as opposed to using an `interface{}`
+and a type-switch construct, there is some precedent for such a structure.
+In particular a `Value` mimics the API `reflect.Value` in some ways.
 
 Putting this all together, I propose sampled metric values look like
 
@@ -170,39 +227,20 @@ Putting this all together, I propose sampled metric values look like
 // Sample captures a single metric sample.
 type Sample struct {
   Name string
-  Value interface{}
+  Value Value
 }
-
-// Read populates a slice of samples.
-func Read(m []Sample)
 ```
 
-### Efficiently populating a `[]struct{Name string, Value interface{}}`
-
-Returning a `[]struct{Name string, Value interface{}}` on each call to the API
-would cause potentially many allocations, which could mean a significant impact
-on the performance of metrics collection in the steady-state (and also a skew in
-the metrics themselves!).
-
-To remedy this, we can do what `ReadMemStats` does: take a pointer to allocated
-memory and populate it with values.
-In this case, the first call may need to populate each Value field in the struct
-with a new allocation.
-However, since each metric is stable for the lifetime of the application binary
-(because its stability is tied to the runtime's implementation), we can re-use
-the same slice and all its values on subsequent calls without allocation,
-provided that each Value field contains a pointer type.
-For example, the Value field would contain a `*int64` instead of `int64`.
-Using a non-pointer-typed value in the interface would require allocation on
-every call; whereas using a pointer-typed value requires an initial allocation,
-but that allocation can be reused on subsequent calls.
+Furthermore, I propose that we use a slice of these `Sample` structures to
+represent our "snapshot" of the current state of the system (i.e. the
+counterpart to `runtime.MemStats`).
 
 ### Discoverability
 
 To support discovering which metrics the system supports, we must provide a
 function that returns the set of supported metric keys.
 
-I propose that the discovery API return a slice of "metric descriptors" which
+I propose that the discovery API return a slice of "metric descriptions" which
 contain a "Name" field referring to a metric key.
 Using a slice here mirrors the sampling API.
 
@@ -223,19 +261,22 @@ rewritable, since different metric collection systems have different naming
 conventions.
 
 Putting these two together, I propose that the metric name be built from two
-components: its English name, and its unit (e.g. bytes, seconds).
+components: a forward-slash-separated path to a metric where each component is
+lowercase words separated by hyphens (the "name", e.g. "/memory/heap/free"), and
+its unit (e.g. bytes, seconds).
 I propose we separate the two components of "name" and "unit" by a colon (":")
-and provide a well-defined format for the unit.
+and provide a well-defined format for the unit (e.g. "/memory/heap/free:bytes").
 
-The use of an English name is in some ways not much of a deviation from
-`ReadMemStats`, which uses Go identifiers for naming.
-I propose that we mostly stick to the current convention and use UpperCamelCase
-consisting of only uppercase and lowercase characters from the latin alphabet.
+Representing the metric name as a path is intended to provide a mechanism for
+namespacing metrics.
+Many metrics naturally group together, and this provides a straightforward way
+of filtering out only a subset of metrics, or perhaps matching on them.
+The use of lower-case and hyphenated path components is intended to make the
+name easy to translate to most common naming conventions used in metrics
+collection systems.
 The introduction of this new API is also a good time to rename some of the more
 vaguely named statistics, and perhaps to introduce a better namespacing
 convention.
-Austin suggested using a common prefixes for namespacing such as "GC" or
-"Sched," which seems good enough to me.
 
 Including the unit in the name may be a bit surprising at first.
 First of all, why should the unit even be a string? One alternative way to
@@ -272,16 +313,16 @@ it would be forgotten.
 Furthermore, splitting a string is typically less computationally expensive than
 combining two strings.
 
-#### Metric Descriptors
+#### Metric Descriptions
 
-Firstly, any metric descriptor must contain the name of the metric.
+Firstly, any metric description must contain the name of the metric.
 No matter which way we choose to store a set of descriptions, it is both useful
 and necessary to carry this information around.
-Another useful field is the unit of the metric.
-As mentioned above in discussing metric naming, I propose that the unit be kept
-as part of the name.
+Another useful field is an English description of the metric.
+This description may then be propagated into metrics collection systems
+dynamically.
 
-The metric descriptor should also indicate the performance sensitivity of the
+The metric description should also indicate the performance sensitivity of the
 metric.
 Today `ReadMemStats` forces the user to endure a stop-the-world to collect all
 metrics.
@@ -292,7 +333,7 @@ often, or to exclude them altogether from metrics collection.
 While this is fairly implementation-specific for metadata, the majority of
 tracing GC designs involve a stop-the-world event at one point or another.
 
-Another useful aspect of a metric descriptor would be to indicate whether the
+Another useful aspect of a metric description would be to indicate whether the
 metric is a "gauge" or a "counter" (i.e. it increases monotonically).
 We have examples of both in the runtime and this information is often useful to
 bubble up to metrics collection systems to influence how they're displayed and
@@ -301,6 +342,41 @@ as rates).
 By including whether a metric is a gauge or a counter in the descriptions,
 metrics collection systems don't have to try to guess, and users don't have to
 annotate exported metrics manually; they can do so programmatically.
+
+Finally, metric descriptions should allow users to filter out metrics that their
+application can't understand.
+The most common situation in which this can happen is if a user upgrades or
+downgrades the Go version their application is built with, but they do not
+update their code.
+Another situation in which this can happen is if a user switches to a different
+Go runtime (e.g. TinyGo).
+There may be a new metric in this Go version represented by a type which was not
+used in previous versions.
+For this case, it's useful to include type information in the metric description
+so that applications can programmatically filter these metrics out.
+In this case, I propose we use add a `Kind` field to the description.
+
+#### Documentation
+
+While the metric descriptions allow an application to programmatically discover
+the available set of metrics at runtime, it's tedious for humans to write an
+application just to dump the set of metrics available to them.
+
+For `ReadMemStats`, the documentation is on the `MemStats` struct itself.
+For `gctrace` it is in the runtime package's top-level comment.
+Because this proposal doesn't tie metrics to Go variables or struct fields, the
+best we can do is what `gctrace` does and document it in the metrics
+package-level documentation.
+A test in the `runtime/metrics` package will ensure that the documentation
+always matches the metric's English description.
+
+Furthermore, the documentation should contain a record of when metrics were
+added and when metrics were removed (such as a note like "(since Go 1.X)" in the
+English description).
+Users who are using an old version of Go but looking at up-to-date
+documentation, such as the documentation exported to golang.org, will be able to
+more easily discover information relevant to their application.
+If a metric is removed, the documentation should note which version removed it.
 
 ### Time series metrics
 
@@ -350,103 +426,142 @@ specification.
 ```go
 package metrics
 
-// Metric describes a runtime metric.
-type Metric struct {
-  // Name is the full name of the metric which includes the unit.
-  //
-  // The format of the metric may be described by the following regular expression.
-  // ^(?P<name>[^:]+):(?P<unit>[^:*\/]+(?:[*\/][^:*\/]+)*)$
-  //
-  // The format splits the name into two components, separated by a colon: a human-readable
-  // name and a computer-parseable unit. The name may only contain characters in the lowercase
-  // and uppercase latin alphabet, and by convention will be UpperCamelCase.
-  //
-  // The unit is a series of lowercase English unit names (singular or plural) without
-  // prefixes (but potentially containing hyphens) delimited by ‘*' or ‘/'. For example
-  // "seconds", "bytes", "bytes/second", "cpu-seconds", "byte*cpu-seconds", and
-  // "bytes/second/second" are all valid. The value will never contain whitespace.
-  //
-  // A complete name might look like "GCPauseTimes:seconds".
-  Name string
+// Float64Histogram represents a distribution of float64 values.
+type Float64Histogram struct {
+	// Counts contains the weights for each histogram bucket. The length of
+	// Counts is equal to the length of Bucket plus one to account for the
+	// implicit minimum bucket.
+	//
+	// Given N buckets, the following is the mathematical relationship between
+	// Counts and Buckets.
+	// count[0] is the weight of the range (-inf, bucket[0])
+	// count[n] is the weight of the range [bucket[n], bucket[n+1]), for 0 < n < N-1
+	// count[N-1] is the weight of the range [bucket[N-1], inf)
+	Counts []uint64
 
-  // Cumulative is whether or not the metric is cumulative. If a cumulative metric is just
-  // a single number, then it increases monotonically. If the metric is a distribution,
-  // then each bucket count increases monotonically.
-  //
-  // This flag thus indicates whether or not it's useful to compute a rate from this value.
-  Cumulative bool
-
-  // StopTheWorld is whether or not the metric requires a stop-the-world
-  // event in order to collect it.
-  StopTheWorld bool
+	// Buckets contains the boundaries between histogram buckets, in increasing order.
+	//
+	// Because this slice contains boundaries, there are len(Buckets)+1 total buckets:
+	// a bucket for all values less than the first boundary, a bucket covering each
+	// [slice[i], slice[i+1]) interval, and a bucket for all values greater than or
+	// equal to the last boundary.
+	Buckets []float64
 }
 
-// Histogram is an interface for a distribution of a runtime metric.
-type Histogram interface {
-  // Buckets returns a range of values represented by each bucket.
-  //
-  // The valid return types are one of `[]float64` or `[]time.Duration`.
-  // More valid return types may be added in the future, and the caller
-  // should be prepared to handle them.
-  //
-  // The slice contains the boundaries between buckets, in increasing order.
-  // There are len(slice)+1 total buckets: a bucket for all values less than
-  // the first boundary, a bucket covering each [slice[i], slice[i+1]) interval,
-  // and a bucket for all values greater than or equal to the last boundary.
-  Buckets() interface{}
+// Clone generates a deep copy of the Float64Histogram.
+func (f *Float64Histogram) Clone() *Float64Histogram
 
-  // Counts populates the given slice with weights for each histogram
-  // bucket. The length of this slice should be the length of the slice
-  // returned by Buckets, plus one to account for the implicit minimum
-  // bucket. If the given slice is too small, this method will panic.
-  //
-  // Given N buckets, the following is the mathematical relationship between
-  // Counts and Buckets.
-  // count[0] is the weight of the range (-inf, bucket[0])
-  // count[n] is the weight of the range [bucket[n], bucket[n+1]), for 0 < n < N-1
-  // count[N-1] is the weight of the range [bucket[N-1], inf)
-  Counts([]uint64)
+// Kind is a tag for a metric Value which indicates its type.
+type Kind int
 
-  // ValueSum returns the sum of all the values added to the distribution.
-  //
-  // Note that this sum is exact, so it cannot be computed from Buckets and
-  // Counts. This value is useful for computing an accurate mean.
-  //
-  // The valid return types are one of `float64` or `time.Duration`.
-  ValueSum() interface{}
+const (
+	// KindBad indicates that the Value has no type and should not be used.
+	KindBad Kind = iota
+
+	// KindUint64 indicates that the type of the Value is a uint64.
+	KindUint64
+
+	// KindFloat64 indicates that the type of the Value is a float64.
+	KindFloat64
+
+	// KindFloat64Histogram indicates that the type of the Value is a *Float64Histogram.
+	KindFloat64Histogram
+)
+
+// Value represents a metric value returned by the runtime.
+type Value struct {
+	kind    Kind
+	scalar  uint64         // contains scalar values for scalar Kinds.
+	pointer unsafe.Pointer // contains non-scalar values.
 }
 
-// Descriptions returns a slice of metric descriptions for all metrics.
-func Descriptions() []Metric
+// Value returns a value of one of the types mentioned by Kind.
+//
+// This function may allocate memory.
+func (v Value) Value() interface{}
+
+// Kind returns the a tag representing the kind of value this is.
+func (v Value) Kind() Kind
+
+// Uint64 returns the internal uint64 value for the metric.
+//
+// If v.Kind() != KindUint64, this method panics.
+func (v Value) Uint64() uint64
+
+// Float64 returns the internal float64 value for the metric.
+//
+// If v.Kind() != KindFloat64, this method panics.
+func (v Value) Float64() float64
+
+// Float64Histogram returns the internal *Float64Histogram value for the metric.
+//
+// The returned value may be reused by calls to Read, so the user should clone
+// it if they intend to use it across calls to Read.
+//
+// If v.Kind() != KindFloat64Histogram, this method panics.
+func (v Value) Float64Histogram() *Float64Histogram
+
+// Description describes a runtime metric.
+type Description struct {
+	// Name is the full name of the metric, including the unit.
+	//
+	// The format of the metric may be described by the following regular expression.
+	// ^(?P<name>/[^:]+):(?P<unit>[^:*\/]+(?:[*\/][^:*\/]+)*)$
+	//
+	// The format splits the name into two components, separated by a colon: a path which always
+	// starts with a /, and a machine-parseable unit. The name may contain any valid Unicode
+	// codepoint in between / characters, but by convention will try to stick to lowercase
+	// characters and hyphens. An example of such a path might be "/memory/heap/free".
+	//
+	// The unit is by convention a series of lowercase English unit names (singular or plural)
+	// without prefixes delimited by '*' or '/'. The unit names may contain any valid Unicode
+	// codepoint that is not a delimiter.
+	// Examples of units might be "seconds", "bytes", "bytes/second", "cpu-seconds",
+	// "byte*cpu-seconds", and "bytes/second/second".
+	//
+	// A complete name might look like "/memory/heap/free:bytes".
+	Name string
+
+	// Cumulative is whether or not the metric is cumulative. If a cumulative metric is just
+	// a single number, then it increases monotonically. If the metric is a distribution,
+	// then each bucket count increases monotonically.
+	//
+	// This flag thus indicates whether or not it's useful to compute a rate from this value.
+	Cumulative bool
+
+	// Kind is the kind of value for this metric.
+	//
+	// The purpose of this field is to allow users to filter out metrics whose values are
+	// types which their application may not understand.
+	Kind Kind
+
+	// StopTheWorld is whether or not the metric requires a stop-the-world
+	// event in order to collect it.
+	StopTheWorld bool
+}
+
+// All returns a slice of containing metric descriptions for all supported metrics.
+func All() []Description
 
 // Sample captures a single metric sample.
 type Sample struct {
-  // Name is the name of the metric sampled.
-  //
-  // It must correspond to a name in one of the metric descriptions
-  // returned by Descriptions.
-  Name string
+	// Name is the name of the metric sampled.
+	//
+	// It must correspond to a name in one of the metric descriptions
+	// returned by Descriptions.
+	Name string
 
-  // Value is the value of the metric sample.
-  //
-  // The valid set of types which this field may take on are *uint64,
-  // *int64, *float64, *time.Duration, and Histogram.
-  //
-  // This set of types may expand in the future, but will never shrink.
-  Value interface{}
+	// Value is the value of the metric sample.
+	Value Value
 }
 
-// Read populates the given slice of metric samples.
+// Read populates each Value element in the given slice of metric samples.
 //
 // Desired metrics should be present in the slice with the appropriate name.
-//
-// The first time Read is called, it will populate each value's
-// Value field with a properly sized allocation, which may then be
-// re-used by subsequent calls to Read. The user is therefore
-// encouraged to re-use the same slice between calls.
+// The user of this API is encouraged to re-use the same slice between calls.
 //
 // Metric values with names not appearing in the value returned by Descriptions
-// will simply be left untouched.
+// will simply be left untouched (Value.Kind == KindBad).
 func Read(m []Sample)
 ```
 
@@ -455,38 +570,38 @@ following:
 
 ```go
 var stats = []metrics.Sample{
-  {Name: "GCHeapGoal:bytes"},
-  {Name: "GCPauses:seconds"},
+	{Name: "/gc/heap/goal:bytes"},
+	{Name: "/gc/pause-latency-distribution:seconds"},
 }
 
 // Somewhere...
 ...
-  go statsLoop(stats)
+	go statsLoop(stats, 30*time.Second)
 ...
 
 func statsLoop(stats []metrics.Sample, d time.Duration) {
-  // Read and print stats every 30 seconds.
-  ticker := time.NewTicker(30*time.Second)
-  for {
-    metrics.Read(stats)
-    for _, sample := range stats {
-      split := strings.IndexByte(sample.Name, ‘:')
-      name, unit := sample.Name[:split], sample.Name[split+1:]
-      switch v := value.(type) {
-      case *int64:
-        log.Printf("%s: %s %d %s", name, *v, unit)
-      case *uint64:
-        log.Printf("%s: %s %d %s", name, *v, unit)
-      case *float64:
-        log.Printf("%s: %s %f %s", name, *v, unit)
-      case *time.Duration:
-        log.Printf("%s: %s %s %s", name, *v)
-      case Histogram:
-        log.Printf("%s: %s mean %f %s", name, v.ValueSum()/v.CountSum(), unit)
-      }
-    }
-    <-ticker.C
-  }
+	// Read and print stats every 30 seconds.
+	ticker := time.NewTicker(d)
+	for {
+		metrics.Read(stats)
+		for _, sample := range stats {
+			split := strings.IndexByte(sample.Name, ':')
+			name, unit := sample.Name[:split], sample.Name[split+1:]
+			switch value.Kind() {
+			case KindUint64:
+				log.Printf("%s: %d %s", name, value.Uint64(), unit)
+			case KindFloat64:
+				log.Printf("%s: %d %s", name, value.Float64(), unit)
+			case KindFloat64Histogram:
+				v := value.Float64Histogram()
+				m := computeMean(v)
+				log.Printf("%s: %f avg %s", name, m, unit)
+			default:
+				log.Printf("unknown value %s:%s: %v", sample.Value())
+			}
+		}
+		<-ticker.C
+	}
 }
 ```
 
@@ -495,13 +610,13 @@ like this:
 
 ```go
 ...
-  // Generate a sample array for all the metrics.
-  desc := metrics.Descriptions()
-  stats := make([]metric.Sample, len(desc))
-  for _, desc := range {
-    stats = append(stats, metric.Sample{Name: desc.Name})
-  }
-  go statsLoop(stats)
+	// Generate a sample array for all the metrics.
+	desc := metrics.All()
+	stats := make([]metric.Sample, len(desc))
+	for i := range desc {
+		stats[i] = metric.Sample{Name: desc[i].Name}
+	}
+	go statsLoop(stats, 30*time.Second)
 ...
 ```
 
@@ -510,68 +625,75 @@ like this:
 ### Existing metrics
 
 ```
-GCHeapFree:bytes        *uint64 // (== HeapIdle - HeapReleased)
-GCHeapUncommitted:bytes *uint64 // (== HeapReleased)
-GCHeapObject:bytes      *uint64 // (== HeapAlloc)
-GCHeapUnused:bytes      *uint64 // (== HeapInUse - HeapAlloc)
-StackInUse:bytes        *uint64 // (== StackInuse)
-StackOther:bytes        *uint64 // (== StackSys - StackInuse)
+/memory/heap/free:bytes        KindUint64 // (== HeapIdle - HeapReleased)
+/memory/heap/uncommitted:bytes KindUint64 // (== HeapReleased)
+/memory/heap/objects:bytes     KindUint64 // (== HeapAlloc)
+/memory/heap/unused:bytes      KindUint64 // (== HeapInUse - HeapAlloc)
+/memory/heap/stacks:bytes      KindUint64 // (== StackInuse)
 
-GCHeapObjects:objects          *uint64 // (== HeapObjects)
-GCMSpanInUse:bytes             *uint64 // (== MSpanInUse)
-GCMSpanFree:bytes              *uint64 // (== MSpanSys - MSpanInUse)
-GCMCacheInUse:bytes            *uint64 // (== MCacheInUse)
-GCMCacheFree:bytes             *uint64 // (== MCacheSys - MCacheInUse)
-GCCount:completed-cycles       *uint64 // (== NumGC)
-GCForcedCount:completed-cycles *uint64 // (== NumForcedGC)
-ProfilingBucketMemory:bytes    *uint64 // (== BuckHashSys)
-GCMetadata:bytes               *uint64 // (== GCSys)
-RuntimeOtherMemory:bytes       *uint64 // (== OtherSys)
+/memory/metadata/mspan/inuse:bytes             KindUint64 // (== MSpanInUse)
+/memory/metadata/mspan/free:bytes              KindUint64 // (== MSpanSys - MSpanInUse)
+/memory/metadata/mcache/inuse:bytes            KindUint64 // (== MCacheInUse)
+/memory/metadata/mcache/free:bytes             KindUint64 // (== MCacheSys - MCacheInUse)
+/memory/metadata/other:bytes                   KindUint64 // (== GCSys)
+/memory/metadata/profiling/buckets-inuse:bytes KindUint64 // (== BuckHashSys)
 
-// (== GCHeap.* + StackInUse + StackOther + GCMSpan.* + GCMCache.* +
-// ProfilingBucketMemory + GCMetadata + RuntimeOtherMemory)
-RuntimeVirtualMemory:bytes *uint64
+/memory/other:bytes        KindUint64 // (== OtherSys)
+/memory/native-stack:bytes KindUint64 // (== StackSys - StackInuse)
 
-GCHeapGoal:bytes *uint64 // (== NextGC)
+/aggregates/total-virtual-memory:bytes KindUint64 // (== sum over everything in /memory/**)
+
+/gc/heap/objects:objects       KindUint64 // (== HeapObjects)
+/gc/heap/goal:bytes            KindUint64 // (== NextGC)
+/gc/cycles/completed:gc-cycles KindUint64 // (== NumGC)
+/gc/cycles/forced:gc-cycles    KindUint64 // (== NumForcedGC)
 ```
 
 ## New GC metrics
 
 ```
-// Distribution of what fraction of CPU time was spent in each GC cycle.
-GCCPUPercent:cpu-percent Histogram
-
 // Distribution of pause times, replaces PauseNs and PauseTotalNs.
-GCPauses:seconds Histogram
+/gc/pause-latency-distribution:seconds KindFloat64Histogram
 
 // Distribution of unsmoothed trigger ratio.
-GCTriggerRatios:ratio Histogram
+/gc/pacer/trigger-ratio-distribution:ratio KindFloat64Histogram
+
+// Distribution of what fraction of CPU time was spent on GC in each GC cycle.
+/gc/pacer/utilization-distribution:cpu-percent KindFloat64Histogram
 
 // Distribution of objects by size.
 // Buckets correspond directly to size classes up to 32 KiB,
 // after that it's approximated by an HDR histogram.
-// GCHeapAllocations replaces BySize, TotalAlloc, and Mallocs.
-// GCHeapFrees replaces BySize and Frees.
-GCHeapAllocations:bytes Histogram
-GCHeapFrees:bytes       Histogram
+// allocs-by-size replaces BySize, TotalAlloc, and Mallocs.
+// frees-by-size replaces BySize and Frees.
+/malloc/allocs-by-size:bytes KindFloat64Histogram
+/malloc/frees-by-size:bytes  KindFloat64Histogram
 
-// Distribution of allocations satisfied by the page cache.
-// Buckets are exact since there are only 16 options.
-GCPageCacheAllocations:bytes Histogram
+// How many hits and misses in the mcache.
+/malloc/cache/hits:allocations   KindUint64
+/malloc/cache/misses:allocations KindUint64
+
+// Distribution of sampled object lifetimes in number of GC cycles.
+/malloc/lifetime-distribution:gc-cycles KindFloat64Histogram
+
+// How many page cache hits and misses there were.
+/malloc/page/cache/hits:allocations   KindUint64
+/malloc/page/cache/misses:allocations KindUint64
 
 // Distribution of stack scanning latencies. HDR histogram.
-GCStackScans:seconds Histogram
+/gc/stack-scan-latency-distribution:seconds KindFloat64Histogram
 ```
 
 ## Scheduler metrics
 
 ```
-SchedGoroutines:goroutines        *uint64
-SchedAsyncPreemptions:preemptions *uint64
+/sched/goroutines:goroutines     KindUint64
+/sched/preempt/async:preemptions KindUint64
+/sched/preempt/sync:preemptions  KindUint64
 
 // Distribution of how long goroutines stay in runnable
 // before transitioning to running. HDR histogram.
-SchedTimesToRun:seconds Histogram
+/sched/time-to-run-distribution:seconds KindFloat64Histogram
 ```
 
 ## Backwards Compatibility
