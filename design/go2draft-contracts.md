@@ -4,6 +4,13 @@ Ian Lance Taylor\
 Robert Griesemer\
 July 31, 2019
 
+## Superseded
+
+We will not be pursuing the approach outlined in this design draft.
+It has been replaced by a [new design
+draft](https://go.googlesource.com/proposal/+/refs/heads/master/design/go2draft-type-parameters.md).
+This document exists for historical context.
+
 ## Abstract
 
 We suggest extending the Go language to add optional type parameters
