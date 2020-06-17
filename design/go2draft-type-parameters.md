@@ -115,7 +115,7 @@ Here is a function that prints out each element of a slice, where the
 element type of the slice, here called `T`, is unknown.
 This is a trivial example of the kind of function we want to permit in
 order to support generic programming.
-(Later we'll also discuss [generic types](#Generic types)).
+(Later we'll also discuss [generic types](#Generic-types)).
 
 ```Go
 // Print prints the elements of a slice.
@@ -163,7 +163,7 @@ Since `Print` has a type parameter, any call of `Print` must provide a
 type argument.
 Later we will see how this type argument can usually be deduced from
 the non-type argument, by using [function argument type
-inference](#Function argument type inference).
+inference](#Function-argument-type-inference).
 For now, we'll pass the type argument explicitly.
 Type arguments are passed much like type parameters are declared: as a
 separate list of arguments.
@@ -754,7 +754,7 @@ In many cases, when calling a function with type parameters, we can
 use type inference to avoid having to explicitly write out the type
 arguments.
 
-Go back to [the example](#Type parameters) of a call to the simple
+Go back to [the example](#Type-parameters) of a call to the simple
 `Print` function:
 
 ```Go
@@ -2018,7 +2018,7 @@ better is possible.
 
 ##### Defined composite types
 
-As [discussed above](#Type parameters in type lists), an extra type
+As [discussed above](#Type-parameters-in-type-lists), an extra type
 parameter is required for a function to take, as an argument, a
 defined type whose underlying type is a composite type, and to return
 the same defined type as a result.
@@ -2053,7 +2053,7 @@ func DoubleMySlice(s MySlice) MySlice {
 }
 ```
 
-As [discussed above](#Type parameters in type lists), this can be
+As [discussed above](#Type-parameters-in-type-lists), this can be
 avoided by using an extra type parameter for `Map`, and using
 constraints that describe the required relationship between the slice
 and element types.
@@ -2134,7 +2134,7 @@ constraint on either type that permits the conversion.
 Worse, there is no way to write such a constraint in general.
 In the particular case that both `T1` and `T2` can require some type
 list, then this function can be written as described earlier when
-discussing [type conversions using type lists](#Type conversions).
+discussing [type conversions using type lists](#Type-conversions).
 But, for example, there is no way to write a constraint for the case
 in which `T1` is an interface type and `T2` is a type that implements
 that interface.
@@ -2294,7 +2294,7 @@ Also, it was sometimes confusing that in a constraint with a type
 list, a type assertion or type switch would use the actual type
 argument, not the underlying type of the type argument (the difference
 is explained in the section on [identifying the matched predeclared
-type](#Identifying the matched predeclared type)).
+type](#Identifying-the-matched-predeclared-type)).
 
 #### Comparison with Java
 
