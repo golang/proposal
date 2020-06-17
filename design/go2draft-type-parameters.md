@@ -1122,7 +1122,7 @@ type Setter interface {
 // The type argument must be passed explicitly at the call site.
 //
 // This example compiles but is unlikely to work as desired.
-func FromStrings(type T Setter)(s []string) []T) {
+func FromStrings(type T Setter)(s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
 		result[i].Set(v)
