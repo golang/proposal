@@ -2422,7 +2422,7 @@ types of the non-type arguments.
 	s := []int{1, 2, 3}
 
 	floats := slices.Map(s, func(i int) float64 { return float64(i) })
-	// Now float2 is []float64{1.0, 2.0, 3.0}.
+	// Now floats is []float64{1.0, 2.0, 3.0}.
 
 	sum := slices.Reduce(s, 0, func(i, j int) int { return i + j })
 	// Now sum is 6.
@@ -2442,7 +2442,7 @@ package maps
 // Keys returns the keys of the map m in a slice.
 // The keys will be returned in an unpredictable order.
 // This function has two type parameters, K and V.
-// Map keys must be comparable, so key has the predeclared 
+// Map keys must be comparable, so key has the predeclared
 // constraint comparable. Map values can be any type;
 // the empty interface type imposes no constraints.
 func Keys(type K comparable, V interface{})(m map[K]V) []K {
