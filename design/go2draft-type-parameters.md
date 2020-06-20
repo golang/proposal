@@ -2107,9 +2107,9 @@ This kind of type switch would only be permitted if the constraint
 lists explicit types, and only types listed in the constraint would be
 permitted as cases.
 
-##### No way to express convertability
+##### No way to express convertibility
 
-The design has no way to express convertability between two different
+The design has no way to express convertibility between two different
 type parameters.
 For example, there is no way to write this function:
 
