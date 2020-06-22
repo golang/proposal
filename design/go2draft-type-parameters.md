@@ -1036,7 +1036,7 @@ For example, consider these type definitions in some other package:
 type Vertex struct { ... }
 
 // Edges returns the edges connected to v.
-type (v *Vertex) Edges() []*FromTo { ... }
+func (v *Vertex) Edges() []*FromTo { ... }
 
 // FromTo is an edge in a graph.
 type FromTo struct { ... }
