@@ -554,11 +554,8 @@ methods may not themselves have additional type parameters.
 Where it would be useful to add type arguments to a method, people
 will have to write a suitably parameterized top-level function.
 
-This is not a fundamental restriction but it complicates the language
-specification and the implementation.
-
-(Note: this is a feature that can perhaps be added later if it proves
-necessary.)
+There is more discussion of this in [the issues
+section](#No-parameterized-methods).
 
 ### Operators
 
@@ -2157,6 +2154,101 @@ func Copy(type T1, T2)(dst []T1, src []T2) int {
 	return len(src)
 }
 ```
+
+##### No parameterized methods
+
+This design draft does not permit methods to declare type parameters
+that are specific to the method.
+The receiver may have type parameters, but the method not add any type
+parameters.
+
+In Go, one of the main roles of methods is to permit types to
+implement interfaces.
+It is not clear whether it is reasonably possible to permit
+parameterized methods to implement interfaces.
+For example, consider this code, which uses the obvious syntax for
+parameterized methods.
+This code uses multiple packages to make the problem clearer.
+
+```Go
+package p1
+
+// S is a type with a parameterized method M.
+type S struct{}
+
+// Identity is a simple identity method that works for any type.
+func (S) Identity(type T)(v T) T { return v }
+
+package p2
+
+// HasIdentity is an interface that matches any type with a
+// parameterized Identity method.
+type HasIdentity interface {
+	Identity(type T)(T) T
+}
+
+package p3
+
+import "p2"
+
+// CheckIdentity checks the Identity method if it exists.
+// Note that although this function calls a parameterized method,
+// this function is not itself parameterized.
+func CheckIdentity(v interface{}) {
+	if vi, ok := v.(p2.HasIdentity); ok {
+		if got := vi.Identity(int)(0); got != 0 {
+			panic(got)
+		}
+	}
+}
+
+package p4
+
+import (
+	"p1"
+	"p3"
+)
+
+// CheckSIdentity passes an S value to CheckIdentity.
+func CheckSIdentity() {
+	p3.CheckIdentity(p1.S{})
+}
+```
+
+In this example, we have a type `S` with a parameterized method and a
+type `HasIdentity` that also has a parameterized method.
+`S` implements `HasIdentity`.
+Therefore, the function `p3.CheckIdentity` can call `vi.Identity` with
+an `int` argument, which in this example will be a call to
+`S.Identity(int)`.
+But package p3 does not know anything about the type `p1.S`.
+There may be no other call to `S.Identity` elsewhere in the program.
+We need to instantiate `S.Identity(int)` somewhere, but how?
+
+We could instantiate it at link time, but in the general case that
+requires the linker to traverse the complete call graph of the program
+to determine the set of types that might be passed to `CheckIdentity`.
+And even that traversal is not sufficient in the general case when
+type reflection gets involved, as reflection might look up methods
+based on strings input by the user.
+So in general instantiating parameterized methods in the linker might
+require instantiating every parameterized method for every possible
+type argument, which seems untenable.
+
+Or, we could instantiate it run time.
+In general this means using some sort of JIT, or compiling the code to
+use some sort of reflection based approach.
+Either approach would be very complex to implement, and would be
+surprisingly slow at run time.
+
+Or, we could decide that parameterized methods do not, in fact,
+implement interfaces, but then it's much less clear why we need
+methods at all.
+If we disregard interfaces, any parameterized method can be
+implemented as a parameterized function.
+
+So while parameterized methods seem clearly useful at first glance, we
+would have to decide what they mean and how to implement that.
 
 #### Discarded ideas
 
