@@ -2867,7 +2867,7 @@ func (m *Map(K, V)) Insert(k K, v V) bool {
 func (m *Map(K, V)) Find(k K) (V, bool) {
 	pn := m.find(k)
 	if *pn == nil {
-		var zero val // see the discussion of zero values, above
+		var zero V // see the discussion of zero values, above
 		return zero, false
 	}
 	return (*pn).v, true
