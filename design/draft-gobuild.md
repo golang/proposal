@@ -178,12 +178,6 @@ if developers been working with more familiar syntax.
    Unsatisfiable (`!amd64` and `amd64` can’t both be true).\
    Apparently intended `// +build linux,!amd64 linux,amd64,noasm !go1.9`.
 
- - [gitlab.com/aquachain/aquachain](https://gitlab.com/aquachain/aquachain/-/issues/2)
-
-       // +build windows,solaris,nacl nacl solaris windows
-
-   Intended (but at least equivalent to) `// +build nacl solaris windows`.
-
 Later, in June 2020, Alan Donovan wrote some 64-bit specific code that he annotated with:
 
 	//+build linux darwin
