@@ -14,14 +14,14 @@ We are using this change to experiment with new ways to
 about large changes.
 
 For this change, we will use
-[a Go Reddit thread](https://golang.org/s/go:build-reddit)
+[a Go Reddit thread](https://golang.org/s/go-build-reddit)
 to manage Q&A, since Reddit's threading support
 can easily match questions with answers
 and keep separate lines of discussion separate.
 
-There is also a [video presentation](https://golang.org/s/go:build-video) of this draft design.
+There is also a [video presentation](https://golang.org/s/go-build-video) of this draft design.
 
-The [prototype code](https://golang.org/s/go:build-code) is also available for trying out.
+The [prototype code](https://golang.org/s/go-build-code) is also available for trying out.
 
 ## Abstract
 
@@ -38,7 +38,7 @@ syntax that avoids breaking the Go ecosystem.
 This design draft is based on a preliminary discussion on
 [golang.org/issue/25348](https://golang.org/issue/25348),
 but discussion of this design draft should happen on
-[the Go Reddit thread](https://golang.org/s/go:build-reddit).
+[the Go Reddit thread](https://golang.org/s/go-build-reddit).
 
 
 ## Background
