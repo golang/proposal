@@ -409,6 +409,12 @@ At this point:
    It will fail when a Go source file contains
    `//go:build` and `// +build` lines with different meanings.
    If the check fails, one can run `gofmt` `-w`.
+ - The `buildtags` check will also fail when a Go source file contains
+   `//go:build` without `// +build` and its containing module
+   has a `go` line listing a version before Go 1.N.
+   If the check fails, one can add any `// +build` line and then run `gofmt` `-w`,
+   which will replace it with the correct ones.
+   Or one can bump the `go.mod` go version to Go 1.N.
  - Release notes will explain `//go:build` and the transition.
 
 At this point:
