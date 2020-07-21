@@ -146,7 +146,6 @@ Work for this will be done in a dev branch (e.g. dev.fuzzing) of the main Go
 repository, led by Katie Hockman, with contributions from other members of the
 Go team and members of the community as appropriate.
 
-
 ### Overview
 
 The **fuzz target** is a `FuzzX` function in a test file. Each fuzz target has
@@ -312,8 +311,6 @@ things are added (for example adding a new key type to a key parsing function)
 saving the mutation engine a lot of work.
 These can also be more clear for the developer when they break the build when
 something changes.
-
-Then maybe also a sentence about how running the seed corpus with `go test` prevents rotting, and is reproducible and cacheable.
 
 ### Fuzzing Engine and Mutator
 
