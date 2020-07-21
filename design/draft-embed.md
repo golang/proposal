@@ -239,7 +239,7 @@ includes all the files found in that directory subtree.
 In the `go/build` package, the `Package` struct adds only
 `EmbedPatterns`, `TestEmbedPatterns`, and `XTestEmbedPatterns`,
 not `EmbedFiles`, `TestEmbedFiles`, or `XTestEmbedFiles`,
-beacuse the `go/build` package does not take on the job of
+because the `go/build` package does not take on the job of
 matching patterns against a file system.
 
 In the `golang.org/x/tools/go/packages` package,
@@ -414,7 +414,7 @@ because those files would not be possible to extract on a
 case-insensitive system like Windows or macOS.
 So you can’t embed two files with different casings, like this:
 
-    //go:embed README readme`
+    //go:embed README readme
 
 But `//go:embed dir/README other/readme` is fine.
 
@@ -791,7 +791,7 @@ to find calls to `rice.FindBox` and then uses the argument as both
 the name of the box and the local directory containing its contents.
 This approach is similar to the “second approach” identified in the preliminary
 discussion, and it demonstrates all the drawbacks suggested above.
-In partitcular, only the first of these variants works with the `rice` command:
+In particular, only the first of these variants works with the `rice` command:
 
 	rice.FindBox("box")
 
@@ -835,10 +835,10 @@ func (b *Box) HTTPBox() *HTTPBox
     HTTPBox creates a new HTTPBox from an existing Box
 
 func (b *Box) IsAppended() bool
-    IsAppended indicates wether this box was appended to the application
+    IsAppended indicates whether this box was appended to the application
 
 func (b *Box) IsEmbedded() bool
-    IsEmbedded indicates wether this box was embedded into the application
+    IsEmbedded indicates whether this box was embedded into the application
 
 func (b *Box) MustBytes(name string) []byte
     MustBytes returns the content of the file with given name as []byte. panic’s
