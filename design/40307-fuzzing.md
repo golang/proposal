@@ -372,7 +372,7 @@ _Examples:_
 `myString`, and a `*big.Int`
 
 ```
-Fuzz(func(f *testing.F, a string, b myString, num *big.Int)
+f.Fuzz(func(a string, b myString, num *big.Int) { ... })
 ```
 
 There are three “units” that will need to be provided by the mutator, so three
@@ -385,7 +385,7 @@ generator-provided bytes into the respective type.
 2:  A fuzz target’s `f.Fuzz` function takes one argument, a single `[]byte`
 
 ```
-Fuzz(func(f *testing.F, b []byte)
+f.Fuzz(func(b []byte) { ... })
 ```
 
 This is the typical “non-structured fuzzing” approach, and one that many
