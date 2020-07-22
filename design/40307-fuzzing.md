@@ -96,9 +96,9 @@ These bug fixes matter for the stability and security of systems written in Go.
 
 The best solution for Go in the long-term is to have a feature-rich, fully
 supported, unified narrative for fuzzing.
-It should be just as easy to write fuzz targets as it is to write unit tests,
-and developers shouldn’t need to learn custom workflows or new tools to build or
-run these fuzz targets.
+It should be just as easy to write fuzz targets as it is to write unit tests.
+Developers should be able to use existing tools for which they are already
+familiar, with small variations to support fuzzing.
 Along with the language support, we must provide documentation, tutorials, and
 incentives for Go package owners to add fuzz tests to their packages.
 This is a measurable goal, and we can track the number of fuzz targets and
@@ -162,10 +162,11 @@ test](#go-command)</code> by default, and can provide a starting point for a
 The testing portion of the fuzz target is a function within an
 <code>[f.Fuzz](#fuzz-function)</code> invocation.
 This function is run for each input in the seed corpus.
-If the developer is fuzzing this target, then an [on disk
-corpus](#fuzzing-engine-managed-corpus) will be managed by the fuzzing engine,
-and a mutator will generate new inputs to run against the testing function,
-attempting to discover interesting inputs or [crashes](#crashers).
+If the developer is fuzzing this target with the new `-fuzz` flag with `go
+test`, then an [on disk corpus](#fuzzing-engine-managed-corpus) will be managed
+by the fuzzing engine, and a mutator will generate new inputs to run against the
+testing function, attempting to discover interesting inputs or
+[crashes](#crashers).
 
 With the new support, a fuzz target will look something like this:
 
@@ -289,28 +290,62 @@ This will be ensured by a vet check.
 Fuzzing of built-in types (e.g. simple types, maps, arrays) and types which
 implement the BinaryMarshaler and TextMarshaler interfaces are supported.
 
-Interfaces, functions, and channels will never be supported.
+Interfaces, functions, and channels are not appropriate types to fuzz, so will
+never be supported.
 
 ### Seed Corpus
 
 The **seed corpus** is the user-specified set of inputs to a fuzz target which
 will be run by default with go test.
-These are a set of meaningful input to test the behavior of the package, as well
-as a set of regression tests for any newly discovered bugs discovered by the
-fuzzing engine.
+These should be composed of meaningful inputs to test the behavior of the
+package, as well as a set of regression inputs for any newly discovered bugs
+identified by the fuzzing engine.
 This set of inputs is also used to “seed” the corpus used by the fuzzing engine
 when mutating inputs to discover new code coverage.
 
-The fuzz target will always look in the package’s testdata/ directory for an
-existing seed corpus to use, if one exists.
-
-The seed corpus can also be populated programmatically using `f.Add` within the
+The seed corpus can be populated programmatically using `f.Add` within the
 fuzz target.
 Programmatic seed corpuses make it easy to add new entries when support for new
 things are added (for example adding a new key type to a key parsing function)
 saving the mutation engine a lot of work.
 These can also be more clear for the developer when they break the build when
 something changes.
+
+The fuzz target will always look in the package’s testdata/ directory for an
+existing seed corpus to use as well, if one exists.
+This seed corpus will be in a directory of the form `testdata/<target_name>`,
+with a file for each unit that can be unmarshaled for testing.
+
+_Examples:_
+
+1: A fuzz target’s `f.Fuzz` function takes three arguments
+
+```
+f.Fuzz(func(a string, b myStruct, num *big.Int) {...})
+
+type myStruct struct {
+    A, B string
+    num int
+}
+```
+
+In this example, string is a built-in type, so can be decoded directly.
+`*big.Int` implements `UnmarshalText`, so can also be unmarshaled directly.
+However, `myStruct` does not implement `UnmarshalBinary` or `UnmarshalText` so
+the struct is pieced together recursively from its exported types. That would
+mean two sets of bytes will be written for this type, one for each of A and B.
+In total, four files would be written, and four inputs can be mutated when
+fuzzing.
+
+2:  A fuzz target’s `f.Fuzz` function takes a single `[]byte`
+
+```
+f.Fuzz(func(b []byte) {...})
+```
+
+This is the typical “non-structured fuzzing” approach.
+There is only one set of bytes to be provided by the mutator, so only one file
+will be written.
 
 ### Fuzzing Engine and Mutator
 
@@ -354,44 +389,16 @@ If building a struct, it can also build exported fields recursively as needed.
 
 An on disk corpus will be managed by the fuzzing engine and will live outside
 the module.
-New items can be added to the corpus in several ways, e.g. adding it to the seed
+New items can be added to this corpus in several ways, e.g. as part of the seed
 corpus, or by the fuzzing engine (e.g. because of new code coverage).
+
 The details of how the corpus is built and processed should be unimportant to
 users.
 This should be a technical detail that developers don’t need to understand in
 order to seed a corpus or write a fuzz target.
-However, a developer still has the ability to copy files directly into the on
-disk corpus directory if they wish to do so.
+Any existing files that a developer wants to include in the fuzz test should be
+added to the seed corpus directory, `testdata/<target_name>`.
 
-Under the hood, the corpus will be several files, with each file being a “unit”,
-or bytes, that can be umarshaled for use in the fuzz target.
-
-_Examples:_
-
-1: A fuzz target’s `f.Fuzz` function takes three arguments, a `string`, a
-`myString`, and a `*big.Int`
-
-```
-f.Fuzz(func(a string, b myString, num *big.Int) { ... })
-```
-
-There are three “units” that will need to be provided by the mutator, so three
-files written to the corpus for this fuzz target (one per input).
-The string can be decoded directly by the mutator.
-The `myString` and `*big.Int` types both need an `UnmarshalText` or
-`UnmarshalBinary` implementation in order for the mutator to decode the
-generator-provided bytes into the respective type.
-
-2:  A fuzz target’s `f.Fuzz` function takes one argument, a single `[]byte`
-
-```
-f.Fuzz(func(b []byte) { ... })
-```
-
-This is the typical “non-structured fuzzing” approach, and one that many
-existing Go fuzz targets currently implement.
-There is only one “unit” to be provided by the mutator, so only one file per
-corpus entry will be written.
 
 #### Minification + Pruning
 
@@ -436,7 +443,7 @@ not need to be in any fuzz-specific directory or have a fuzz-specific file name
 or build tag.
 
 A new environment variable will be added, `$GOFUZZCACHE`, which will default to
-`$HOME/Library/Caches/go-test-fuzz`.
+an appropriate cache directory on the developer's machine.
 This directory will hold the mutator-managed corpus.
 For example, the corpus for each fuzz target will be managed in a subdirectory
 called `<module_name>/<pkg>/@corpus/<target_name>` where `<module_name>` will
@@ -475,6 +482,33 @@ The following flags will be added or have modified meaning:
 sense to fuzz multiple packages at the same time.
 
 ## Open issues and future work
+
+### Naming scheme for corpus files
+
+There are several naming schemes for the corpus files which may be appropriate,
+and the final decision is still undecided.
+
+Take the following example:
+
+```
+f.Fuzz(func(a string, b myStruct, num *big.Int) {...})
+
+type myStruct struct {
+    A, B string
+    num int
+}
+```
+
+For two corpus entries, this could be structured as follows:
+* 0000001.string
+* 0000001.myStruct.string
+* 0000001.myStruct.string
+* 0000001.big_int
+* 0000002.string
+* 0000002.myStruct.string
+* 0000002.myStruct.string
+* 0000002.big_int
+
 
 ### Options
 
@@ -524,68 +558,3 @@ There are also questions about whether or not this is possible with the current
 compiler instrumentation available.
 By runtime, the fuzz target will have already been compiled, so recompiling to
 leave out (or only include) certain packages may not be feasible.
-
-### Auto-generated unit test
-
-A crash report may be able to provide a reproducible unit test.
-The generated unit test can be copied directly into a *_test.go file, or can be
-used as a good starting point for a regression test.
-This test can be auto-generated from the fuzz target, with a few changes:
-
-*   Creating the vars to be used in the fuzz target will vary depending on the
-    type. In the case of a simple type, it may be instantiated directly from the
-    bytes. If, for example, the bytes are not printable, then they may be
-    decoded from hex before being decoded using UnmarshalBinary.
-*   The name passed into `t.Run()` will be the name of the associated fuzz
-    target.
-*   Each `f.BadInput()` will be turned into a `panic("unreachable code")`.
-*   Each `f.Add()` will be turned into a no-op on the LHS, and will keep the RHS
-    (ie. `_=<args to f.Add()>`). This is to preserve any necessary setup, and
-    can be removed at the developer’s discretion.
-*   All other `testing.F` functions will be converted to the equivalent
-    `testing.T` function.
-
-```
-const corpus_w5fcysjrx7yqtD = ``  // const name is the hash
-
-func TestMarshalFoo(t *testing.T) {
-   inputs := []string{"cat", "dog", "mouse", "bird", "turtle"}
-   for _, input := range inputs {
-       _, _ = input, big.NewInt(100)
-   }
-   var a string, num *big.Int, other otherType
-   a = "badString"
-   if num.UnmarshalText([]byte("10")) != nil {
-    panic("failed to unmarshal num")
-   }
-   otherBytes, err := hex.DecodeString("a3fd12jd03df")
-   if err != nil {
-      panic("failed to decode other hex")
-   }
-   if other.UnmarshalBinary(otherBytes) != nil {
-     panic("failed to unmarshal other")
-   }
-   // Run the fuzz test with these arguments
-   t.Run("FuzzMarshalFoo", func(t *testing.T) {
-       if num.Sign() <= 0 {
-           panic("unreachable code")  // only test positive numbers
-       }
-       val, err := MarshalFoo(test.A, test.Num)
-       if err != nil {
-           panic("unreachable code")  // bad input
-       }
-       if val == nil {
-           t.Fatal("val == nil, err == nil")
-       }
-       a2, num2, err := UnmarshalFoo(val)
-       if err != nil {
-           t.Fatalf("failed to unmarshal valid Foo: %v", err)
-       }
-       if a2 == nil || num2 == nil {
-           t.Error("UnmarshalFoo succeeded but gave a nil a and num")
-       }
-       if a2 != a || !num2.Equal(test.Num) {
-           t.Error("UnmarshalFoo does not match the provided input")
-       }
-   })
-}
