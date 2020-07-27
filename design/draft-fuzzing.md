@@ -162,52 +162,53 @@ its own corpus of inputs.
 The **fuzz function** is the function that is executed for every seed or
 generated corpus entry.
 
-At the beginning of the fuzz target, a developer provides a “[seed
-corpus](#seed-corpus)”.
+At the beginning of the [fuzz target](#fuzz-target), a developer provides a
+“[seed corpus](#seed-corpus)”.
 This is an interesting set of inputs that will be tested using <code>[go
 test](#go-command)</code> by default, and can provide a starting point for a
 [mutation engine](#fuzzing-engine-and-mutator) if fuzzing.
-The testing portion of the fuzz target is a function within an
-<code>[f.Fuzz](#fuzz-function)</code> invocation.
-This function is run for each input in the seed corpus.
+The testing portion of the fuzz target is a function within an `f.Fuzz`
+invocation.
+This function runs like a standard unit test with `testing.T` for each input in
+the seed corpus.
 If the developer is fuzzing this target with the new `-fuzz` flag with `go
-test`, then an [on disk corpus](#fuzzing-engine-managed-corpus) will be managed
-by the fuzzing engine, and a mutator will generate new inputs to run against the
+test`, then a [generated corpus](#generated-corpus) will be managed by the
+fuzzing engine, and a mutator will generate new inputs to run against the
 testing function, attempting to discover interesting inputs or
-[crashes](#crashers).
+[crashers](#crashers).
 
-With the new support, a fuzz target will look something like this:
+With the new support, a fuzz target could look like this:
 
 ```
 func FuzzMarshalFoo(f *testing.F) {
 	// Seed the initial corpus
 	inputs := []string{"cat", "DoG", "!mouse!"}
 	for _, input := range inputs {
-		f.Add(input, big.NewInt(100))
+		f.Add(input, big.NewInt(0))
 	}
 
 	// Run the fuzz test
-	f.Fuzz(func(a string, num *big.Int) {
-		f.Parallel()
+	f.Fuzz(func(t *testing.T, a string, num *big.Int) {
+		t.Parallel()
 		if num.Sign() <= 0 {
-			f.BadInput() // only test positive numbers
+			t.Skip() // only test positive numbers
 		}
 		val, err := MarshalFoo(a, num)
 		if err != nil {
-			f.BadInput()
+			t.Skip()
 		}
 		if val == nil {
-			f.Fatal("MarshalFoo: val == nil, err == nil")
+			t.Fatal("MarshalFoo: val == nil, err == nil")
 		}
 		a2, num2, err := UnmarshalFoo(val)
 		if err != nil {
-			f.Fatalf("failed to unmarshal valid Foo: %v", err)
+			t.Fatalf("failed to unmarshal valid Foo: %v", err)
 		}
 		if a2 == nil || num2 == nil {
-			f.Error("UnmarshalFoo: a==nil, num==nil, err==nil")
+			t.Error("UnmarshalFoo: a==nil, num==nil, err==nil")
 		}
 		if a2 != a || !num2.Equal(num) {
-			f.Error("UnmarshalFoo does not match the provided input")
+			t.Error("UnmarshalFoo does not match the provided input")
 		}
 	})
 }
@@ -215,82 +216,35 @@ func FuzzMarshalFoo(f *testing.F) {
 
 ### testing.F
 
-Below is the list of methods on testing.F.
+`testing.F` works similiarly to `testing.T` and `testing.B`.
+It will implement the `testing.TB` interface.
+Functions that are new and only apply to `testing.F` are listed below.
 
 ```
 // Add will add the arguments to the seed corpus for the fuzz target. This
-// cannot be called within the Fuzz function. The args must match those in
-// in the Fuzz function.
+// cannot be invoked after or within the Fuzz function. The args must match
+// those in the Fuzz function.
 func (f *F) Add(args ...interface{})
 
-// Cleanup registers a function to be called when the fuzz target completes.
-func (f *F) Cleanup(fn func())
-
-// Error marks the arguments as having failed the test, but continues execution
-// for that set of arguments.
-func (f *F) Error(args ...interface{})
-
-// Errorf behaves the same as Error but formats its arguments according to the
-// format, analogous to Printf.
-func (f *F) Errorf(args ...interface{})
-
-// Fatal marks the arguments as having failed the test and stops its execution
-// by calling runtime.Goexit (which then runs all deferred calls in the current
-// goroutine). The fuzz target keeps executing with the next set of arguments.
-func (f *F) Fatal(args ...interface{})
-
-// Fatalf behaves the same as Fatal but formats its arguments according to the
-// format, analogous to Printf.
-func (f *F) Fatalf(args ...interface{})
-
-// Fuzz runs the fuzz function with the target. It runs fn in a separate
+// Fuzz runs the fuzz function, ff, for fuzz testing. It runs ff in a separate
 // goroutine. Only one call to Fuzz is allowed per fuzz target, and any
-// subsequent calls will panic. It only returns once all arguments have been
-// passed to the fuzz function.
-func (f *F) Fuzz(fn interface{})
-
-// Helper marks the calling function as a helper function.
-func (f *F) Helper()
-
-// Log formats its arguments using default formatting, analogous to Println,
-// and records the text in the error log.
-func (f *F) Log(args ...interface{})
-
-// Logf formats its arguments according to the format, analogous to Printf, and
-// records the text in the error log.
-func (f *F) Logf(args ...interface{})
-
-// Name returns the name of the running fuzz target.
-func (f *F) Name()
-
-// Parallel signals that multiple instances of the Fuzz function can be run in
-// parallel on separate goroutines. This must be called within an f.Fuzz
-// function.
-func (f *F) Parallel()
-
-// Skip marks the test as having been skipped and stops its execution by
-// calling runtime.Goexit. Skip must be called before the Fuzz function.
-func (f *F) Skip()
-
-// BadInput indicates that the input has failed some pre-condition, and the
-// rest of the test should be skipped. The args will not be added to the
-// corpus, nor will they be considered a crasher.
-func (f *F) BadInput()
+// subsequent calls will panic. If ff fails for a set of arguments, those
+// arguments will be added to the seed corpus.
+func (f *F) Fuzz(ff interface{})
 ```
 
-### Fuzz function
+### Fuzz target
 
-A fuzz function has two main sections: 1) initializing and seeding the corpus
-and 2) the Fuzz function which is executed for every seed or generated corpus
-entry.
+A fuzz target has two main components: 1) seeding the corpus and 2) the `f.Fuzz`
+function which is executed for items in the corpus.
 
-1.  The corpus generation is done first, and builds a seed corpus by calling
-    `f.Add(...)` with interesting input values for the fuzz test.
-    This should be fairly quick, thus able to run before the fuzz testing
-    begins, every time it’s run. These inputs are run by default with `go test`.
-1.  The `f.Fuzz(...)` function is executed with the provided seed corpus.
-    If this target is being fuzzed, then new inputs of the provided argument
-    types will be continously tested against the `f.Fuzz(...)` function.
+1.  The corpus generation is done first, and builds a seed corpus with
+    interesting input values for the fuzz test.  This should be fairly quick,
+    thus able to run before the fuzz testing begins, every time it’s run. These
+    inputs are run by default with `go test`.
+1.  The `f.Fuzz(...)` function is executed for each item in the corpus. If this
+    target is being fuzzed, then new inputs will be generated and continously
+    tested against the `f.Fuzz(...)` function.
 
 The arguments to `f.Add(...)` and the function in `f.Fuzz(...)` must be the same
 type within the target, and there must be at least one argument specified.
@@ -329,7 +283,7 @@ _Examples:_
 1: A fuzz target’s `f.Fuzz` function takes three arguments
 
 ```
-f.Fuzz(func(a string, b myStruct, num *big.Int) {...})
+f.Fuzz(func(t *testing.T, a string, b myStruct, num *big.Int) {...})
 
 type myStruct struct {
     A, B string
@@ -348,7 +302,7 @@ fuzzing.
 2:  A fuzz target’s `f.Fuzz` function takes a single `[]byte`
 
 ```
-f.Fuzz(func(b []byte) {...})
+f.Fuzz(func(t *testing.T, b []byte) {...})
 ```
 
 This is the typical “non-structured fuzzing” approach.
@@ -393,9 +347,9 @@ or
 if implemented on the type.
 If building a struct, it can also build exported fields recursively as needed.
 
-#### Fuzzing engine managed corpus
+#### Generated corpus
 
-An on disk corpus will be managed by the fuzzing engine and will live outside
+A generated corpus will be managed by the fuzzing engine and will live outside
 the module.
 New items can be added to this corpus in several ways, e.g. as part of the seed
 corpus, or by the fuzzing engine (e.g. because of new code coverage).
@@ -418,8 +372,7 @@ engine may change the file names in order to help with this.
 
 ### Crashers
 
-A **crasher** is a panic found within `f.Fuzz(...)`, a race condition, a call to
-`Fatal`, or a call to `Error`.
+A **crasher** is a panic or failure in `f.Fuzz(...)`, or a race condition.
 By default, the fuzz target will stop after the first crasher is found, and a
 crash report will be provided.
 Crash reports will include the inputs that caused the crash and the resulting
@@ -452,7 +405,7 @@ or build tag.
 
 A new environment variable will be added, `$GOFUZZCACHE`, which will default to
 an appropriate cache directory on the developer's machine.
-This directory will hold the mutator-managed corpus.
+This directory will hold the generated corpus.
 For example, the corpus for each fuzz target will be managed in a subdirectory
 called `<module_name>/<pkg>/@corpus/<target_name>` where `<module_name>` will
 follow module case-encoding and include the major version.
@@ -461,8 +414,7 @@ The default behavior of `go test` will be to build and run the fuzz targets
 using the seed corpus only.
 No special instrumentation would be needed, the mutation engine would not run,
 and the test can be cached as usual.
-This default mode **will not** run the existing on disk corpus against the fuzz
-target.
+This default mode **will not** run the generated corpus against the fuzz target.
 This is to allow for reproducibility and cacheability for `go test` executions
 by default.
 
@@ -476,6 +428,12 @@ The following flags will be added or have modified meaning:
 -fuzz name
     Run the fuzz target with the given regexp. Must match at most one fuzz
     target.
+-fuzztime
+    Run enough iterations of the fuzz test to take t, specified as a
+    time.Duration (for example, -fuzztime 1h30s).
+    The default is to run forever.
+    The special syntax Nx means to run the fuzz test N times
+    (for example, -fuzztime 100x).
 -keepfuzzing
     Keep running the target if a crasher is found. (default false)
 -parallel
@@ -499,7 +457,7 @@ and the final decision is still undecided.
 Take the following example:
 
 ```
-f.Fuzz(func(a string, b myStruct, num *big.Int) {...})
+f.Fuzz(func(t *testing.T, a string, b myStruct, num *big.Int) {...})
 
 type myStruct struct {
     A, B string
@@ -533,7 +491,7 @@ func FuzzFoo(f *testing.F) {
    f.FuzzOpts(&testing.FuzzOpts {
       MaxInputSize: 1024,
    })
-   f.Fuzz(func(a string) {
+   f.Fuzz(func(t *testing.T, a string) {
       ...
    })
 ```
@@ -543,7 +501,7 @@ Or individually as:
 ```
 func FuzzFoo(f *testing.F) {
    f.MaxInputSize(1024)
-   f.Fuzz(func(a string) {
+   f.Fuzz(func(t *testing.T, a string) {
       ...
    })
 }
@@ -566,3 +524,28 @@ There are also questions about whether or not this is possible with the current
 compiler instrumentation available.
 By runtime, the fuzz target will have already been compiled, so recompiling to
 leave out (or only include) certain packages may not be feasible.
+
+### Custom Generators
+
+There may be a need for developers to craft custom generators for use by the
+mutator.
+The design can support this by using marshaling/unmarshaling to edit certain
+fields, but the work to do so is a bit cumbersome.
+For example, if a string should always have some prefix in order to work in the
+fuzz function, one could do the following.
+
+```
+type myString struct {
+	s string
+}
+func (m *myString) MarshalText() (text []byte, err error) {
+	return []byte(m.s[len("SOME_PREFIX"):]), nil
+}
+func (m *myString) UnmarshalText(text []byte) error {
+	m.s = "SOME_PREFIX" + string(text)
+	return nil
+}
+func FuzzFoo(f *testing.F) {
+	f.Fuzz(func(t *testing.T, m *myString) {...})
+}
+```
