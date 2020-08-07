@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-June 16, 2020
+August 12, 2020
 
 ## Abstract
 
@@ -745,219 +745,6 @@ Some alternative syntax would likely be required to match on identical
 types rather than on underlying types; perhaps `type ==`.
 For now, this is not permitted.
 
-### Function argument type inference
-
-In many cases, when calling a function with type parameters, we can
-use type inference to avoid having to explicitly write out the type
-arguments.
-
-Go back to [the example](#Type-parameters) of a call to the simple
-`Print` function:
-
-```Go
-	Print(int)([]int{1, 2, 3})
-```
-
-The type argument `int` in the function call can be inferred from the
-type of the non-type argument.
-
-This can only be done when all the function's type parameters are used
-for the types of the function's (non-type) input parameters.
-If there are some type parameters that are used only for the
-function's result parameter types, or only in the body of the
-function, then our algorithm does not infer the type arguments for the
-function, since there is no value from which to infer the types.
-
-When the function's type arguments can be inferred, the language uses
-type unification.
-On the caller side we have the list of types of the actual (non-type)
-arguments, which for the `Print` example is simply `[]int`.
-On the function side is the list of the types of the function's
-non-type parameters, which for `Print` is `[]T`.
-In the lists, we discard respective arguments for which the function
-side does not use a type parameter.
-We must then unify the remaining argument types.
-
-Type unification is a two-pass algorithm.
-In the first pass, we ignore untyped constants on the caller side and
-their corresponding types in the function definition.
-
-We compare corresponding types in the lists.
-Their structure must be identical, except that type parameters on the
-function side match the type that appears on the caller side at the
-point where the type parameter occurs.
-If the same type parameter appears more than once on the function
-side, it will match multiple argument types on the caller side.
-Those caller types must be identical, or type unification fails, and
-we report an error.
-
-After the first pass, we check any untyped constants on the caller
-side.
-If there are no untyped constants, or if the type parameters in the
-corresponding function types have matched other input types, then
-type unification is complete.
-
-Otherwise, for the second pass, for any untyped constants whose
-corresponding function types are not yet set, we determine the default
-type of the untyped constant in [the usual
-way](https://golang.org/ref/spec#Constants).
-Then we run the type unification algorithm again, this time with no
-untyped constants.
-
-In this example
-
-```Go
-	s1 := []int{1, 2, 3}
-	Print(s1)
-```
-
-we compare `[]int` with `[]T`, match `T` with `int`, and we are done.
-The single type parameter `T` is `int`, so we infer that the call to
-`Print` is really a call to `Print(int)`.
-
-For a more complex example, consider
-
-```Go
-// Map calls the function f on every element of the slice s,
-// returning a new slice of the results.
-func Map(type F, T)(s []F, f func(F) T) []T {
-	r := make([]T, len(s))
-	for i, v := range s {
-		r[i] = f(v)
-	}
-	return r
-}
-```
-
-The two type parameters `F` and `T` are both used for input
-parameters, so type inference is possible.
-In the call
-
-```Go
-	strs := Map([]int{1, 2, 3}, strconv.Itoa)
-```
-
-we unify `[]int` with `[]F`, matching `F` with `int`.
-We unify the type of `strconv.Itoa`, which is `func(int) string`,
-with `func(F) T`, matching `F` with `int` and `T` with `string`.
-The type parameter `F` is matched twice, both times with `int`.
-Unification succeeds, so the call written as `Map` is a call of
-`Map(int, string)`.
-
-To see the untyped constant rule in effect, consider:
-
-```Go
-// NewPair returns a pair of values of the same type.
-func NewPair(type F)(f1, f2 F) *Pair(F) { ... }
-```
-
-In the call `NewPair(1, 2)` both arguments are untyped constants, so
-both are ignored in the first pass.
-There is nothing to unify.
-We still have two untyped constants after the first pass.
-Both are set to their default type, `int`.
-The second run of the type unification pass unifies `F` with
-`int`, so the final call is `NewPair(int)(1, 2)`.
-
-In the call `NewPair(1, int64(2))` the first argument is an untyped
-constant, so we ignore it in the first pass.
-We then unify `int64` with `F`.
-At this point the type parameter corresponding to the untyped constant
-is fully determined, so the final call is `NewPair(int64)(1,
-int64(2))`.
-
-In the call `NewPair(1, 2.5)` both arguments are untyped constants,
-so we move on the second pass.
-This time we set the first constant to `int` and the second to
-`float64`.
-We then try to unify `F` with both `int` and `float64`, so unification
-fails, and we report a compilation error.
-
-Note that type inference is done without regard to constraints.
-First we use type inference to determine the type arguments to use for
-the function, and then, if that succeeds, we check whether those type
-arguments implement the constraints (if any).
-
-Note that after successful type inference, the compiler must still
-check that the arguments can be assigned to the parameters, as for any
-function call.
-
-(Note: type inference is a convenience feature.
-Although we think it is an important feature, it does not add any
-functionality to the design, only convenience in using it.
-It would be possible to omit it from the initial implementation, and
-see whether it seems to be needed.
-That said, this feature doesn't require additional syntax, and
-produces more readable code.)
-
-### Using types that refer to themselves in constraints
-
-It can be useful for a generic function to require a type argument
-with a method whose argument is the type itself.
-For example, this arises naturally in comparison methods.
-(Note that we are talking about methods here, not operators.)
-Suppose we want to write an `Index` method that uses an `Equal` method
-to check whether it has found the desired value.
-We would like to write that like this:
-
-```Go
-// Index returns the index of e in s, or -1 if not found.
-func Index(type T Equaler)(s []T, e T) int {
-	for i, v := range s {
-		if e.Equal(v) {
-			return i
-		}
-	}
-	return -1
-}
-```
-
-In order to write the `Equaler` constraint, we have to write a
-constraint that can refer to the type argument being passed in.
-There is no way to do that directly, but what we can do is write an
-interface type that use a type parameter.
-
-```Go
-// Equaler is a type constraint for types with an Equal method.
-type Equaler(type T) interface {
-	Equal(T) bool
-}
-```
-
-To make this work, `Index` will pass `T` as the type argument to
-`Equaler`.
-The rule is that if a type contraint has a single type parameter, and
-it is used in a function's type parameter list without an explicit
-type argument, then the type argument is the type parameter being
-constrained.
-In other words, in the definition of `Index` above, the constraint
-`Equaler` is treated as `Equaler(T)`.
-
-This version of `Index` would be used with a type like `equalInt`
-defined here:
-
-```Go
-// equalInt is a version of int that implements Equaler.
-type equalInt int
-
-// The Equal method lets equalInt implement the Equaler constraint.
-func (a equalInt) Equal(b equalInt) bool { return a == b }
-
-// indexEqualInts returns the index of e in s, or -1 if not found.
-func indexEqualInt(s []equalInt, e equalInt) int {
-	return Index(equalInt)(s, e)
-}
-```
-
-In this example, when we pass `equalInt` to `Index`, we check whether
-`equalInt` implements the constraint `Equaler`.
-Since `Equaler` has a type parameter, we pass the type argument of
-`Index`, which is `equalInt`, as the type argument to `Equaler`.
-The constraint is, then, `Equaler(equalInt)`, which is satisfied
-by any type with a method `Equal(equalInt) bool`.
-The `equalInt` type has a method `Equal` that accepts a parameter of
-type `equalInt`, so all is well, and the compilation succeeds.
-
 ### Mutually referencing type parameters
 
 Within a single type parameter list, constraints may refer to any of
@@ -1094,15 +881,410 @@ attempt to add generics to Go that it be possible to instantiate
 generic code with multiple type arguments that refer to each other in
 ways that the compiler can check.
 
-### Pointer methods
+### Type inference
 
-There are cases where a generic function will only work as expected if
-a type argument `A` has methods defined on the pointer type `*A`.
-This happens when writing a generic function that expects to call a
-method that modifies a value.
+In many cases we can use type inference to avoid having to explicitly
+write out some or all of the type arguments.
+We can use _function argument type inference_ for a function call to
+deduce type arguments from the types of the non-type arguments.
+We can use _contraint type inference_ to deduce unknown type arguments
+from known type arguments.
+
+In the examples above, when instantiating a generic function or type,
+we always specified type arguments for all the type parameters.
+We also permit specifying just some of the type arguments, or omitting
+the type arguments entirely, when the missing type arguments can be
+inferred.
+When only some type arguments are passed, they are the arguments for
+the first type parameters in the list.
+
+For example, a function like this:
+
+```Go
+func Map(type F, T)(s []F, f func(F) T) []T
+```
+
+can be called in these ways.  (We'll explain below how type inference
+works in detail; this example is to show how an incomplete list of
+type arguments is handled.)
+
+```Go
+	var s []int
+	f := func(i int) int64 { return int64(i) }
+	var r []int64
+	// Specify both type arguments explicitly.
+	r = Map(int, int64)(s, f)
+	// Specify just the first type argument, for F,
+	// and let T be inferred.
+	r = Map(int)(s, f)
+	// Don't specify any type arguments, and let both be inferred.
+	r = Map(s, f)
+```
+
+If a generic function or type is used without specifying all the type
+arguments, it is an error if any of the unspecified type arguments
+cannot be inferred.
+
+(Note: type inference is a convenience feature.
+Although we think it is an important feature, it does not add any
+functionality to the design, only convenience in using it.
+It would be possible to omit it from the initial implementation, and
+see whether it seems to be needed.
+That said, this feature doesn't require additional syntax, and
+produces more readable code.)
+
+#### Type unification
+
+Type inference is based on _type unification_.
+Type unification applies to two types, either or both of which may be
+or contain type parameters.
+
+Type unification works by comparing the structure of the types.
+Their structure disregarding type parameters must be identical, and
+types other than type parameters must be equivalent.
+A type parameter in one type may match any complete subtype in the
+other type.
+If the structure differs, or types other than type parameters are not
+equivalent, then type unification fails.
+A successful type unification provides a list of associations of type
+parameters with other types (which may themselves be or contain type
+parameters).
+
+For type unification, two types that don't contain any type parameters
+are equivalent if they are identical, or if they are channel types
+that are identical ignoring channel direction, or if their underlying
+types are equivalent.
+It's OK to permit types to not be identical during type inference,
+because we will still check the constraints if inference succeeds.
+
+For example, if `T1` and `T2` are type parameters, `[]map[int]bool`
+can be unified with any of the following:
+  * `[]map[int]bool`
+  * `T1` (`T1` matches `[]map[int]bool`)
+  * `[]T1` (`T1` matches `map[int]bool`)
+  * `[]map[T1]T2` (`T1` matches `int`, `T2` matches `bool`)
+(This is not an exclusive list, there are other possible successful
+unifications.)
+
+On the other hand, `[]map[int]bool` cannot be unified with any of
+  * `int`
+  * `struct{}`
+  * `[]struct{}`
+  * `[]map[T1]string`
+(This list is of course also not exclusive; there are an infinite
+number of types that cannot be successfully unified.)
+
+In general we can also have type parameters on both sides, so in some
+cases we might associate `T1` with, for example, `T2`, or `[]T2`.
+
+#### Function argument type inference
+
+Function argument type inference is used with a function call to infer
+type arguments from non-type arguments.
+Function argument type inference is not used when a type is
+instantiated, and it is not used when a function is instantiated but
+not called.
+
+To see how it works, let's go back to [the example](#Type-parameters)
+of a call to the simple `Print` function:
+
+```Go
+	Print(int)([]int{1, 2, 3})
+```
+
+The type argument `int` in the function call can be inferred from the
+type of the non-type argument.
+
+The only type arguments that can be inferred are those that are used
+for the types of the function's (non-type) input parameters.
+If there are some type parameters that are used only for the
+function's result parameter types, or only in the body of the
+function, then those type arguments cannot be inferred using function
+argument type inference.
+
+When the function's type arguments can be inferred, we unify the
+caller's argument types with the function's parameter types.
+On the caller side we have the list of types of the actual (non-type)
+arguments, which for the `Print` example is simply `[]int`.
+On the function side is the list of the types of the function's
+non-type parameters, which for `Print` is `[]T`.
+In the lists, we discard respective arguments for which the function
+side does not use a type parameter.
+We must then apply type unification to the remaining argument types.
+
+Function argument type inference is a two-pass algorithm.
+In the first pass, we ignore untyped constants on the caller side and
+their corresponding types in the function definition.
+We use two passes so that in some cases later arguments can determine
+the type of an untyped constant.
+
+We unify corresponding types in the lists.
+This will give us an association of type parameters on the function
+side to types on the caller side.
+If the same type parameter appears more than once on the function
+side, it will match multiple argument types on the caller side.
+If those caller types are not identical, we report an error.
+
+After the first pass, we check any untyped constants on the caller
+side.
+If there are no untyped constants, or if the type parameters in the
+corresponding function types have matched other input types, then
+type unification is complete.
+
+Otherwise, for the second pass, for any untyped constants whose
+corresponding function types are not yet set, we determine the default
+type of the untyped constant in [the usual
+way](https://golang.org/ref/spec#Constants).
+Then we unify the types again, this time with no untyped constants.
+
+In this example
+
+```Go
+	s1 := []int{1, 2, 3}
+	Print(s1)
+```
+
+we compare `[]int` with `[]T`, match `T` with `int`, and we are done.
+The single type parameter `T` is `int`, so we infer that the call to
+`Print` is really a call to `Print(int)`.
+
+For a more complex example, consider
+
+```Go
+// Map calls the function f on every element of the slice s,
+// returning a new slice of the results.
+func Map(type F, T)(s []F, f func(F) T) []T {
+	r := make([]T, len(s))
+	for i, v := range s {
+		r[i] = f(v)
+	}
+	return r
+}
+```
+
+The two type parameters `F` and `T` are both used for input
+parameters, so function argument type inference is possible.
+In the call
+
+```Go
+	strs := Map([]int{1, 2, 3}, strconv.Itoa)
+```
+
+we unify `[]int` with `[]F`, matching `F` with `int`.
+We unify the type of `strconv.Itoa`, which is `func(int) string`,
+with `func(F) T`, matching `F` with `int` and `T` with `string`.
+The type parameter `F` is matched twice, both times with `int`.
+Unification succeeds, so the call written as `Map` is a call of
+`Map(int, string)`.
+
+To see the untyped constant rule in effect, consider:
+
+```Go
+// NewPair returns a pair of values of the same type.
+func NewPair(type F)(f1, f2 F) *Pair(F) { ... }
+```
+
+In the call `NewPair(1, 2)` both arguments are untyped constants, so
+both are ignored in the first pass.
+There is nothing to unify.
+We still have two untyped constants after the first pass.
+Both are set to their default type, `int`.
+The second run of the type unification pass unifies `F` with
+`int`, so the final call is `NewPair(int)(1, 2)`.
+
+In the call `NewPair(1, int64(2))` the first argument is an untyped
+constant, so we ignore it in the first pass.
+We then unify `int64` with `F`.
+At this point the type parameter corresponding to the untyped constant
+is fully determined, so the final call is `NewPair(int64)(1,
+int64(2))`.
+
+In the call `NewPair(1, 2.5)` both arguments are untyped constants,
+so we move on the second pass.
+This time we set the first constant to `int` and the second to
+`float64`.
+We then try to unify `F` with both `int` and `float64`, so unification
+fails, and we report a compilation error.
+
+Note that function argument type inference is done without regard to
+constraints.
+First we use function argument type inference to determine type
+arguments to use for the function, and then, if that succeeds, we
+check whether those type arguments implement the constraints (if
+any).
+
+Note that after successful function argument type inference, the
+compiler must still check that the arguments can be assigned to the
+parameters, as for any function call.
+
+#### Constraint type inference
+
+Constraint type inference permits inferring a type argument from
+another type argument, based on type parameter constraints.
+Constraint type inference is useful when a function wants to have a
+type name for an element of some other type parameter, or when a
+function wants to apply a constraint to a type that is based on some
+other type parameter.
+
+Constraint type inference can only infer types if some type parameter
+has a constraint that has a type list with exactly one type in it.
+We call such a constraint a _structural constraint_, as the type list
+describes the structure of the type.
+A structural constraint may also have methods in addition to the type
+list, but the methods are ignored by constraint type inference.
+For constraint type inference to be useful, the constraint type will
+normally refer to one or more type parameters.
+
+Constraint type inference is applied after function argument type
+inference.
+It is only tried if there is at least one type parameter whose type
+argument is not yet known.
+
+We start by creating a mapping from type parameters to type arguments.
+We initialize the mapping with all type parameters whose type
+arguments are already known, if any.
+
+For each type parameter with a structural constraint, we unify the
+type parameter with the single type in the constraint's type list.
+This will have the effect of associating the type parameter with its
+constraint.
+We add the result into the mapping we are maintaining.
+If unification finds any associations of type parameters, we add those
+to the mapping as well.
+When we find multiple associations of any one type parameter, we unify
+each such association to produce a single mapping entry.
+If a type parameter is associated directly with another type
+parameter, meaning that they must both be matched with the same type,
+we unify the associations of each parameter together.
+If any of these various unifications fail, then constraint type
+inference fails.
+
+After merging all type parameters with structural constraints, we have
+a mapping of various type parameters to types (which may be or contain
+other type parameters).
+We continue by looking for a type parameter `T` that is mapped to a
+fully known type argument `A`, one that does not contain any type
+parameters.
+Anywhere that `T` appears in a type argument in the mapping, we
+replace `T` with `A`.
+We repeat this process until we have replaced every type parameter.
+
+##### Element constraint example
+
+For an example of where constraint type inference is useful, let's
+consider a function that takes a defined type that is a slice of
+numbers, and returns an instance of that same defined type in which
+each number is doubled.
+
+Using type lists, it's easy to write this function if we don't care
+about [defined types](https://golang.org/ref/spec#Type_definitions).
+
+```Go
+// Double returns a new slice that contains all the elements of s, doubled.
+func Double(type E constraints.Number)(s []E) []E {
+	r := make([]E, len(s))
+	for i, v := range s {
+		r[i] = v + v
+	}
+	return r
+}
+```
+
+However, with that definition, if we call the function with a defined
+slice type, the result will not be that defined type.
+
+```Go
+// MySlice is a slice of ints.
+type MySlice []int
+
+// The type of V1 will be []int, not MySlice.
+// Here we are using function argument type inference,
+// but not constraint type inference.
+var V1 = Double(MySlice{1})
+```
+
+We can do what we want by introducing a new type parameter.
+
+```Go
+// SC constraints a type to be a slice of some type E.
+type SC(type E) interface {
+	type []E
+}
+
+// DoubleDefined returns a new slice that contains the elements of s,
+// doubled, and also has the same type as s.
+func DoubleDefined(type S SC(E), E constraints.Number)(s S) S {
+	// Note that here we pass S to make, where above we passed []E.
+	r := make(S, len(s))
+	for i, v := range s {
+		r[i] = v + v
+	}
+	return r
+}
+```
+
+Now if we use explicit type arguments, we can get the right type.
+
+```Go
+// The type of V2 will be MySlice.
+var V2 = DoubleDefined(MySlice, int)(MySlice{1})
+```
+
+Function argument type inference by itself is not enough to infer the
+type arguments here, because the type parameter E is not used for any
+input parameter.
+But a combination of function argument type inference and constraint
+type inference works.
+
+```Go
+// The type of V3 will be MySlice.
+var V3 = DoubleDefined(MySlice{1})
+```
+
+First we apply function argument type inference.
+We see that the type of the argument is `MySlice`.
+Function argument type inference ignores constraints.
+It matches the type parameter `S` with `MySlice.
+
+We then move on to constraint type inference.
+We know one type argument, `S`.
+We see that a type argument, `S` again, has a structural type
+constraint.
+
+We create a mapping of known type arguments:
+
+```
+{S -> MySlice}
+```
+
+We then unify each type parameter with a structural constraint with
+the single type listed by that constraint.
+In this case the structural constraint is `SC(E)` which has the single
+type `[]E`, so we unify `S` with `[]E`.
+Since we already have a mapping for `S`, we then unify `[]E` with
+`MySlice`.
+As `MySlice` is defined as `[]int`, that associates `E` with `int`.
+We now have:
+
+```
+{S -> MySlice, E -> int}
+```
+
+We then substitute `E` with `int`, which changes nothing, and we are
+done.
+The type arguments for this call to `DoubleDefined` are `(MySlice,
+int)`.
+
+This example shows how we can use constraint type inference to set a
+type name for an element of some other type parameter.
+In this case we can name the element type of `S` as `E`, and we can
+then apply further constraints to `E`, in this case requiring that it
+be a number.
+
+##### Pointer method example
 
 Consider this example of a function that expects a type `T` that has a
-`Set(string)` method that initializes the value based on a string.
+`Set(string)` method that initializes a value based on a string.
 
 ```Go
 // Setter is a type constraint that requires that the type
@@ -1115,8 +1297,8 @@ type Setter interface {
 // calling the Set method to set each returned value.
 //
 // Note that because T is only used for a result parameter,
-// type inference does not work when calling this function.
-// The type argument must be passed explicitly at the call site.
+// function argument type inference does not work when calling
+// this function.
 //
 // This example compiles but is unlikely to work as desired.
 func FromStrings(type T Setter)(s []string) []T {
@@ -1128,11 +1310,10 @@ func FromStrings(type T Setter)(s []string) []T {
 }
 ```
 
-Now let's see some code in a different package (this example is
-invalid).
+Now let's see some calling code (this example is invalid).
 
 ```Go
-// Settable is a integer type that can be set from a string.
+// Settable is an integer type that can be set from a string.
 type Settable int
 
 // Set sets the value of *p from a string.
@@ -1173,24 +1354,21 @@ This compiles but unfortunately it will panic at run time.
 The problem is that `FromStrings` creates a slice of type `[]T`.
 When instantiated with `*Settable`, that means a slice of type
 `[]*Settable`.
-When `FromStrings` calls `result[i].Set(v)`, that passes the pointer
-stored in `result[i]` to the `Set` method.
+When `FromStrings` calls `result[i].Set(v)`, that invokes the `Set`
+method on the pointer stored in `result[i]`.
 That pointer is `nil`.
-The `Settable.Set` method will be invoked with a `nil` receiver,
-and will raise a panic due to a `nil` dereference error.
+The `Settable.Set` method will be invoked with a `nil` receiver, and
+will raise a panic due to a `nil` dereference error.
 
-What we need is a way to write `FromStrings` such that it can take
-the type `Settable` as an argument but invoke a pointer method.
+What we need is a way to write `FromStrings` such that it can take the
+type `Settable` as an argument but invoke a pointer method.
 To repeat, we can't use `Settable` because it doesn't have a `Set`
 method, and we can't use `*Settable` because then we can't create a
 slice of type `Settable`.
 
-One approach that could work would be to use two different type
-parameters: both `Settable` and `*Settable`.
+What we can do is pass both types.
 
 ```Go
-package from
-
 // Setter2 is a type constraint that requires that the type
 // implement a Set method that sets the value from a string,
 // and also requires that the type be a pointer to its type parameter.
@@ -1203,7 +1381,7 @@ type Setter2(type B) interface {
 // calling the Set method to set each returned value.
 //
 // We use two different type parameters so that we can return
-// a slice of type T but call methods on *T.
+// a slice of type T but call methods on *T aka PT.
 // The Setter2 constraint ensures that PT is a pointer to T.
 func FromStrings2(type T interface{}, PT Setter2(T))(s []string) []T {
 	result := make([]T, len(s))
@@ -1218,7 +1396,7 @@ func FromStrings2(type T interface{}, PT Setter2(T))(s []string) []T {
 }
 ```
 
-We would call `FromStrings2` like this:
+We can then call `FromStrings2` like this:
 
 ```Go
 func F2() {
@@ -1231,121 +1409,164 @@ func F2() {
 }
 ```
 
-This approach works as expected, but it is awkward.
-It forces `F2` to work around a problem in `FromStrings2` by passing
-two type arguments.
-The second type argument is required to be a pointer to the first type
-argument.
-This is a complex requirement for what seems like it ought to be a
-reasonably simple case.
-
-Another approach would be to pass in a function rather than calling a
-method.
-
-```Go
-// FromStrings3 takes a slice of strings and returns a slice of T,
-// calling the set function to set each returned value.
-func FromStrings3(type T)(s []string, set func(*T, string)) []T {
-	results := make([]T, len(s))
-	for i, v := range s {
-		set(&results[i], v)
-	}
-	return results
-}
-```
-
-We would call `Strings3` like this:
+This approach works as expected, but it is awkward to have to repeat
+`Settable` in the type arguments.
+Fortunately, constraint type inference makes it less awkward.
+Using constraint type inference we can write
 
 ```Go
 func F3() {
-	// FromStrings3 takes a function to set the value.
-	// Settable is as above.
-	nums := FromStrings3(Settable)([]string{"1", "2"},
-		func(p *Settable, s string) { p.Set(s) })
+	// Here we just pass one type argument.
+	nums := FromStrings2(Settable)([]string{"1", "2"})
 	// Now nums is []Settable{1, 2}.
-}
-```
-
-This approach also works as expected, but it is also awkward.
-The caller has to pass in a function just to call the `Set` method.
-This is the kind of boilerplate code that we would hope to avoid when
-using generics.
-
-Although these approaches are awkward, they do work.
-That said, we suggest another feature to address this kind of issue: a
-way to express constraints on the pointer to the type parameter,
-rather than on the type parameter itself.
-The way to do this is to write the type parameter as though it were a
-pointer type: `(type *T Constraint)`.
-
-Writing `*T` instead of `T` in a type parameter list changes two
-things.
-Let's assume that the type argument at the call site is `A`, and the
-constraint is `Constraint` (this syntax may be used without a
-constraint, but there is no reason to do so).
-
-The first thing that changes is that `Constraint` is applied to `*A`
-rather than `A`.
-That is, `*A` must implement `Constraint`.
-It's OK if `A` implements `Constraint`, but the requirement is that
-`*A` implement it.
-Note that if `Constraint` has any methods, this implies that `A` must
-not be a pointer type: if `A` is a pointer type, then `*A` is a
-pointer to a pointer, and such types never have any methods.
-
-The second thing that changes is that within the body of the function,
-any methods in `Constraint` are treated as though they were pointer
-methods.
-They may only be invoked on values of type `*T` or addressable values
-of type `T`.
-
-```Go
-// FromStrings takes a slice of strings and returns a slice of T,
-// calling the Set method to set each returned value.
-//
-// We write *T, meaning that given a type argument A,
-// the pointer type *A must implement Setter.
-//
-// Note that because T is only used for a result parameter,
-// type inference does not work when calling this function.
-// The type argument must be passed explicitly at the call site.
-func FromStrings(type *T Setter)(s []string) []T {
-	result := make([]T, len(s))
-	for i, v := range s {
-		// result[i] is an addressable value of type T,
-		// so it's OK to call Set.
-		result[i].Set(v)
-	}
-	return result
-}
-```
-
-Again, using `*T` here means that given a type argument `A`, the type
-`*A` must implement the constraint `Setter`.
-In this case, `Set` must be in the method set of `*A`.
-Within `FromStrings`, using `*T` means that the `Set` method may only
-be called on an addressable value of type `T`.
-
-We can now use this as
-
-```Go
-func F() {
-	// With the rewritten FromStrings, this is now OK.
-	// *Settable implements Setter.
-	nums := from.Strings(Settable)([]string{"1", "2"})
-	// Here nums is []Settable{1, 2}.
 	...
 }
 ```
 
-To be clear, using `type *T Setter` does not mean that the `Set`
-method must only be a pointer method.
-`Set` could still be a value method.
-That would be OK because all value methods are also in the pointer
-type's method set.
-In this example that only makes sense if `Set` can be written as a
-value method, which might be the case when defining the method on a
-struct that contains pointer fields.
+There is no way to avoid passing the type argument `Settable`.
+But given that type argument, constraint type inference can infer the
+type argument `*Settable` for the type parameter `PT`.
+
+As before, we create a mapping of known type arguments:
+
+```
+{T -> Settable}
+```
+
+We then unify each type parameter with a structural constraint.
+In this case, we unify `PT` with the single type of `Setter2(T)`,
+which is `*T`.
+The mapping is now
+
+```
+{T -> Settable, PT -> *T}
+```
+
+We then replace `T` with `Settable` throughout, giving us:
+
+```
+{T -> Settable, PT -> *Settable}
+```
+
+After this nothing changes, and we are done.
+Both type arguments are known.
+
+This example shows how we can use constraint type inference to apply a
+constraint to a type that is based on some other type parameter.
+In this case we are saying that `PT`, which is `*T`, must have a `Set`
+method.
+We can do this without requiring the caller to explicitly mention
+`*T`.
+
+##### Constraints apply even after constraint type inference
+
+Even when constraint type inference is used to infer type arguments
+based on constraints, we must still check the constraints after the
+type arguments are determined.
+
+In the `FromStrings2` example above, we were able to deduce the type
+argument for `PT` based on the `Setter2` constraint.
+But in doing so we only looked at the type list, we didn't look at the
+methods.
+We still have to verify that the method is there, satisfying the
+constraint, even if constraint type inference succeeds.
+
+For example, consider this invalid code:
+
+```Go
+// Unsettable is a type that does not have a Set method.
+type Unsettable int
+
+func F4() {
+	// This call is INVALID.
+	nums := FromString2(Unsettable)([]string{"1", "2"})
+	...
+}
+```
+
+When this call is made, we will apply constraint type inference just
+as before.
+It will succeed, just as before, and infer that the type arguments are
+`(Unsettable, *Unsettable)`.
+Only after constraint type inference is complete will we check whether
+`*Unsettable` implements the constraint `Setter2(Unsettable)`.
+Since `*Unsettable` does not have a `Set` method, constraint checking
+will fail, and this code will not compile.
+
+### Using types that refer to themselves in constraints
+
+It can be useful for a generic function to require a type argument
+with a method whose argument is the type itself.
+For example, this arises naturally in comparison methods.
+(Note that we are talking about methods here, not operators.)
+Suppose we want to write an `Index` method that uses an `Equal` method
+to check whether it has found the desired value.
+We would like to write that like this:
+
+```Go
+// Index returns the index of e in s, or -1 if not found.
+func Index(type T Equaler)(s []T, e T) int {
+	for i, v := range s {
+		if e.Equal(v) {
+			return i
+		}
+	}
+	return -1
+}
+```
+
+In order to write the `Equaler` constraint, we have to write a
+constraint that can refer to the type argument being passed in.
+There is no way to do that directly, but what we can do is write an
+interface type that use a type parameter.
+
+```Go
+// Equaler is a type constraint for types with an Equal method.
+type Equaler(type T) interface {
+	Equal(T) bool
+}
+```
+
+To make this work, `Index` will pass `T` as the type argument to
+`Equaler`.
+The rule is that if a type contraint has a single type parameter, and
+it is used in a function's type parameter list without an explicit
+type argument, then the type argument is the type parameter being
+constrained.
+In other words, in the definition of `Index` above, the constraint
+`Equaler` is treated as `Equaler(T)`.
+
+This version of `Index` would be used with a type like `equalInt`
+defined here:
+
+```Go
+// equalInt is a version of int that implements Equaler.
+type equalInt int
+
+// The Equal method lets equalInt implement the Equaler constraint.
+func (a equalInt) Equal(b equalInt) bool { return a == b }
+
+// indexEqualInts returns the index of e in s, or -1 if not found.
+func indexEqualInt(s []equalInt, e equalInt) int {
+	return Index(equalInt)(s, e)
+}
+```
+
+In this example, when we pass `equalInt` to `Index`, we check whether
+`equalInt` implements the constraint `Equaler`.
+Since `Equaler` has a type parameter, we pass the type argument of
+`Index`, which is `equalInt`, as the type argument to `Equaler`.
+The constraint is, then, `Equaler(equalInt)`, which is satisfied
+by any type with a method `Equal(equalInt) bool`.
+The `equalInt` type has a method `Equal` that accepts a parameter of
+type `equalInt`, so all is well, and the compilation succeeds.
+
+(Note: using the type parameter as the default argument for its
+constraint is a convenience feature.
+It would be possible to omit it from the initial implementation, and
+see whether it seems to be needed.
+That said, this feature doesn't require additional syntax, and
+produces more readable code.)
 
 ### Using generic types as unnamed function parameter types
 
@@ -1391,7 +1612,7 @@ or stack, and the interface value holds a pointer to that location.
 
 In this design, values of generic types are not boxed.
 For example, let's look back at our earlier example of
-`from.Strings`.
+`FromStrings2`.
 When it is instantiated with type `Settable`, it returns a value of
 type `[]Settable`.
 For example, we can write
@@ -1401,14 +1622,13 @@ For example, we can write
 type Settable int
 
 // Set sets the value of *p from a string.
-func (p *Settable) Set(s string) (err error) {
+func (p *Settable) Set(s string) {
 	// same as above
 }
 
 func F() {
 	// The type of nums is []Settable.
-	nums, err := from.Strings(Settable)([]string{"1", "2"})
-	if err != nil { ... }
+	nums := FromStrings2(Settable)([]string{"1", "2"})
 	// Settable can be converted directly to int.
 	// This will set first to 1.
 	first := int(nums[0])
@@ -1416,8 +1636,8 @@ func F() {
 }
 ```
 
-When we call `from.Strings` with the type `Settable` we get back a
-`[]Settable` (and an error).
+When we call `FromStrings2` with the type `Settable` we get back a
+`[]Settable`.
 The elements of that slice will be `Settable` values, which is to say,
 they will be integers.
 They will not be boxed, even though they were created and set by a
@@ -2012,49 +2232,6 @@ We experimented with other syntaxes, such as using a colon to separate
 the type arguments from the regular arguments.
 The current design seems to us to be the nicest, but perhaps something
 better is possible.
-
-##### Defined composite types
-
-As [discussed above](#Type-parameters-in-type-lists), an extra type
-parameter is required for a function to take, as an argument, a
-defined type whose underlying type is a composite type, and to return
-the same defined type as a result.
-
-For example, this function will map a function across a slice.
-
-```Go
-// Map applies f to each element of s, returning a new slice
-// holding the results.
-func Map(type T)(s []T, f func(T) T) []T {
-	r := make([]T, len(s))
-	for i, v := range s {
-		r[i] = f(v)
-	}
-	return r
-}
-```
-
-However, when called on a defined type, it will return a slice of the
-element type of that type, rather than the defined type itself.
-
-```Go
-// MySlice is a defined type.
-type MySlice []int
-
-// DoubleMySlice returns a new MySlice whose elements are twice
-// that of the corresponding elements of s.
-func DoubleMySlice(s MySlice) MySlice {
-	s2 := Map(s, func(e int) int { return 2 * e })
-	// Here s2 is type []int, not type MySlice.
-	return MySlice(s2)
-}
-```
-
-As [discussed above](#Type-parameters-in-type-lists), this can be
-avoided by using an extra type parameter for `Map`, and using
-constraints that describe the required relationship between the slice
-and element types.
-This works but is awkward.
 
 ##### Identifying the matched predeclared type
 
