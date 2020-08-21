@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-August 12, 2020
+August 21, 2020
 
 ## Abstract
 
@@ -41,21 +41,22 @@ This section is intended for people who are already familiar with how
 generics would work in a language like Go.
 These concepts will be explained in detail in the following sections.
 
-* Functions can have an additional type parameter list introduced by
-  the keyword `type`: `func F(type T)(p T) { ... }`.
+* Functions can have an additional type parameter list that uses
+  square brackets: `func F[T any](p T) { ... }`.
 * These type parameters can be used by the regular parameters and in
   the function body.
-* Types can also have a type parameter list: `type M(type T) []T`.
-* Each type parameter can have an optional type constraint: `func
-  F(type T Constraint)(p T) { ... }`
+* Types can also have a type parameter list: `type M[T any] []T`.
+* Each type parameter has a type constraint: `func F[T Constraint](p T) { ... }`
 * Type constraints are interface types.
+* The new predeclared name `any` is a type constraint that permits any
+  type.
 * Interface types used as type constraints can have a list of
   predeclared types; only types whose underlying type is one of those
   types can implement the interface.
 * Using a generic function or type requires passing type arguments.
 * Type inference permits omitting the type arguments in common cases.
-* If a type parameter has a type constraint its type argument must
-  implement the interface.
+* The type argument for a type parameter must implement the
+  parameter's constraint.
 * Generic functions may only use operations permitted by the type
   constraint.
 
@@ -68,7 +69,7 @@ generic code written to this design draft will look like in practice.
 
 This version of the design draft has many similarities to the one
 presented on July 31, 2019, but contracts have been removed and
-replaced by interface types.
+replaced by interface types, and the syntax has changed somewhat.
 
 There have been many [requests to add additional support for generic
 programming](https://github.com/golang/go/wiki/ExperienceReports#generics)
@@ -138,16 +139,24 @@ along with other parameters.
 However, type parameters are not the same as non-type parameters, so
 although they appear in the list of parameters we want to distinguish
 them.
-That leads to our next design decision: we define an additional,
-optional, parameter list, describing type parameters.
-This parameter list appears before the regular parameters.
-It starts with the keyword `type`, and lists type parameters.
+That leads to our next design decision: we define an additional
+optional parameter list describing type parameters.
+
+This type parameter list appears before the regular parameters.
+To distinguish the type parameter list from the regular parameter
+list, the type parameter list uses square brackets rather than
+parentheses.
+Just as regular parameters have types, type parameters have
+meta-types, also known as constraints.
+We will discuss the details of constraints later; for now, we will
+just note that `any` is a valid constraint, meaning that any type is
+permitted.
 
 ```Go
 // Print prints the elements of any slice.
 // Print has a type parameter T, and has a single (non-type)
 // parameter s which is a slice of that type parameter.
-func Print(type T)(s []T) {
+func Print[T any](s []T) {
 	// same as above
 }
 ```
@@ -155,6 +164,7 @@ func Print(type T)(s []T) {
 This says that within the function `Print` the identifier `T` is a
 type parameter, a type that is currently unknown but that will be
 known when the function is called.
+The `any` means that `T` can be any type at all.
 As seen above, the type parameter may be used as a type when
 describing the ordinary non-type parameters.
 It may also be used within the body of the function.
@@ -162,20 +172,19 @@ It may also be used within the body of the function.
 Since `Print` has a type parameter, any call of `Print` must provide a
 type argument.
 Later we will see how this type argument can usually be deduced from
-the non-type argument, by using [function argument type
-inference](#Function-argument-type-inference).
+the non-type argument, by using [type inference](#Type-inference).
 For now, we'll pass the type argument explicitly.
 Type arguments are passed much like type parameters are declared: as a
 separate list of arguments.
-At the call site, the `type` keyword is not used.
+As with the parameter list, the list of type arguments uses square
+brackets.
 
 ```Go
 	// Call Print with a []int.
 	// Print has a type parameter T, and we want to pass a []int,
-	// so we pass a type argument of int by writing Print(int).
-	// The function Print(int) expects a []int as an argument.
-
-	Print(int)([]int{1, 2, 3})
+	// so we pass a type argument of int by writing Print[int].
+	// The function Print[int] expects a []int as an argument.
+	Print[int]([]int{1, 2, 3})
 
 	// This will print:
 	// 1
@@ -191,7 +200,7 @@ Let's turn it into a function that converts a slice of any type into a
 
 ```Go
 // This function is INVALID.
-func Stringify(type T)(s []T) (ret []string) {
+func Stringify[T any](s []T) (ret []string) {
 	for _, v := range s {
 		ret = append(ret, v.String()) // INVALID
 	}
@@ -200,8 +209,8 @@ func Stringify(type T)(s []T) (ret []string) {
 ```
 
 This might seem OK at first glance, but in this example `v` has type
-`T`, and we don't know anything about `T`.
-In particular, we don't know that `T` has a `String` method.
+`T`, and `T` can be any type.
+This means that `T` need not have a `String` method.
 So the call to `v.String()` is invalid.
 
 Naturally, the same issue arises in other languages that support
@@ -258,10 +267,10 @@ operations that its type arguments are known to implement.
 ### Operations permitted for any type
 
 Before we discuss constraints further, let's briefly note what happens
-in their absence.
-If a generic function does not specify a constraint for a type
-parameter, as is the case for the `Print` method above, then any type
-argument is permitted for that parameter.
+when the constraint is `any`.
+If a generic function uses the `any` constraint for a type parameter,
+as is the case for the `Print` method above, then any type argument is
+permitted for that parameter.
 The only operations that the generic function can use with values of
 that type parameter are those operations that are permitted for values
 of any type.
@@ -304,8 +313,8 @@ Writing a generic function is like using values of interface type: the
 generic code can only use the operations permitted by the constraint
 (or operations that are permitted for any type).
 
-In this design, constraints are simply interface types.
-Implementing a constraint is simply implementing the interface type.
+Therefore, in this design, constraints are simply interface types.
+Implementing a constraint means implementing the interface type.
 (Later we'll see how to define constraints for operations other than
 method calls, such as [binary operators](#Operators)).
 
@@ -325,18 +334,53 @@ type Stringer interface {
 interface as the standard library's `fmt.Stringer` type, and  real
 code would likely simply use `fmt.Stringer`.)
 
+### The `any` constraint
+
+Now that we know that constraints are simply interface types, we can
+explain what `any` means as a constraint.
+As shown above, the `any` constraint permits any type as a type
+argument and only permits the function to use the operations permitted
+for any type.
+The interface type for that is the empty interface: `interface{}`.
+So we could write the `Print` example as
+
+```Go
+// Print prints the elements of any slice.
+// Print has a type parameter T, and has a single (non-type)
+// parameter s which is a slice of that type parameter.
+func Print[T interface{}](s []T) {
+	// same as above
+}
+```
+
+However, it's tedious to have to write `interface{}` every time you
+write a generic function that doesn't impose constraints on its type
+parameters.
+So in this design we suggest a new type constraint `any` that is
+equivalent to `interface{}`.
+This will be a predeclared name, implicitly declared in the universe
+block.
+It will not be valid to use `any` as anything other than a type
+constraint.
+
+(Note: clearly we could make `any` generally available as an alias for
+`interface{}`, or as a new defined type defined as `interface{}`.
+However, we don't want this design draft, which is about generics, to
+lead to a possibly significant change to non-generic code.
+Adding `any` as a general purpose name for `interface{}` can and
+should be [discussed separately](https://golang.org/issue/33232)).
+
 ### Using a constraint
 
 For a generic function, a constraint can be thought of as the type of
 the type argument: a meta-type.
-So, although generic functions are not required to use constraints,
-when they do they are listed in the type parameter list as the
+As shown above, constraints appear in the type parameter list as the
 meta-type of a type parameter.
 
 ```Go
 // Stringify calls the String method on each element of s,
 // and returns the results.
-func Stringify(type T Stringer)(s []T) (ret []string) {
+func Stringify[T Stringer](s []T) (ret []string) {
 	for _, v := range s {
 		ret = append(ret, v.String())
 	}
@@ -354,21 +398,22 @@ functions may have multiple type parameters.
 
 ```Go
 // Print2 has two type parameters and two non-type parameters.
-func Print2(type T1, T2)(s1 []T1, s2 []T2) { ... }
+func Print2[T1, T2 any](s1 []T1, s2 []T2) { ... }
 ```
 
 Compare this to
 
 ```Go
 // Print2Same has one type parameter and two non-type parameters.
-func Print2Same(type T)(s1 []T, s2 []T) { ... }
+func Print2Same[T any](s1 []T, s2 []T) { ... }
 ```
 
 In `Print2` `s1` and `s2` may be slices of different types.
 In `Print2Same` `s1` and `s2` must be slices of the same element
 type.
 
-Each type parameter may have its own constraint.
+Just as each ordinary parameter may have its own type, each type
+parameter may have its own constraint.
 
 ```Go
 // Stringer is a type constraint that requires a String method.
@@ -389,29 +434,12 @@ type Plusser interface {
 // number of elements. This will convert each element of s to a string,
 // pass it to the Plus method of the corresponding element of p,
 // and return a slice of the resulting strings.
-func ConcatTo(type S Stringer, P Plusser)(s []S, p []P) []string {
+func ConcatTo[S Stringer, P Plusser](s []S, p []P) []string {
 	r := make([]string, len(s))
 	for i, v := range s {
 		r[i] = p[i].Plus(v.String())
 	}
 	return r
-}
-```
-
-If a constraint is specified for any type parameter, every type
-parameter must have a constraint.
-If some type parameters need a constraint and some do not, those that
-do not should have a constraint of `interface{}`.
-
-```Go
-// StrAndPrint takes a slice of labels, which can be any type,
-// and a slice of values, which must have a String method,
-// converts the values to strings, and prints the labelled strings.
-func StrAndPrint(type L interface{}, T Stringer)(labels []L, vals []T) {
-	// Stringify was defined above. It returns a []string.
-	for i, s := range Stringify(vals) {
-		fmt.Println(labels[i], s)
-	}
 }
 ```
 
@@ -422,7 +450,7 @@ The constraint applies to each type parameter separately.
 ```Go
 // Stringify2 converts two slices of different types to strings,
 // and returns the concatenation of all the strings.
-func Stringify2(type T1, T2 Stringer)(s1 []T1, s2 []T2) string {
+func Stringify2[T1, T2 Stringer](s1 []T1, s2 []T2) string {
 	r := ""
 	for _, v1 := range s1 {
 		r += v1.String()
@@ -441,7 +469,7 @@ We suggest that types be extended to take type parameters.
 
 ```Go
 // Vector is a name for a slice of any element type.
-type Vector(type T) []T
+type Vector[T any] []T
 ```
 
 A type's parameters are just like a function's type parameters.
@@ -450,9 +478,8 @@ Within the type definition, the type parameters may be used like any
 other type.
 
 To use a generic type, you must supply type arguments.
-This looks like a function call, except that the function in this case
-is actually a type.
 This is called _instantiation_.
+The type arguments appear in square brackets, as usual.
 When we instantiate a type by supplying type arguments for the type
 parameters, we produce a type in which each use of a type parameter in
 the type definition is replaced by the corresponding type argument.
@@ -460,23 +487,23 @@ the type definition is replaced by the corresponding type argument.
 ```Go
 // v is a Vector of int values.
 //
-// This is similar to pretending that "Vector(int)" is a valid identifier,
+// This is similar to pretending that "Vector[int]" is a valid identifier,
 // and writing
-//   type "Vector(int)" []int
-//   var v "Vector(int)"
-// All uses of Vector(int) will refer to the same "Vector(int)" type.
+//   type "Vector[int]" []int
+//   var v "Vector[int]"
+// All uses of Vector[int] will refer to the same "Vector[int]" type.
 //
-var v Vector(int)
+var v Vector[int]
 ```
 
 Generic types can have methods.
 The receiver type of a method must declare the same number of type
 parameters as are declared in the receiver type's definition.
-They are declared without the `type` keyword or any constraint.
+They are declared without any constraint.
 
 ```Go
 // Push adds a value to the end of a vector.
-func (v *Vector(T)) Push(x T) { *v = append(*v, x) }
+func (v *Vector[T]) Push(x T) { *v = append(*v, x) }
 ```
 
 The type parameters listed in a method declaration need not have the
@@ -490,14 +517,14 @@ This restriction prevents infinite recursion of type instantiation.
 
 ```Go
 // List is a linked list of values of type T.
-type List(type T) struct {
-	next *List(T) // this reference to List(T) is OK
+type List[T any] struct {
+	next *List[T] // this reference to List[T] is OK
 	val  T
 }
 
 // This type is INVALID.
-type P(type T1, T2) struct {
-	F *P(T2, T1) // INVALID; must be (T1, T2)
+type P[T1, T2 any] struct {
+	F *P[T2, T1] // INVALID; must be [T1, T2]
 }
 ```
 
@@ -505,20 +532,20 @@ This restriction applies to both direct and indirect references.
 
 ```Go
 // ListHead is the head of a linked list.
-type ListHead(type T) struct {
-	head *ListElement(T)
+type ListHead[T any] struct {
+	head *ListElement[T]
 }
 
 // ListElement is an element in a linked list with a head.
 // Each element points back to the head.
-type ListElement(type T) struct {
-	next *ListElement(T)
+type ListElement[T any] struct {
+	next *ListElement[T]
 	val  T
-	// Using ListHead(T) here is OK.
-	// ListHead(T) refers to ListElement(T) refers to ListHead(T).
-	// Using ListHead(int) would not be OK, as ListHead(T)
-	// would have an indirect reference to ListHead(int).
-	head *ListHead(T)
+	// Using ListHead[T] here is OK.
+	// ListHead[T] refers to ListElement[T] refers to ListHead[T].
+	// Using ListHead[int] would not be OK, as ListHead[T]
+	// would have an indirect reference to ListHead[int].
+	head *ListHead[T]
 }
 ```
 
@@ -526,14 +553,15 @@ type ListElement(type T) struct {
 may be possible to relax this rule to permit some cases that use
 different type arguments.)
 
-The type parameter of a generic type may have constraints.
+The type parameter of a generic type may have constraints other than
+`any`.
 
 ```Go
 // StringableVector is a slice of some type, where the type
 // must have a String method.
-type StringableVector(type T Stringer) []T
+type StringableVector[T Stringer] []T
 
-func (s StringableVector(T)) String() string {
+func (s StringableVector[T]) String() string {
 	var sb strings.Builder
 	for i, v := range s {
 		if i > 0 {
@@ -572,7 +600,7 @@ slice of values, where the slice is assumed to be non-empty.
 
 ```Go
 // This function is INVALID.
-func Smallest(type T)(s []T) T {
+func Smallest[T any](s []T) T {
 	r := s[0] // panic if slice is empty
 	for _, v := range s[1:] {
 		if v < r { // INVALID
@@ -586,10 +614,11 @@ func Smallest(type T)(s []T) T {
 Any reasonable generics implementation should let you write this
 function.
 The problem is the expression `v < r`.
-This assumes that `T` supports the `<` operator, but `T` has no
-constraint.
-Without a constraint the function `Smallest` can only use operations
-that are available for all types, but not all Go types support `<`.
+This assumes that `T` supports the `<` operator, but the constraint on
+`T` is simply `any`.
+With the `any` constraint the function `Smallest` can only use
+operations that are available for all types, but not all Go types
+support `<`.
 Unfortunately, since `<` is not a method, there is no obvious way to
 write a constraint&mdash;an interface type&mdash;that permits `<`.
 
@@ -670,7 +699,7 @@ Given that constraint, we can write this function, now valid:
 ```Go
 // Smallest returns the smallest element in a slice.
 // It panics if the slice is empty.
-func Smallest(type T constraints.Ordered)(s []T) T {
+func Smallest[T constraints.Ordered](s []T) T {
 	r := s[0] // panics if slice is empty
 	for _, v := range s[1:] {
 		if v < r {
@@ -702,7 +731,7 @@ type:
 
 ```Go
 // Index returns the index of x in s, or -1 if not found.
-func Index(type T comparable)(s []T, x T) int {
+func Index[T comparable](s []T, x T) int {
 	for i, v := range s {
 		// v and x are type T, which has the comparable
 		// constraint, so we can use == here.
@@ -750,7 +779,7 @@ For now, this is not permitted.
 Within a single type parameter list, constraints may refer to any of
 the other type parameters, even ones that are declared later in the
 same list.
-(The scope of a type parameter starts at the `type` keyword of the
+(The scope of a type parameter starts at the beginning of the type
 parameter list and extends to the end of the enclosing function or
 type declaration.)
 
@@ -770,30 +799,29 @@ package graph
 // NodeConstraint is the type constraint for graph nodes:
 // they must have an Edges method that returns the Edge's
 // that connect to this Node.
-type NodeConstraint(type Edge) interface {
+type NodeConstraint[Edge any] interface {
 	Edges() []Edge
 }
 
 // EdgeConstraint is the type constraint for graph edges:
 // they must have a Nodes method that returns the two Nodes
 // that this edge connects.
-type EdgeConstraint(type Node) interface {
+type EdgeConstraint[Node any] interface {
 	Nodes() (from, to Node)
 }
 
 // Graph is a graph composed of nodes and edges.
-type Graph(type Node NodeConstraint(Edge), Edge EdgeConstraint(Node)) struct { ... }
+type Graph[Node NodeConstraint[Edge], Edge EdgeConstraint[Node]] struct { ... }
 
 // New returns a new graph given a list of nodes.
-func New(
-	type Node NodeConstraint(Edge), Edge EdgeConstraint(Node)) (
-	nodes []Node) *Graph(Node, Edge) {
+func New[Node NodeConstraint[Edge], Edge EdgeConstraint[Node]] (
+	nodes []Node) *Graph[Node, Edge] {
 	...
 }
 
 // ShortestPath returns the shortest path between two nodes,
 // as a list of edges.
-func (g *Graph(Node, Edge)) ShortestPath(from, to Node) []Edge { ... }
+func (g *Graph[Node, Edge]) ShortestPath(from, to Node) []Edge { ... }
 ```
 
 There are a lot of type arguments and instantiations here.
@@ -836,7 +864,7 @@ There are no interface types here, but we can instantiate
 `graph.Graph` using the type arguments `*Vertex` and `*FromTo`.
 
 ```Go
-var g = graph.New(*Vertex, *FromTo)([]*Vertex{ ... })
+var g = graph.New[*Vertex, *FromTo]([]*Vertex{ ... })
 ```
 
 `*Vertex` and `*FromTo` are not interface types, but when used
@@ -853,7 +881,7 @@ instantiate the type with the type argument(s) supplied in the type
 parameter list, and then compare the corresponding type argument
 against the instantiated constraint.
 In this example, the `Node` type argument to `graph.New` has a
-constraint `NodeConstraint(Edge)`.
+constraint `NodeConstraint[Edge]`.
 When we call `graph.New` with a `Node` type argument of `*Vertex` and
 a `Edge` type argument of `*FromTo`, in order to check the constraint
 on `Node` the compiler instantiates `NodeConstraint` with the type
@@ -901,7 +929,7 @@ the first type parameters in the list.
 For example, a function like this:
 
 ```Go
-func Map(type F, T)(s []F, f func(F) T) []T
+func Map[F, T any](s []F, f func(F) T) []T { ... }
 ```
 
 can be called in these ways.  (We'll explain below how type inference
@@ -913,10 +941,10 @@ type arguments is handled.)
 	f := func(i int) int64 { return int64(i) }
 	var r []int64
 	// Specify both type arguments explicitly.
-	r = Map(int, int64)(s, f)
+	r = Map[int, int64](s, f)
 	// Specify just the first type argument, for F,
 	// and let T be inferred.
-	r = Map(int)(s, f)
+	r = Map[int](s, f)
 	// Don't specify any type arguments, and let both be inferred.
 	r = Map(s, f)
 ```
@@ -989,7 +1017,7 @@ To see how it works, let's go back to [the example](#Type-parameters)
 of a call to the simple `Print` function:
 
 ```Go
-	Print(int)([]int{1, 2, 3})
+	Print[int]([]int{1, 2, 3})
 ```
 
 The type argument `int` in the function call can be inferred from the
@@ -1046,14 +1074,14 @@ In this example
 
 we compare `[]int` with `[]T`, match `T` with `int`, and we are done.
 The single type parameter `T` is `int`, so we infer that the call to
-`Print` is really a call to `Print(int)`.
+`Print` is really a call to `Print[int]`.
 
 For a more complex example, consider
 
 ```Go
 // Map calls the function f on every element of the slice s,
 // returning a new slice of the results.
-func Map(type F, T)(s []F, f func(F) T) []T {
+func Map[F, T any](s []F, f func(F) T) []T {
 	r := make([]T, len(s))
 	for i, v := range s {
 		r[i] = f(v)
@@ -1081,7 +1109,7 @@ To see the untyped constant rule in effect, consider:
 
 ```Go
 // NewPair returns a pair of values of the same type.
-func NewPair(type F)(f1, f2 F) *Pair(F) { ... }
+func NewPair[F any](f1, f2 F) *Pair(F) { ... }
 ```
 
 In the call `NewPair(1, 2)` both arguments are untyped constants, so
@@ -1090,13 +1118,13 @@ There is nothing to unify.
 We still have two untyped constants after the first pass.
 Both are set to their default type, `int`.
 The second run of the type unification pass unifies `F` with
-`int`, so the final call is `NewPair(int)(1, 2)`.
+`int`, so the final call is `NewPair[int](1, 2)`.
 
 In the call `NewPair(1, int64(2))` the first argument is an untyped
 constant, so we ignore it in the first pass.
 We then unify `int64` with `F`.
 At this point the type parameter corresponding to the untyped constant
-is fully determined, so the final call is `NewPair(int64)(1,
+is fully determined, so the final call is `NewPair[int64](1,
 int64(2))`.
 
 In the call `NewPair(1, 2.5)` both arguments are untyped constants,
@@ -1181,7 +1209,7 @@ about [defined types](https://golang.org/ref/spec#Type_definitions).
 
 ```Go
 // Double returns a new slice that contains all the elements of s, doubled.
-func Double(type E constraints.Number)(s []E) []E {
+func Double[E constraints.Number](s []E) []E {
 	r := make([]E, len(s))
 	for i, v := range s {
 		r[i] = v + v
@@ -1207,13 +1235,13 @@ We can do what we want by introducing a new type parameter.
 
 ```Go
 // SC constraints a type to be a slice of some type E.
-type SC(type E) interface {
+type SC[E any] interface {
 	type []E
 }
 
 // DoubleDefined returns a new slice that contains the elements of s,
 // doubled, and also has the same type as s.
-func DoubleDefined(type S SC(E), E constraints.Number)(s S) S {
+func DoubleDefined[S SC[E], E constraints.Number](s S) S {
 	// Note that here we pass S to make, where above we passed []E.
 	r := make(S, len(s))
 	for i, v := range s {
@@ -1227,7 +1255,7 @@ Now if we use explicit type arguments, we can get the right type.
 
 ```Go
 // The type of V2 will be MySlice.
-var V2 = DoubleDefined(MySlice, int)(MySlice{1})
+var V2 = DoubleDefined[MySlice, int](MySlice{1})
 ```
 
 Function argument type inference by itself is not enough to infer the
@@ -1259,7 +1287,7 @@ We create a mapping of known type arguments:
 
 We then unify each type parameter with a structural constraint with
 the single type listed by that constraint.
-In this case the structural constraint is `SC(E)` which has the single
+In this case the structural constraint is `SC[E]` which has the single
 type `[]E`, so we unify `S` with `[]E`.
 Since we already have a mapping for `S`, we then unify `[]E` with
 `MySlice`.
@@ -1272,8 +1300,8 @@ We now have:
 
 We then substitute `E` with `int`, which changes nothing, and we are
 done.
-The type arguments for this call to `DoubleDefined` are `(MySlice,
-int)`.
+The type arguments for this call to `DoubleDefined` are `[MySlice,
+int]`.
 
 This example shows how we can use constraint type inference to set a
 type name for an element of some other type parameter.
@@ -1301,7 +1329,7 @@ type Setter interface {
 // this function.
 //
 // This example compiles but is unlikely to work as desired.
-func FromStrings(type T Setter)(s []string) []T {
+func FromStrings[T Setter](s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
 		result[i].Set(v)
@@ -1324,7 +1352,7 @@ func (p *Settable) Set(s string) {
 
 func F() {
 	// INVALID
-	nums := FromStrings(Settable)([]string{"1", "2"})
+	nums := FromStrings[Settable]([]string{"1", "2"})
 	// Here we want nums to be []Settable{1, 2}.
 	...
 }
@@ -1345,7 +1373,7 @@ So let's rewrite `F` to use `*Settable` instead.
 func F() {
 	// Compiles but does not work as desired.
 	// This will panic at run time when calling the Set method.
-	nums := FromStrings(*Settable)([]string{"1", "2"})
+	nums := FromStrings[*Settable]([]string{"1", "2"})
 	...
 }
 ```
@@ -1372,7 +1400,7 @@ What we can do is pass both types.
 // Setter2 is a type constraint that requires that the type
 // implement a Set method that sets the value from a string,
 // and also requires that the type be a pointer to its type parameter.
-type Setter2(type B) interface {
+type Setter2[B any] interface {
 	Set(string)
 	type *B
 }
@@ -1383,7 +1411,7 @@ type Setter2(type B) interface {
 // We use two different type parameters so that we can return
 // a slice of type T but call methods on *T aka PT.
 // The Setter2 constraint ensures that PT is a pointer to T.
-func FromStrings2(type T interface{}, PT Setter2(T))(s []string) []T {
+func FromStrings2[T any, PT Setter2[T]](s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
 		// The type of &result[i] is *T which is in the type list
@@ -1403,7 +1431,7 @@ func F2() {
 	// FromStrings2 takes two type parameters.
 	// The second parameter must be a pointer to the first.
 	// Settable is as above.
-	nums := FromStrings2(Settable, *Settable)([]string{"1", "2"})
+	nums := FromStrings2[Settable, *Settable]([]string{"1", "2"})
 	// Now nums is []Settable{1, 2}.
 	...
 }
@@ -1417,7 +1445,7 @@ Using constraint type inference we can write
 ```Go
 func F3() {
 	// Here we just pass one type argument.
-	nums := FromStrings2(Settable)([]string{"1", "2"})
+	nums := FromStrings2[Settable]([]string{"1", "2"})
 	// Now nums is []Settable{1, 2}.
 	...
 }
@@ -1434,7 +1462,7 @@ As before, we create a mapping of known type arguments:
 ```
 
 We then unify each type parameter with a structural constraint.
-In this case, we unify `PT` with the single type of `Setter2(T)`,
+In this case, we unify `PT` with the single type of `Setter2[T]`,
 which is `*T`.
 The mapping is now
 
@@ -1479,7 +1507,7 @@ type Unsettable int
 
 func F4() {
 	// This call is INVALID.
-	nums := FromString2(Unsettable)([]string{"1", "2"})
+	nums := FromString2[Unsettable]([]string{"1", "2"})
 	...
 }
 ```
@@ -1487,9 +1515,9 @@ func F4() {
 When this call is made, we will apply constraint type inference just
 as before.
 It will succeed, just as before, and infer that the type arguments are
-`(Unsettable, *Unsettable)`.
+`[Unsettable, *Unsettable]`.
 Only after constraint type inference is complete will we check whether
-`*Unsettable` implements the constraint `Setter2(Unsettable)`.
+`*Unsettable` implements the constraint `Setter2[Unsettable]`.
 Since `*Unsettable` does not have a `Set` method, constraint checking
 will fail, and this code will not compile.
 
@@ -1505,7 +1533,7 @@ We would like to write that like this:
 
 ```Go
 // Index returns the index of e in s, or -1 if not found.
-func Index(type T Equaler)(s []T, e T) int {
+func Index[T Equaler](s []T, e T) int {
 	for i, v := range s {
 		if e.Equal(v) {
 			return i
@@ -1522,7 +1550,7 @@ interface type that use a type parameter.
 
 ```Go
 // Equaler is a type constraint for types with an Equal method.
-type Equaler(type T) interface {
+type Equaler[type T] interface {
 	Equal(T) bool
 }
 ```
@@ -1534,7 +1562,7 @@ it is used in a function's type parameter list without an explicit
 type argument, then the type argument is the type parameter being
 constrained.
 In other words, in the definition of `Index` above, the constraint
-`Equaler` is treated as `Equaler(T)`.
+`Equaler` is treated as `Equaler[T]`.
 
 This version of `Index` would be used with a type like `equalInt`
 defined here:
@@ -1548,7 +1576,9 @@ func (a equalInt) Equal(b equalInt) bool { return a == b }
 
 // indexEqualInts returns the index of e in s, or -1 if not found.
 func indexEqualInt(s []equalInt, e equalInt) int {
-	return Index(equalInt)(s, e)
+	// The type argument equalInt is shown here for clarity.
+	// Function argument type inference would permit omitting it.
+	return Index[equalInt](s, e)
 }
 ```
 
@@ -1556,7 +1586,7 @@ In this example, when we pass `equalInt` to `Index`, we check whether
 `equalInt` implements the constraint `Equaler`.
 Since `Equaler` has a type parameter, we pass the type argument of
 `Index`, which is `equalInt`, as the type argument to `Equaler`.
-The constraint is, then, `Equaler(equalInt)`, which is satisfied
+The constraint is, then, `Equaler[equalInt]`, which is satisfied
 by any type with a method `Equal(equalInt) bool`.
 The `equalInt` type has a method `Equal` that accepts a parameter of
 type `equalInt`, so all is well, and the compilation succeeds.
@@ -1567,39 +1597,6 @@ It would be possible to omit it from the initial implementation, and
 see whether it seems to be needed.
 That said, this feature doesn't require additional syntax, and
 produces more readable code.)
-
-### Using generic types as unnamed function parameter types
-
-When parsing an instantiated type as an unnamed function parameter
-type, there is a parsing ambiguity.
-
-```Go
-var f func(x(T))
-```
-
-In this example we don't know whether the function has a single
-unnamed parameter of the instantiated type `x(T)`, or whether this is
-a named parameter `x` of the type `(T)` (written with parentheses).
-
-We would prefer that this mean the former: an unnamed parameter of the
-instantiated type `x(T)`.
-This is not actually backward compatible with the current language,
-where it means the latter.
-However, the gofmt program currently rewrites `func(x(T))` to `func(x
-T)`, so `func(x(T))` is very unusual in plain Go code.
-
-Therefore, we propose that the language change so that `func(x(T))`
-now means a single parameter of type `x(T)`.
-This will potentially break some existing programs, but the fix will
-be to simply run gofmt.
-This will potentially change the meaning of programs that write
-`func(x(T))`, that don't use gofmt, and that choose to introduce a
-generic type `x` with the same name as a function parameter with a
-parenthesized type.
-We believe that such programs will be exceedingly rare.
-
-Still, this is a risk, and if the risk seems too large we can avoid
-making this change.
 
 ### Values of type parameters are not boxed
 
@@ -1628,7 +1625,7 @@ func (p *Settable) Set(s string) {
 
 func F() {
 	// The type of nums is []Settable.
-	nums := FromStrings2(Settable)([]string{"1", "2"})
+	nums := FromStrings2[Settable]([]string{"1", "2"})
 	// Settable can be converted directly to int.
 	// This will set first to 1.
 	first := int(nums[0])
@@ -1636,8 +1633,8 @@ func F() {
 }
 ```
 
-When we call `FromStrings2` with the type `Settable` we get back a
-`[]Settable`.
+When we call `FromStrings2` instantiated with the type `Settable` we
+get back a `[]Settable`.
 The elements of that slice will be `Settable` values, which is to say,
 they will be integers.
 They will not be boxed, even though they were created and set by a
@@ -1647,7 +1644,7 @@ Similarly, when a generic type is instantiated it will have the
 expected types as components.
 
 ```Go
-type Pair(type F1, F2) struct {
+type Pair[F1, F2 any] struct {
 	first  F1
 	second F2
 }
@@ -1720,7 +1717,7 @@ for either `string` or `[]byte` types.
 // Join concatenates the elements of its first argument to create a
 // single value. sep is placed between elements in the result.
 // Join works for string and []byte types.
-func Join(type T byteseq)(a []T, sep T) (ret T) {
+func Join[T byteseq](a []T, sep T) (ret T) {
 	if len(a) == 0 {
 		// Use the result parameter as a zero value;
 		// see discussion of zero value in the Issues section.
@@ -1766,7 +1763,7 @@ There are no constraints on the second slice parameter.
 ```Go
 // SliceConstraint is a type constraint that matches a slice of
 // the type parameter.
-type SliceConstraint(type T) interface {
+type SliceConstraint[T any] interface {
 	type []T
 }
 
@@ -1774,7 +1771,7 @@ type SliceConstraint(type T) interface {
 // and returns a slice of the function applied to each element.
 // Map returns a slice that is the same type as its slice argument,
 // even if that is a defined type.
-func Map(type S SliceConstraint(E), E interface{})(s S, f func(E) E) S {
+func Map[S SliceConstraint[E], E any](s S, f func(E) E) S {
 	r := make(S, len(s))
 	for i, v := range s {
 		r[i] = f(v)
@@ -1788,11 +1785,14 @@ type MySlice []int
 // DoubleMySlice takes a value of type MySlice and returns a new
 // MySlice value with each element doubled in value.
 func DoubleMySlice(s MySlice) MySlice {
-	v := Map(MySlice, int)(s, func(e int) int { return 2 * e })
+	v := Map[MySlice, int](s, func(e int) int { return 2 * e })
 	// Here v has type MySlice, not type []int.
 	return v
 }
 ```
+
+We showed other examples of this earlier in the discussion of
+[constraint type inference](#Constraint-type-inference).
 
 #### Type conversions
 
@@ -1815,7 +1815,7 @@ type integer interface {
 		uint, uint8, uint16, uint32, uint64, uintptr
 }
 
-func Convert(type To, From integer)(from From) To {
+func Convert[To, From integer](from From) To {
 	to := To(from)
 	if From(to) != from {
 		panic("conversion out of range")
@@ -1844,14 +1844,14 @@ type integer interface {
 		uint, uint8, uint16, uint32, uint64, uintptr
 }
 
-func Add10(type T integer)(s []T) {
+func Add10[T integer](s []T) {
 	for i, v := range s {
 		s[i] = v + 10 // OK: 10 can convert to any integer type
 	}
 }
 
 // This function is INVALID.
-func Add1024(type T integer)(s []T) {
+func Add1024[T integer](s []T) {
 	for i, v := range s {
 		s[i] = v + 1024 // INVALID: 1024 not permitted by int8/uint8
 	}
@@ -1871,7 +1871,7 @@ type structField interface {
 		struct { c int; x uint64 }
 }
 
-func IncrementX(type T structField)(p *T) {
+func IncrementX[T structField](p *T) {
 	v := p.x
 	v++
 	p.x = v
@@ -1954,6 +1954,7 @@ composite type and want to return the same result type as their
 argument type.
 Defined composite types are not common, but they do arise.
 This awkwardness is a weakness of this approach.
+Constraint type inference does help at the call site.
 
 ### Reflection
 
@@ -1961,8 +1962,8 @@ We do not propose to change the reflect package in any way.
 When a type or function is instantiated, all of the type parameters
 will become ordinary non-generic types.
 The `String` method of a `reflect.Type` value of an instantiated type
-will return the name with the type arguments in parentheses.
-For example, `List(int)`.
+will return the name with the type arguments in square brackets.
+For example, `List[int]`.
 
 It's impossible for non-generic code to refer to generic code without
 instantiating it, so there is no reflection information for
@@ -2000,8 +2001,7 @@ a few major points.
 * Type inference will often permit omitting type arguments when
   calling functions with type parameters.
 
-This design is completely backward compatible, except for a suggested
-change in the meaning of `func F(x(T))`.
+This design is completely backward compatible.
 
 We believe that this design addresses people's needs for generic
 programming in Go, without making the language any more complex than
@@ -2144,6 +2144,8 @@ supported.
 * No currying.
   There is no way to specify only some of the type arguments, other
   than by using a helper function or a wrapper type.
+  All type arguments must be either explicitly passed or inferred at
+  instantiation time.
 * No variadic type parameters.
   There is no support for variadic type parameters, which would permit
   writing a single generic function that takes different numbers of
@@ -2155,7 +2157,7 @@ supported.
   of an `Equal` method, or vice-versa.
 * No parameterization on non-type values such as constants.
   This arises most obviously for arrays, where it might sometimes be
-  convenient to write `type Matrix(type n int) [n][n]float64`.
+  convenient to write `type Matrix[n int] [n][n]float64`.
   It might also sometimes be useful to specify significant values for
   a container type, such as a default value for elements.
 
@@ -2174,11 +2176,11 @@ For example, consider this implementation of optional values that uses
 pointers:
 
 ```Go
-type Optional(type T) struct {
+type Optional[T any] struct {
 	p *T
 }
 
-func (o Optional(T)) Val() T {
+func (o Optional[T]) Val() T {
 	if o.p != nil {
 		return *o.p
 	}
@@ -2217,22 +2219,6 @@ Some approaches to this are:
 We feel that more experience with this design is needed before
 deciding what, if anything, to do here.
 
-##### Lots of Irritating Silly Parentheses
-
-Calling a function with type parameters requires an additional list of
-type arguments if the type arguments can not be inferred.
-If the function returns a function, and we call that, we get still
-more parentheses.
-
-```Go
-	F(int, float64)(x, y)(s)
-```
-
-We experimented with other syntaxes, such as using a colon to separate
-the type arguments from the regular arguments.
-The current design seems to us to be the nicest, but perhaps something
-better is possible.
-
 ##### Identifying the matched predeclared type
 
 The design doesn't provide any way to test the underlying type matched
@@ -2250,7 +2236,7 @@ type Float interface {
 	type float32, float64
 }
 
-func NewtonSqrt(type T Float)(v T) T {
+func NewtonSqrt[T Float](v T) T {
 	var iterations int
 	switch (interface{})(v).(type) {
 	case float32:
@@ -2292,7 +2278,7 @@ For example, there is no way to write this function:
 // It returns the number of items copied, which is the minimum of
 // the lengths of dst and src.
 // This implementation is INVALID.
-func Copy(type T1, T2)(dst []T1, src []T2) int {
+func Copy[T1, T2 any](dst []T1, src []T2) int {
 	for i, x := range src {
 		if i > len(dst) {
 			return i
@@ -2321,7 +2307,7 @@ assertion, but this is, of course, not compile-time type-safe.
 // Copy copies values from src to dst, converting them as they go.
 // It returns the number of items copied, which is the minimum of
 // the lengths of dst and src.
-func Copy(type T1, T2)(dst []T1, src []T2) int {
+func Copy[T1, T2 any](dst []T1, src []T2) int {
 	for i, x := range src {
 		if i > len(dst) {
 			return i
@@ -2336,8 +2322,8 @@ func Copy(type T1, T2)(dst []T1, src []T2) int {
 
 This design draft does not permit methods to declare type parameters
 that are specific to the method.
-The receiver may have type parameters, but the method not add any type
-parameters.
+The receiver may have type parameters, but the method may not add any
+type parameters.
 
 In Go, one of the main roles of methods is to permit types to
 implement interfaces.
@@ -2354,14 +2340,14 @@ package p1
 type S struct{}
 
 // Identity is a simple identity method that works for any type.
-func (S) Identity(type T)(v T) T { return v }
+func (S) Identity[T any](v T) T { return v }
 
 package p2
 
 // HasIdentity is an interface that matches any type with a
 // parameterized Identity method.
 type HasIdentity interface {
-	Identity(type T)(T) T
+	Identity[T any](T) T
 }
 
 package p3
@@ -2373,7 +2359,7 @@ import "p2"
 // this function is not itself parameterized.
 func CheckIdentity(v interface{}) {
 	if vi, ok := v.(p2.HasIdentity); ok {
-		if got := vi.Identity(int)(0); got != 0 {
+		if got := vi.Identity[int](0); got != 0 {
 			panic(got)
 		}
 	}
@@ -2397,10 +2383,10 @@ type `HasIdentity` that also has a parameterized method.
 `S` implements `HasIdentity`.
 Therefore, the function `p3.CheckIdentity` can call `vi.Identity` with
 an `int` argument, which in this example will be a call to
-`S.Identity(int)`.
+`S.Identity[int]`.
 But package p3 does not know anything about the type `p1.S`.
 There may be no other call to `S.Identity` elsewhere in the program.
-We need to instantiate `S.Identity(int)` somewhere, but how?
+We need to instantiate `S.Identity[int]` somewhere, but how?
 
 We could instantiate it at link time, but in the general case that
 requires the linker to traverse the complete call graph of the program
@@ -2412,7 +2398,7 @@ So in general instantiating parameterized methods in the linker might
 require instantiating every parameterized method for every possible
 type argument, which seems untenable.
 
-Or, we could instantiate it run time.
+Or, we could instantiate it at run time.
 In general this means using some sort of JIT, or compiling the code to
 use some sort of reflection based approach.
 Either approach would be very complex to implement, and would be
@@ -2497,34 +2483,47 @@ Sometimes they will, sometimes they won't.
 When parsing code within a function, such as `v := F<T>`, at the point
 of seeing the `<` it's ambiguous whether we are seeing a type
 instantiation or an expression using the `<` operator.
-Resolving that requires effectively unbounded lookahead.
-In general we strive to keep the Go parser efficient.
+This is very difficult to resolve without type information.
 
-##### Why not use the syntax `F[T]`?
+For example, consider a statement like
 
-When parsing a type declaration `type A [T] int` it's ambiguous
-whether this is a generic type defined (uselessly) as `int` or whether
-it is an array type with `T` elements.
-However, this could be addressed by requiring `type A [type T] int`
-for a generic type.
+```Go
+	a, b = w < x, y > (z)
+```
 
-Parsing declarations like `func f(A[T]int)` (a single parameter of
-type `[T]int`) and `func f(A[T], int)` (two parameters, one of type
-`A[T]` and one of type `int`) show that some additional parsing
-lookahead is required.
-This is solvable but adds parsing complexity.
+Without type information, it is impossible to decide whether the right
+hand side of the assignment is a pair of expressions (`w < x` and `y >
+(z)`), or whether it is a generic function instantiation and call that
+returns two result values (`(w<x, y>)(z)`).
 
-The language generally permits a trailing comma in a comma-separated
-list, so `A[T,]` should be permitted if `A` is a generic type, but
-normally would not be permitted for an index expression.
-However, the parser can't know whether `A` is a generic type or a
-value of slice, array, or map type, so this parse error can not be
-reported until after type checking is complete.
-Again, solvable but complicated.
+It is a key design decision of Go that parsing be possible without
+type information, which seems impossible when using angle brackets for
+generics.
 
-More generally, we felt that the square brackets were too intrusive on
-the page and that parentheses were more Go like.
-We will reevaluate this decision as we gain more experience.
+##### Why not use the syntax `F(T)`?
+
+An earlier version of this design draft used that syntax.
+It was workable but it introduced several parsing ambiguities.
+For example, when writing `var f func(x(T))` it wasn't clear whether
+this the type was a function with a single unnamed parameter of the
+instantiated type `x(T)` or whether it was a function with a parameter
+named `x` with type `(T)` (more usually written as `func(x T)`, but in
+this case with a parenthesized type).
+
+There were other ambiguities as well.
+For `[]T(v1)` and `[]T(v2){}`, at the point of the open parentheses we
+don't know whether this is a type conversion (of the value `v1` to the
+type `[]T`) or a type literal (whose type is the instantiated type
+`T(v2)`).
+For `interface { M(T) }` we don't know whether this an interface with
+a method `M` or an interface with an embedded instantiated interface
+`M(T)`.
+These ambiguities are solvable, by adding more parentheses, but
+awkward.
+
+Also some people were troubled by the number of parenthesized lists
+involved in declarations like `func F(T any)(v T)(r1, r2 T)` or in
+calls like `F(int)(1)`.
 
 ##### Why not use `F«T»`?
 
@@ -2541,7 +2540,7 @@ It also introduces a new set of names that not only the writer of
 generic code, but, more importantly, the reader, must remember.
 One of the driving goals of this design is to introduce as few new
 names as possible.
-In this design we introduce only one new predeclared name.
+In this design we introduce only two new predeclared names.
 
 We expect that if people find such names useful, we can introduce a
 package `constraints` that defines the useful names in the form of
@@ -2652,7 +2651,7 @@ package slices
 // This function has two type parameters, T1 and T2.
 // There are no constraints on the type parameters,
 // so this works with slices of any type.
-func Map(type T1, T2)(s []T1, f func(T1) T2) []T2 {
+func Map[T1, T2 any](s []T1, f func(T1) T2) []T2 {
 	r := make([]T2, len(s))
 	for i, v := range s {
 		r[i] = f(v)
@@ -2661,7 +2660,7 @@ func Map(type T1, T2)(s []T1, f func(T1) T2) []T2 {
 }
 
 // Reduce reduces a []T1 to a single value using a reduction function.
-func Reduce(type T1, T2)(s []T1, initializer T2, f func(T2, T1) T2) T2 {
+func Reduce[T1, T2 any](s []T1, initializer T2, f func(T2, T1) T2) T2 {
 	r := initializer
 	for _, v := range s {
 		r = f(r, v)
@@ -2672,7 +2671,7 @@ func Reduce(type T1, T2)(s []T1, initializer T2, f func(T2, T1) T2) T2 {
 // Filter filters values from a slice using a filter function.
 // It returns a new slice with only the elements of s
 // for which f returned true.
-func Filter(type T)(s []T, f func(T) bool) []T {
+func Filter[T any](s []T, f func(T) bool) []T {
 	var r []T
 	for _, v := range s {
 		if f(v) {
@@ -2714,7 +2713,7 @@ package maps
 // Map keys must be comparable, so key has the predeclared
 // constraint comparable. Map values can be any type;
 // the empty interface type imposes no constraints.
-func Keys(type K comparable, V interface{})(m map[K]V) []K {
+func Keys[K comparable, V any](m map[K]V) []K {
 	r := make([]K, 0, len(m))
 	for k := range m {
 		r = append(r, k)
@@ -2742,39 +2741,39 @@ methods rather than operators like `[]`.
 package set
 
 // Set is a set of values.
-type Set(type T comparable) map[T]struct{}
+type Set[T comparable] map[T]struct{}
 
 // Make returns a set of some element type.
-func Make(type T comparable)() Set(T) {
-	return make(Set(T))
+func Make[T comparable]() Set[T] {
+	return make(Set[T])
 }
 
 // Add adds v to the set s.
 // If v is already in s this has no effect.
-func (s Set(T)) Add(v T) {
+func (s Set[T]) Add(v T) {
 	s[v] = struct{}{}
 }
 
 // Delete removes v from the set s.
 // If v is not in s this has no effect.
-func (s Set(T)) Delete(v T) {
+func (s Set[T]) Delete(v T) {
 	delete(s, v)
 }
 
 // Contains reports whether v is in s.
-func (s Set(T)) Contains(v T) bool {
+func (s Set[T]) Contains(v T) bool {
 	_, ok := s[v]
 	return ok
 }
 
 // Len reports the number of elements in s.
-func (s Set(T)) Len() int {
+func (s Set[T]) Len() int {
 	return len(s)
 }
 
 // Iterate invokes f on each element of s.
 // It's OK for f to call the Delete method.
-func (s Set(T)) Iterate(f func(T)) {
+func (s Set[T]) Iterate(f func(T)) {
 	for v := range s {
 		f(v)
 	}
@@ -2785,12 +2784,12 @@ Example use:
 
 ```Go
 	// Create a set of ints.
-	// We pass (int) as a type argument.
+	// We pass int as a type argument.
 	// Then we write () because Make does not take any non-type arguments.
 	// We have to pass an explicit type argument to Make.
-	// Type inference doesn't work because the type argument
-	// to Make is only used for a result parameter type.
-	s := set.Make(int)()
+	// Function argument type inference doesn't work because the
+	// type argument to Make is only used for a result parameter type.
+	s := set.Make[int]()
 
 	// Add the value 1 to the set s.
 	s.Add(1)
@@ -2823,22 +2822,22 @@ type Ordered interface {
 // orderedSlice is an internal type that implements sort.Interface.
 // The Less method uses the < operator. The Ordered type constraint
 // ensures that T has a < operator.
-type orderedSlice(type T Ordered) []T
+type orderedSlice[T Ordered] []T
 
-func (s orderedSlice(T)) Len() int           { return len(s) }
-func (s orderedSlice(T)) Less(i, j int) bool { return s[i] < s[j] }
-func (s orderedSlice(T)) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s orderedSlice[T]) Len() int           { return len(s) }
+func (s orderedSlice[T]) Less(i, j int) bool { return s[i] < s[j] }
+func (s orderedSlice[T]) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // OrderedSlice sorts the slice s in ascending order.
 // The elements of s must be ordered using the < operator.
-func OrderedSlice(type T Ordered)(s []T) {
-	// Convert s to the type orderedSlice(T).
-	// As s is []T, and orderedSlice(T) is defined as []T,
+func OrderedSlice[T Ordered](s []T) {
+	// Convert s to the type orderedSlice[T].
+	// As s is []T, and orderedSlice[T] is defined as []T,
 	// this conversion is permitted.
-	// orderedSlice(T) implements sort.Interface,
+	// orderedSlice[T] implements sort.Interface,
 	// so can pass the result to sort.Sort.
 	// The elements will be sorted using the < operator.
-	sort.Sort(orderedSlice(T)(s))
+	sort.Sort(orderedSlice[T](s))
 }
 ```
 
@@ -2861,18 +2860,18 @@ to take values rather than slice indexes.
 ```Go
 // sliceFn is an internal type that implements sort.Interface.
 // The Less method calls the cmp field.
-type sliceFn(type T) struct {
+type sliceFn[T any] struct {
 	s   []T
 	cmp func(T, T) bool
 }
 
-func (s sliceFn(T)) Len() int           { return len(s.s) }
-func (s sliceFn(T)) Less(i, j int) bool { return s.cmp(s.s[i], s.s[j]) }
-func (s sliceFn(T)) Swap(i, j int)      { s.s[i], s.s[j] = s.s[j], s.s[i] }
+func (s sliceFn[T]) Len() int           { return len(s.s) }
+func (s sliceFn[T]) Less(i, j int) bool { return s.cmp(s.s[i], s.s[j]) }
+func (s sliceFn[T]) Swap(i, j int)      { s.s[i], s.s[j] = s.s[j], s.s[i] }
 
 // SliceFn sorts the slice s according to the function cmp.
-func SliceFn(type T)(s []T, cmp func(T, T) bool) {
-	Sort(sliceFn(E){s, cmp})
+func SliceFn[T any](s []T, cmp func(T, T) bool) {
+	sort.Sort(sliceFn[E]{s, cmp})
 }
 ```
 
@@ -2905,11 +2904,11 @@ import "runtime"
 // to send values and a Close method to stop sending values. The Next
 // method indicates when the Sender has been closed, and the Send
 // method indicates when the Receiver has been freed.
-func Ranger(type T)() (*Sender(T), *Receiver(T)) {
+func Ranger[T any]() (*Sender[T], *Receiver[T]) {
 	c := make(chan T)
 	d := make(chan bool)
-	s := &Sender(T){values: c, done: d}
-	r := &Receiver(T){values: c, done: d}
+	s := &Sender[T]{values: c, done: d}
+	r := &Receiver[T]{values: c, done: d}
 	// The finalizer on the receiver will tell the sender
 	// if the receiver stops listening.
 	runtime.SetFinalizer(r, r.finalize)
@@ -2917,14 +2916,14 @@ func Ranger(type T)() (*Sender(T), *Receiver(T)) {
 }
 
 // A Sender is used to send values to a Receiver.
-type Sender(type T) struct {
+type Sender[T any] struct {
 	values chan<- T
 	done   <-chan bool
 }
 
 // Send sends a value to the receiver. It reports whether any more
 // values may be sent; if it returns false the value was not sent.
-func (s *Sender(T)) Send(v T) bool {
+func (s *Sender[T]) Send(v T) bool {
 	select {
 	case s.values <- v:
 		return true
@@ -2936,12 +2935,12 @@ func (s *Sender(T)) Send(v T) bool {
 
 // Close tells the receiver that no more values will arrive.
 // After Close is called, the Sender may no longer be used.
-func (s *Sender(T)) Close() {
+func (s *Sender[T]) Close() {
 	close(s.values)
 }
 
 // A Receiver receives values from a Sender.
-type Receiver(type T) struct {
+type Receiver[T any] struct {
 	values <-chan T
 	done  chan<- bool
 }
@@ -2949,14 +2948,14 @@ type Receiver(type T) struct {
 // Next returns the next value from the channel. The bool result
 // reports whether the value is valid. If the value is not valid, the
 // Sender has been closed and no more values will be received.
-func (r *Receiver(T)) Next() (T, bool) {
+func (r *Receiver[T]) Next() (T, bool) {
 	v, ok := <-r.values
 	return v, ok
 }
 
 // finalize is a finalizer for the receiver.
 // It tells the sender that the receiver has stopped listening.
-func (r *Receiver(T)) finalize() {
+func (r *Receiver[T]) finalize() {
 	close(r.done)
 }
 ```
@@ -2988,30 +2987,30 @@ package orderedmap
 import "chans"
 
 // Map is an ordered map.
-type Map(type K, V) struct {
-	root    *node(K, V)
+type Map[K, V any] struct {
+	root    *node[K, V]
 	compare func(K, K) int
 }
 
 // node is the type of a node in the binary tree.
-type node(type K, V) struct {
+type node[K, V any] struct {
 	k           K
 	v           V
-	left, right *node(K, V)
+	left, right *node[K, V]
 }
 
 // New returns a new map.
 // Since the type parameter V is only used for the result,
 // type inference does not work, and calls to New must always
 // pass explicit type arguments.
-func New(type K, V)(compare func(K, K) int) *Map(K, V) {
-	return &Map(K, V){compare: compare}
+func New[K, V any](compare func(K, K) int) *Map[K, V] {
+	return &Map[K, V]{compare: compare}
 }
 
 // find looks up k in the map, and returns either a pointer
 // to the node holding k, or a pointer to the location where
 // such a node would go.
-func (m *Map(K, V)) find(k K) **node(K, V) {
+func (m *Map[K, V]) find(k K) **node[K, V] {
 	pn := &m.root
 	for *pn != nil {
 		switch cmp := m.compare(k, (*pn).k); {
@@ -3029,19 +3028,19 @@ func (m *Map(K, V)) find(k K) **node(K, V) {
 // Insert inserts a new key/value into the map.
 // If the key is already present, the value is replaced.
 // Reports whether this is a new key.
-func (m *Map(K, V)) Insert(k K, v V) bool {
+func (m *Map[K, V]) Insert(k K, v V) bool {
 	pn := m.find(k)
 	if *pn != nil {
 		(*pn).v = v
 		return false
 	}
-	*pn = &node(K, V){k: k, v: v}
+	*pn = &node[K, V]{k: k, v: v}
 	return true
 }
 
 // Find returns the value associated with a key, or zero if not present.
 // The bool result reports whether the key was found.
-func (m *Map(K, V)) Find(k K) (V, bool) {
+func (m *Map[K, V]) Find(k K) (V, bool) {
 	pn := m.find(k)
 	if *pn == nil {
 		var zero V // see the discussion of zero values, above
@@ -3051,17 +3050,17 @@ func (m *Map(K, V)) Find(k K) (V, bool) {
 }
 
 // keyValue is a pair of key and value used when iterating.
-type keyValue(type K, V) struct {
+type keyValue[K, V any] struct {
 	k K
 	v V
 }
 
 // InOrder returns an iterator that does an in-order traversal of the map.
-func (m *Map(K, V)) InOrder() *Iterator(K, V) {
-	type kv = keyValue(K, V) // convenient shorthand
-	sender, receiver := chans.Ranger(kv)()
-	var f func(*node(K, V)) bool
-	f = func(n *node(K, V)) bool {
+func (m *Map[K, V]) InOrder() *Iterator[K, V] {
+	type kv = keyValue[K, V] // convenient shorthand
+	sender, receiver := chans.Ranger[kv]()
+	var f func(*node[K, V]) bool
+	f = func(n *node[K, V]) bool {
 		if n == nil {
 			return true
 		}
@@ -3075,18 +3074,18 @@ func (m *Map(K, V)) InOrder() *Iterator(K, V) {
 		f(m.root)
 		sender.Close()
 	}()
-	return &Iterator{receiver}
+	return &Iterator[K, V]{receiver}
 }
 
 // Iterator is used to iterate over the map.
-type Iterator(type K, V) struct {
-	r *chans.Receiver(keyValue(K, V))
+type Iterator[K, V any] struct {
+	r *chans.Receiver[keyValue[K, V]]
 }
 
 // Next returns the next key and value pair. The bool result reports
 // whether the values are valid. If the values are not valid, we have
 // reached the end.
-func (it *Iterator(K, V)) Next() (K, V, bool) {
+func (it *Iterator[K, V any]) Next() (K, V, bool) {
 	kv, ok := it.r.Next()
 	return kv.k, kv.v, ok
 }
@@ -3099,7 +3098,7 @@ import "container/orderedmap"
 
 // Set m to an ordered map from string to string,
 // using strings.Compare as the comparison function.
-var m = orderedmap.New(string, string)(strings.Compare)
+var m = orderedmap.New[string, string](strings.Compare)
 
 // Add adds the pair a, b to m.
 func Add(a, b string) {
@@ -3136,7 +3135,7 @@ package slices
 // Append appends the contents of t to the end of s and returns the result.
 // If s has enough capacity, it is extended in place; otherwise a
 // new array is allocated and returned.
-func Append(type T)(s []T, t ...T) []T {
+func Append[T any](s []T, t ...T) []T {
 	lens := len(s)
 	tot := lens + len(t)
 	if tot < 0 {
@@ -3159,7 +3158,7 @@ can write that one too:
 ```Go
 // Copy copies values from t to s, stopping when either slice is
 // full, returning the number of values copied.
-func Copy(type T)(s, t []T) int {
+func Copy[T any](s, t []T) int {
 	i := 0
 	for ; i < len(s) && i < len(t); i++ {
 		s[i] = t[i]
@@ -3192,8 +3191,8 @@ Sameer Ajmani describes a metrics implementation.
 Each metric has a value and one or more fields.
 The fields have different types.
 Defining a metric requires specifying the types of the fields, and
-creating a value with an Add method.
-The Add method takes the field types as arguments, and records an
+creating a value with an `Add` method.
+The `Add` method takes the field types as arguments, and records an
 instance of that set of fields.
 The C++ implementation uses a variadic template.
 The Java implementation includes the number of fields in the name of
@@ -3202,7 +3201,7 @@ Both the C++ and Java implementations provide compile-time type-safe
 Add methods.
 
 Here is how to use this design to provide similar functionality in
-Go with a compile-time type-safe Add method.
+Go with a compile-time type-safe `Add` method.
 Because there is no support for a variadic number of type arguments,
 we must use different names for a different number of arguments, as in
 Java.
@@ -3218,13 +3217,13 @@ package metrics
 import "sync"
 
 // Metric1 accumulates metrics of a single value.
-type Metric1(type T comparable) struct {
+type Metric1[T comparable] struct {
 	mu sync.Mutex
 	m  map[T]int
 }
 
 // Add adds an instance of a value.
-func (m *Metric1(T)) Add(v T) {
+func (m *Metric1[T]) Add(v T) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.m == nil {
@@ -3234,48 +3233,48 @@ func (m *Metric1(T)) Add(v T) {
 }
 
 // key2 is an internal type used by Metric2.
-type key2(type T1, T2 comparable) struct {
+type key2[T1, T2 comparable] struct {
 	f1 T1
 	f2 T2
 }
 
 // Metric2 accumulates metrics of pairs of values.
-type Metric2(type T1, T2 comparable) struct {
+type Metric2[T1, T2 comparable] struct {
 	mu sync.Mutex
-	m  map[key2(T1, T2)]int
+	m  map[key2[T1, T2]]int
 }
 
 // Add adds an instance of a value pair.
-func (m *Metric2(T1, T2)) Add(v1 T1, v2 T2) {
+func (m *Metric2[T1, T2]) Add(v1 T1, v2 T2) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.m == nil {
-		m.m = make(map[key2(T1, T2)]int)
+		m.m = make(map[key2[T1, T2]]int)
 	}
-	m.m[key2(T1, T2){v1, v2}]++
+	m.m[key2[T1, T2]{v1, v2}]++
 }
 
 // key3 is an internal type used by Metric3.
-type key3(type T1, T2, T3 comparable) struct {
+type key3[T1, T2, T3 comparable] struct {
 	f1 T1
 	f2 T2
 	f3 T3
 }
 
 // Metric3 accumulates metrics of triples of values.
-type Metric3(type T1, T2, T3 comparable) struct {
+type Metric3[T1, T2, T3 comparable] struct {
 	mu sync.Mutex
-	m  map[key3(T1, T2, T3)]int
+	m  map[key3[T1, T2, T3]]int
 }
 
 // Add adds an instance of a value triplet.
-func (m *Metric3(T1, T2, T3)) Add(v1 T1, v2 T2, v3 T3) {
+func (m *Metric3[T1, T2, T3]) Add(v1 T1, v2 T2, v3 T3) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.m == nil {
-		m.m = make(map[key3(T1, T2, T3)]int)
+		m.m = make(map[key3[T1, T2, T3]]int)
 	}
-	m.m[key3(T1, T2, T3){v1, v2, v3}]++
+	m.m[key3[T1, T2, T3]{v1, v2, v3}]++
 }
 
 // Repeat for the maximum number of permitted arguments.
@@ -3286,7 +3285,7 @@ Using this package looks like this:
 ```Go
 import "metrics"
 
-var m = metrics.Metric2(string, int){}
+var m = metrics.Metric2[string, int]{}
 
 func F(s string, i int) {
 	m.Add(s, i) // this call is type checked at compile time
@@ -3310,40 +3309,40 @@ same generic type.
 package list
 
 // List is a linked list.
-type List(type T) struct {
-	head, tail *element(T)
+type List[T any] struct {
+	head, tail *element[T]
 }
 
 // An element is an entry in a linked list.
-type element(type T) struct {
-	next *element(T)
+type element[T any] struct {
+	next *element[T]
 	val  T
 }
 
 // Push pushes an element to the end of the list.
-func (lst *List(T)) Push(v T) {
+func (lst *List[T]) Push(v T) {
 	if lst.tail == nil {
-		lst.head = &element(T){val: v}
+		lst.head = &element[T]{val: v}
 		lst.tail = lst.head
 	} else {
-		lst.tail.next = &element(T){val: v }
+		lst.tail.next = &element[T]{val: v }
 		lst.tail = lst.tail.next
 	}
 }
 
 // Iterator ranges over a list.
-type Iterator(type T) struct {
-	next **element(T)
+type Iterator[T any] struct {
+	next **element[T]
 }
 
 // Range returns an Iterator starting at the head of the list.
-func (lst *List(T)) Range() *Iterator(T) {
-	return Iterator(T){next: &lst.head}
+func (lst *List[T]) Range() *Iterator[T] {
+	return Iterator[T]{next: &lst.head}
 }
 
 // Next advances the iterator.
 // It reports whether there are more elements.
-func (it *Iterator(T)) Next() bool {
+func (it *Iterator[T]) Next() bool {
 	if *it.next == nil {
 		return false
 	}
@@ -3353,7 +3352,7 @@ func (it *Iterator(T)) Next() bool {
 
 // Val returns the value of the current element.
 // The bool result reports whether the value is valid.
-func (it *Iterator(T)) Val() (T, bool) {
+func (it *Iterator[T]) Val() (T, bool) {
 	if *it.next == nil {
 		var zero T
 		return zero, false
@@ -3362,8 +3361,8 @@ func (it *Iterator(T)) Val() (T, bool) {
 }
 
 // Transform runs a transform function on a list returning a new list.
-func Transform(type T1, T2)(lst *List(T1), f func(T1) T2) *List(T2) {
-	ret := &List(T2){}
+func Transform[T1, T2 any](lst *List[T1], f func(T1) T2) *List[T2] {
+	ret := &List[T2]{}
 	it := lst.Range()
 	for {
 		if v, ok := it.Val(); ok {
@@ -3394,7 +3393,7 @@ type Numeric interface {
 
 // DotProduct returns the dot product of two slices.
 // This panics if the two slices are not the same length.
-func DotProduct(type T Numeric)(s1, s2 []T) T {
+func DotProduct[T Numeric](s1, s2 []T) T {
 	if len(s1) != len(s2) {
 		panic("DotProduct: slices of unequal length")
 	}
@@ -3426,14 +3425,14 @@ the methods can vary based on the kind of type being used.
 
 ```Go
 // NumericAbs matches numeric types with an Abs method.
-type NumericAbs(type T) interface {
+type NumericAbs[T any] interface {
 	Numeric
 	Abs() T
 }
 
 // AbsDifference computes the absolute value of the difference of
 // a and b, where the absolute value is determined by the Abs method.
-func AbsDifference(type T NumericAbs)(a, b T) T {
+func AbsDifference[T NumericAbs](a, b T) T {
 	d := a - b
 	return d.Abs()
 }
@@ -3456,9 +3455,9 @@ type Complex interface {
 
 // OrderedAbs is a helper type that defines an Abs method for
 // ordered numeric types.
-type OrderedAbs(type T OrderedNumeric) T
+type OrderedAbs[T OrderedNumeric] T
 
-func (a OrderedAbs(T)) Abs() OrderedAbs(T) {
+func (a OrderedAbs[T]) Abs() OrderedAbs[T] {
 	if a < 0 {
 		return -a
 	}
@@ -3467,11 +3466,11 @@ func (a OrderedAbs(T)) Abs() OrderedAbs(T) {
 
 // ComplexAbs is a helper type that defines an Abs method for
 // complex types.
-type ComplexAbs(type T Complex) T
+type ComplexAbs[T Complex] T
 
-func (a ComplexAbs(T)) Abs() ComplexAbs(T) {
+func (a ComplexAbs[T]) Abs() ComplexAbs[T] {
 	d := math.Hypot(float64(real(a)), float64(imag(a)))
-	return ComplexAbs(T)(complex(d, 0))
+	return ComplexAbs[T](complex(d, 0))
 }
 ```
 
@@ -3481,14 +3480,14 @@ converting to and from the types we just defined.
 ```Go
 // OrderedAbsDifference returns the absolute value of the difference
 // between a and b, where a and b are of an ordered type.
-func OrderedAbsDifference(type T OrderedNumeric)(a, b T) T {
-	return T(AbsDifference(OrderedAbs(T)(a), OrderedAbs(T)(b)))
+func OrderedAbsDifference[T OrderedNumeric](a, b T) T {
+	return T(AbsDifference(OrderedAbs[T](a), OrderedAbs[T](b)))
 }
 
 // ComplexAbsDifference returns the absolute value of the difference
 // between a and b, where a and b are of a complex type.
-func ComplexAbsDifference(type T Complex)(a, b T) T {
-	return T(AbsDifference(ComplexAbs(T)(a), ComplexAbs(T)(b)))
+func ComplexAbsDifference[T Complex](a, b T) T {
+	return T(AbsDifference(ComplexAbs[T](a), ComplexAbs[T](b)))
 }
 ```
 
@@ -3497,7 +3496,7 @@ code like the following:
 
 ```Go
 // This function is INVALID.
-func GeneralAbsDifference(type T Numeric)(a, b T) T {
+func GeneralAbsDifference[T Numeric](a, b T) T {
 	switch (interface{})(a).(type) {
 	case int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64, uintptr,
@@ -3552,13 +3551,13 @@ In this case uses of the type alias will have to provide type
 arguments appropriate for the generic type being aliased.
 
 ```Go
-var v VectorAlias(int)
+var v VectorAlias[int]
 ```
 
 Type aliases may also refer to instantiated types.
 
 ```Go
-type VectorInt = Vector(int)
+type VectorInt = Vector[int]
 ```
 
 ### Instantiating a function
@@ -3573,7 +3572,7 @@ This will produce a function value with no type parameters.
 
 ```Go
 // PrintInts is type func([]int).
-var PrintInts = Print(int)
+var PrintInts = Print[int]
 ```
 
 ### Embedded type parameter
@@ -3585,37 +3584,51 @@ of the type parameter.
 ```Go
 // A Lockable is a value that may be safely simultaneously accessed
 // from multiple goroutines via the Get and Set methods.
-type Lockable(type T) struct {
+type Lockable[T any] struct {
 	T
 	mu sync.Mutex
 }
 
 // Get returns the value stored in a Lockable.
-func (l *Lockable(T)) Get() T {
+func (l *Lockable[T]) Get() T {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.T
 }
 
 // Set sets the value in a Lockable.
-func (l *Lockable(T)) Set(v T) {
+func (l *Lockable[T]) Set(v T) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.T = v
 }
 ```
 
+### Embedded instantiated type
+
+When embedding an instantiated type, the name of the field is the name
+of type without the type arguments.
+
+```Go
+type S struct {
+	T[int] // field name is T
+}
+
+func F(v S) int {
+	return v.T // not v.T[int]
+}
+```
+
 ### Inline constraints
 
-As we've seen in examples that use `interface{}` as a type constraint,
-it's not necessary for a constraint to use a named interface type.
+It's not necessary for a constraint to use a named interface type.
 A type parameter list can use an interface type literal, just as an
 ordinary parameter list can use a type literal for a parameter type.
 
 ```Go
 // Stringify calls the String method on each element of s,
 // and returns the results.
-func Stringify(type T interface { String() string })(s []T) (ret []string) {
+func Stringify[T interface { String() string }](s []T) (ret []string) {
 	for _, v := range s {
 		ret = append(ret, v.String())
 	}
@@ -3632,7 +3645,7 @@ We could also consider supporting type inference for composite
 literals of generic types.
 
 ```Go
-type Pair(type T) struct { f1, f2 T }
+type Pair[T any] struct { f1, f2 T }
 var V = Pair{1, 2} // inferred as Pair(int){1, 2}
 ```
 
@@ -3649,25 +3662,25 @@ and from that we know that the type of the final argument must be
 `func(T4, T4) bool`, and from that we could deduce that the type
 argument to `IsClose` must also be `T4`.
 However, the type inference algorithm described earlier cannot do
-that, so we must explicitly write `IsClose(T4)`.
+that, so we must explicitly write `IsClose[T4]`.
 
 This may seem esoteric at first, but it comes up when passing generic
 functions to generic `Map` and `Filter` functions.
 
 ```Go
 // Differ has a Diff method that returns how different a value is.
-type Differ(type T1) interface {
+type Differ[T1 any] interface {
 	Diff(T1) int
 }
 
 // IsClose returns whether a and b are close together, based on Diff.
-func IsClose(type T2 Differ)(a, b T2) bool {
+func IsClose[T2 Differ](a, b T2) bool {
 	return a.Diff(b) < 2
 }
 
 // Find returns the index of the first element in s that matches e,
 // based on the cmp function. It returns -1 if no element matches.
-func Find(type T3)(s []T3, e T3, cmp func(a, b T3) bool) int {
+func Find[T3 any](s []T3, e T3, cmp func(a, b T3) bool) int {
 	for i, v := range s {
 		if cmp(v, e) {
 			return i
@@ -3678,11 +3691,11 @@ func Find(type T3)(s []T3, e T3, cmp func(a, b T3) bool) int {
 
 // FindClose returns the index of the first element in s that is
 // close to e, based on IsClose.
-func FindClose(type T4 Differ)(s []T4, e T4) int {
+func FindClose[T4 Differ](s []T4, e T4) int {
 	// With the current type inference algorithm we have to
-	// explicitly write IsClose(T4) here, although it
+	// explicitly write IsClose[T4] here, although it
 	// is the only type argument we could possibly use.
-	return Find(s, e, IsClose(T4))
+	return Find(s, e, IsClose[T4])
 }
 ```
 
@@ -3700,80 +3713,3 @@ Similar methods could be defined for `reflect.Value`, for which
 function.
 There might be some kind of programs that would care about this
 information.
-
-### Instantiating types in type literals
-
-When instantiating a type at the end of a type literal, there is a
-parsing ambiguity.
-
-```Go
-x1 := []T(v1)
-x2 := []T(v2){}
-```
-
-In this example, the first case is a type conversion of `v1` to the
-type `[]T`.
-The second case is a composite literal of type `[]T(v2)`, where `T` is
-a generic type that we are instantiating with the type argument `v2`.
-The ambiguity is at the point where we see the open parenthesis: at
-that point the parser doesn't know whether it is seeing a type
-conversion or something like a composite literal.
-
-To avoid this ambiguity, we require that type instantiations at the
-end of a type literal be parenthesized.
-To write a type literal that is a slice of a type instantiation, you
-must write `[](T(v1))`.
-Without those parentheses, `[]T(x)` is parsed as `([]T)(x)`, not as
-`[](T(x))`.
-This only applies to slice, array, map, chan, and func type literals
-ending in a type name.
-Of course it is always possible to use a separate type declaration to
-give a name to the instantiated type, and to use that.
-
-### Embedding an instantiated interface type
-
-There is a parsing ambiguity when embedding an instantiated interface
-type in another interface type.
-
-```Go
-type I1(type T) interface {
-	M(T)
-}
-
-type I2 interface {
-	I1(int)
-}
-```
-
-In this example we don't know whether interface `I2` has a single
-method named `I1` that takes an argument of type `int`, or whether we
-are trying to embed the instantiated type `I1(int)` into `I2`.
-
-For backward compatibility, we treat this as the former case: `I2` has
-a method named `I1`.
-
-In order to embed an instantiated interface type, we require
-that extra parentheses be used.
-
-```Go
-type I2 interface {
-	(I1(int))
-}
-```
-
-This is currently not permitted by the language, and will be a
-relaxation of the existing rules.
-
-The same applies to embedding an instantiated type in a struct.
-
-```Go
-type S1 struct {
-	T(int) // field named T of type int
-}
-
-type S2 struct {
-	(T(int)) // embedded field of type T(int)
-}
-```
-
-The field name of an embedded field of type `T(int)` is simply `T`.
