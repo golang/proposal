@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-August 21, 2020
+August 24, 2020
 
 ## Abstract
 
@@ -659,9 +659,8 @@ type SignedInteger interface {
 
 The `SignedInteger` constraint specifies that the type argument
 must be one of the listed types.
-More precisely, the underlying type of the type argument must be
-identical to the underlying type of one of the types in the type
-list.
+More precisely, either the type argument or the underlying type of the
+type argument must be identical to one of the types in the type list.
 This means that `SignedInteger` will accept the listed integer types,
 and will also accept any type that is defined as one of those types.
 
@@ -770,9 +769,19 @@ The same is true of the predeclared interface type `comparable`.
 This restriction may be lifted in future language versions.
 An interface type with a type list may be useful as a form of sum
 type, albeit one that can have the value `nil`.
-Some alternative syntax would likely be required to match on identical
-types rather than on underlying types; perhaps `type ==`.
-For now, this is not permitted.
+
+A type argument satisfies a type constraint with a type list if the
+type argument or its underlying type is present in that type list.
+If we permitted interface types with type lists outside of type
+constraints, then using a list of non-predeclared defined types would
+mean that only those types would implement the interface.
+Using a list of predeclared types, and/or type literals, would mean
+that any type defined as one of those types would implement the
+interface.
+There would be no way to restrict the interface type to only accept a
+predeclared type or a type literal.
+That might be acceptable for the cases where people want to use sum
+types.
 
 ### Mutually referencing type parameters
 
