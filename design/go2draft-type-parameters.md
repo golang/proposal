@@ -2,18 +2,17 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-August 24, 2020
+August 26, 2020
 
 ## Abstract
 
 We suggest extending the Go language to add optional type parameters
-to types and functions.
-Type parameters may be constrained by interface types.
-We also suggest extending interface types, when used as type
-constraints, to permit listing the set of types that may be assigned
-to them.
-Type inference via a unification algorithm is supported to permit
-omitting type arguments from function calls in many cases.
+to type and function declarations.
+Type parameters are constrained by interface types.
+Interface types, when used as type constraints, permit listing the set
+of types that may be assigned to them.
+Type inference via a unification algorithm permits omitting type
+arguments from function calls in many cases.
 The design is fully backward compatible with Go 1.
 
 ## How to read this design draft
@@ -46,19 +45,19 @@ These concepts will be explained in detail in the following sections.
 * These type parameters can be used by the regular parameters and in
   the function body.
 * Types can also have a type parameter list: `type M[T any] []T`.
-* Each type parameter has a type constraint: `func F[T Constraint](p T) { ... }`
+* Each type parameter has a type constraint: `func F[T Constraint](p
+  T) { ... }`.
 * Type constraints are interface types.
 * The new predeclared name `any` is a type constraint that permits any
   type.
 * Interface types used as type constraints can have a list of
-  predeclared types; only types whose underlying type is one of those
-  types can implement the interface.
-* Using a generic function or type requires passing type arguments.
-* Type inference permits omitting the type arguments in common cases.
-* The type argument for a type parameter must implement the
-  parameter's constraint.
+  predeclared types; only types which match one of those types can
+  satisfy the constraint.
 * Generic functions may only use operations permitted by the type
   constraint.
+* Using a generic function or type requires passing type arguments.
+* Type inference permits omitting the type arguments of a function
+  call in common cases.
 
 In the following sections we work through each of these language
 changes in great detail.
@@ -67,10 +66,6 @@ generic code written to this design draft will look like in practice.
 
 ## Background
 
-This version of the design draft has many similarities to the one
-presented on July 31, 2019, but contracts have been removed and
-replaced by interface types, and the syntax has changed somewhat.
-
 There have been many [requests to add additional support for generic
 programming](https://github.com/golang/go/wiki/ExperienceReports#generics)
 in Go.
@@ -78,16 +73,20 @@ There has been extensive discussion on
 [the issue tracker](https://golang.org/issue/15292) and on
 [a living document](https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view).
 
+This design draft suggests extending the Go language to add a form of
+parametric polymorphism, where the type parameters are bounded not by
+a declared subtyping relationship (as in some object oriented
+languages) but by explicitly defined structural constraints.
+
+This version of the design draft has many similarities to the one
+presented on July 31, 2019, but contracts have been removed and
+replaced by interface types, and the syntax has changed somewhat.
+
 There have been several proposals for adding type parameters, which
 can be found through the links above.
 Many of the ideas presented here have appeared before.
 The main new features described here are the syntax and the careful
 examination of interface types as constraints.
-
-This design draft suggests extending the Go language to add a form of
-parametric polymorphism, where the type parameters are bounded not by
-a declared subtyping relationship (as in some object oriented
-languages) but by explicitly defined structural constraints.
 
 This design does not support template metaprogramming or any other
 form of compile time programming.
@@ -154,7 +153,7 @@ permitted.
 
 ```Go
 // Print prints the elements of any slice.
-// Print has a type parameter T, and has a single (non-type)
+// Print has a type parameter T and has a single (non-type)
 // parameter s which is a slice of that type parameter.
 func Print[T any](s []T) {
 	// same as above
@@ -166,8 +165,8 @@ type parameter, a type that is currently unknown but that will be
 known when the function is called.
 The `any` means that `T` can be any type at all.
 As seen above, the type parameter may be used as a type when
-describing the ordinary non-type parameters.
-It may also be used within the body of the function.
+describing the types of the ordinary non-type parameters.
+It may also be used as a type within the body of the function.
 
 Since `Print` has a type parameter, any call of `Print` must provide a
 type argument.
@@ -251,7 +250,7 @@ constraints.
 That would mean that a minor change could cause code far away, that
 calls the function, to unexpectedly break.
 It's fine for `Stringify` to deliberately change its constraints, and
-force users to change.
+force callers to change.
 What we want to avoid is `Stringify` changing its constraints
 accidentally.
 
@@ -290,7 +289,7 @@ The operations permitted for any type are:
 * use the type as a case in a type switch
 * define and use composite types that use those types, such as a slice
   of that type
-* pass the type to some builtin functions such as `new`
+* pass the type to some predeclared functions such as `new`
 
 It's possible that future language changes will add other such
 operations, though none are currently anticipated.
@@ -346,7 +345,7 @@ So we could write the `Print` example as
 
 ```Go
 // Print prints the elements of any slice.
-// Print has a type parameter T, and has a single (non-type)
+// Print has a type parameter T and has a single (non-type)
 // parameter s which is a slice of that type parameter.
 func Print[T interface{}](s []T) {
 	// same as above
@@ -356,7 +355,7 @@ func Print[T interface{}](s []T) {
 However, it's tedious to have to write `interface{}` every time you
 write a generic function that doesn't impose constraints on its type
 parameters.
-So in this design we suggest a new type constraint `any` that is
+So in this design we suggest a type constraint `any` that is
 equivalent to `interface{}`.
 This will be a predeclared name, implicitly declared in the universe
 block.
@@ -823,8 +822,7 @@ type EdgeConstraint[Node any] interface {
 type Graph[Node NodeConstraint[Edge], Edge EdgeConstraint[Node]] struct { ... }
 
 // New returns a new graph given a list of nodes.
-func New[Node NodeConstraint[Edge], Edge EdgeConstraint[Node]] (
-	nodes []Node) *Graph[Node, Edge] {
+func New[Node NodeConstraint[Edge], Edge EdgeConstraint[Node]] (nodes []Node) *Graph[Node, Edge] {
 	...
 }
 
@@ -988,9 +986,10 @@ parameters with other types (which may themselves be or contain type
 parameters).
 
 For type unification, two types that don't contain any type parameters
-are equivalent if they are identical, or if they are channel types
-that are identical ignoring channel direction, or if their underlying
-types are equivalent.
+are equivalent if they are
+[identical](https://golang.org/ref/spec#Type_identity), or if they are
+channel types that are identical ignoring channel direction, or if
+their underlying types are equivalent.
 It's OK to permit types to not be identical during type inference,
 because we will still check the constraints if inference succeeds.
 
@@ -1000,6 +999,7 @@ can be unified with any of the following:
   * `T1` (`T1` matches `[]map[int]bool`)
   * `[]T1` (`T1` matches `map[int]bool`)
   * `[]map[T1]T2` (`T1` matches `int`, `T2` matches `bool`)
+
 (This is not an exclusive list, there are other possible successful
 unifications.)
 
@@ -1008,6 +1008,7 @@ On the other hand, `[]map[int]bool` cannot be unified with any of
   * `struct{}`
   * `[]struct{}`
   * `[]map[T1]string`
+
 (This list is of course also not exclusive; there are an infinite
 number of types that cannot be successfully unified.)
 
@@ -1029,7 +1030,7 @@ of a call to the simple `Print` function:
 	Print[int]([]int{1, 2, 3})
 ```
 
-The type argument `int` in the function call can be inferred from the
+The type argument `int` in this function call can be inferred from the
 type of the non-type argument.
 
 The only type arguments that can be inferred are those that are used
@@ -1039,8 +1040,8 @@ function's result parameter types, or only in the body of the
 function, then those type arguments cannot be inferred using function
 argument type inference.
 
-When the function's type arguments can be inferred, we unify the
-caller's argument types with the function's parameter types.
+To infer function type arguments, we unify the caller's argument types
+with the function's parameter types.
 On the caller side we have the list of types of the actual (non-type)
 arguments, which for the `Print` example is simply `[]int`.
 On the function side is the list of the types of the function's
@@ -1060,7 +1061,7 @@ This will give us an association of type parameters on the function
 side to types on the caller side.
 If the same type parameter appears more than once on the function
 side, it will match multiple argument types on the caller side.
-If those caller types are not identical, we report an error.
+If those caller types are not equivalent, we report an error.
 
 After the first pass, we check any untyped constants on the caller
 side.
@@ -1112,7 +1113,7 @@ We unify the type of `strconv.Itoa`, which is `func(int) string`,
 with `func(F) T`, matching `F` with `int` and `T` with `string`.
 The type parameter `F` is matched twice, both times with `int`.
 Unification succeeds, so the call written as `Map` is a call of
-`Map(int, string)`.
+`Map[int, string]`.
 
 To see the untyped constant rule in effect, consider:
 
@@ -1143,8 +1144,8 @@ This time we set the first constant to `int` and the second to
 We then try to unify `F` with both `int` and `float64`, so unification
 fails, and we report a compilation error.
 
-Note that function argument type inference is done without regard to
-constraints.
+As mentioned earlier, function argument type inference is done without
+regard to constraints.
 First we use function argument type inference to determine type
 arguments to use for the function, and then, if that succeeds, we
 check whether those type arguments implement the constraints (if
@@ -1213,8 +1214,9 @@ consider a function that takes a defined type that is a slice of
 numbers, and returns an instance of that same defined type in which
 each number is doubled.
 
-Using type lists, it's easy to write this function if we don't care
-about [defined types](https://golang.org/ref/spec#Type_definitions).
+Using type lists, it's easy to write a function similar to this if we
+ignore the [defined
+type](https://golang.org/ref/spec#Type_definitions) requirement.
 
 ```Go
 // Double returns a new slice that contains all the elements of s, doubled.
@@ -1280,13 +1282,12 @@ var V3 = DoubleDefined(MySlice{1})
 
 First we apply function argument type inference.
 We see that the type of the argument is `MySlice`.
-Function argument type inference ignores constraints.
-It matches the type parameter `S` with `MySlice.
+Function argument type inference matches the type parameter `S` with
+`MySlice`.
 
 We then move on to constraint type inference.
 We know one type argument, `S`.
-We see that a type argument, `S` again, has a structural type
-constraint.
+We see that the type argument `S` has a structural type constraint.
 
 We create a mapping of known type arguments:
 
@@ -1661,7 +1662,7 @@ type Pair[F1, F2 any] struct {
 
 When this is instantiated, the fields will not be boxed, and no
 unexpected memory allocations will occur.
-The type `Pair(int, string)` is convertible to `struct { first int;
+The type `Pair[int, string]` is convertible to `struct { first int;
 second string }`.
 
 ### More on type lists
@@ -1673,7 +1674,8 @@ how type lists work.
 
 #### Both type lists and methods in constraints
 
-A constraint may use both type lists and methods.
+As seen earlier for `Setter2`, a constraint may use both type lists
+and methods.
 
 ```Go
 // StringableSignedInteger is a type constraint that matches any
@@ -1861,6 +1863,7 @@ type MySlice []int
 // DoubleMySlice takes a value of type MySlice and returns a new
 // MySlice value with each element doubled in value.
 func DoubleMySlice(s MySlice) MySlice {
+	// The type arguments listed explicitly here could be inferred.
 	v := Map[MySlice, int](s, func(e int) int { return 2 * e })
 	// Here v has type MySlice, not type []int.
 	return v
@@ -1936,9 +1939,7 @@ func Add1024[T integer](s []T) {
 
 #### Notes on composite types in type lists
 
-It's not clear that we fully understand the use of composite types in
-type lists.
-For example, consider
+Type lists may include composite types.
 
 ```Go
 type structField interface {
@@ -1957,17 +1958,15 @@ func IncrementX[T structField](p *T) {
 This constraint on the type parameter of `IncrementX` is such that
 every valid type argument is a struct with a field `x` of some numeric
 type.
-Therefore, it is tempting to say that `IncrementX` is a valid
-function.
-This would mean that the type of `v` is a type based on a type
-parameter, with an implicit constraint of `interface { type int,
-float64, uint64 }`.
-This could get fairly complex, and there may be details here that we
-don't understand.
+Therefore, `IncrementX` is a valid function.
+The type of `v` is a type based on a type parameter, with an implicit
+constraint of `interface { type int, float64, uint64 }`.
 
-The initial implementation may not support composite types in type
-lists at all, although that would make the `Join` example shown
-earlier invalid.
+Admittedly this can get fairly complex, and there may be details here
+that we don't fully understand.
+In general, though, an operation (other than a method call) is
+permitted if it would be permitted for each separate type in the type
+list.
 
 #### Type lists in embedded constraints
 
@@ -2016,10 +2015,9 @@ Future language changes will not fundamentally change those facts, so
 this approach will continue to be useful.
 
 This approach does not attempt to handle every possible operator.
-It's not clear that it works well for composite types.
-The expectation is that those will be handled using composite types in
-generic function and type declarations, rather than requiring
-composite types as a type argument.
+The expectation is that composite types will normally be handled using
+composite types in generic function and type declarations, rather than
+putting composite types in a type list.
 For example, we expect functions that want to index into a slice to be
 parameterized on the slice element type `T`, and to use parameters or
 variables of type `[]T`.
@@ -2030,7 +2028,7 @@ composite type and want to return the same result type as their
 argument type.
 Defined composite types are not common, but they do arise.
 This awkwardness is a weakness of this approach.
-Constraint type inference does help at the call site.
+Constraint type inference can help at the call site.
 
 ### Reflection
 
@@ -2069,7 +2067,7 @@ While this document is long and detailed, the actual design reduces to
 a few major points.
 
 * Functions and types can have type parameters, which are defined
-  using optional constraints, which are interface types.
+  using constraints, which are interface types.
 * Constraints describe the methods required and the types permitted
   for a type argument.
 * Constraints describe the methods and operations permitted for a type
@@ -2114,13 +2112,13 @@ arguments explicitly.
 The type inference rules are designed to be unsurprising: either the
 type arguments are deduced correctly, or the call fails and requires
 explicit type parameters.
-Type inference uses type identity, with no attempt to resolve two
-types that are similar but not identical, which removes significant
+Type inference uses type equivalence, with no attempt to resolve two
+types that are similar but not equivalent, which removes significant
 complexity.
 
 Packages using generic types will have to pass explicit type
 arguments.
-The syntax for this is familiar.
+The syntax for this is straightforward.
 The only change is passing arguments to types rather than only to
 functions.
 
@@ -2135,7 +2133,7 @@ A new `slices` packages will be similar to the existing bytes and
 strings packages, operating on slices of any element type.
 New `maps` and `chans` packages will provide simple algorithms that
 are currently duplicated for each element type.
-A `set` package may be added.
+A `sets` package may be added.
 
 A new `constraints` package will provide standard constraints, such as
 constraints that permit all integer types or all numeric types.
@@ -2489,10 +2487,27 @@ implemented as a parameterized function.
 So while parameterized methods seem clearly useful at first glance, we
 would have to decide what they mean and how to implement that.
 
+##### No association between float and complex
+
+Constraint type inference lets us give a name to the element of a
+slice type, and to apply other similar type decompositions.
+However, there is no way to associate a float type and a complex type.
+For example, there is no way to write the predecared `real`, `imag`,
+or `complex` functions with this design draft.
+There is no way to say "if the argument type is `complex64`, then the
+result type is `float32`."
+
+One possible approach here would be to permit `real(T)` as a type
+constraint meaning "the float type associated with the complex type
+`T`".
+Similarly, `complex(T)` would mean "the complex type associated with
+the floating point type `T`".
+Constraint type inference would simplify the call site.
+However, that would be unlike other type constraints.
+
 #### Discarded ideas
 
-This design is not perfect, and it will be further refined as we gain
-experience with it.
+This design is not perfect, and there may be ways to improve it.
 That said, there are many ideas that we've already considered in
 detail.
 This section lists some of those ideas in the hopes that it will help
@@ -2508,7 +2523,7 @@ types.
 However, many people had a hard time understanding the difference
 between contracts and interface types.
 It also turned out that contracts could be represented as a set of
-corresponding interfaces; thus there was no loss in expressive power
+corresponding interfaces; there was no loss in expressive power
 without contracts.
 We decided to simplify the approach to use only interface types.
 
@@ -2725,8 +2740,7 @@ package slices
 
 // Map turns a []T1 to a []T2 using a mapping function.
 // This function has two type parameters, T1 and T2.
-// There are no constraints on the type parameters,
-// so this works with slices of any type.
+// This works with slices of any type.
 func Map[T1, T2 any](s []T1, f func(T1) T2) []T2 {
 	r := make([]T2, len(s))
 	for i, v := range s {
@@ -2787,8 +2801,7 @@ package maps
 // The keys will be returned in an unpredictable order.
 // This function has two type parameters, K and V.
 // Map keys must be comparable, so key has the predeclared
-// constraint comparable. Map values can be any type;
-// the empty interface type imposes no constraints.
+// constraint comparable. Map values can be any type.
 func Keys[K comparable, V any](m map[K]V) []K {
 	r := make([]K, 0, len(m))
 	for k := range m {
@@ -2813,8 +2826,8 @@ Here is a type-safe implementation of a set type, albeit one that uses
 methods rather than operators like `[]`.
 
 ```Go
-// Package set implements sets of any comparable type.
-package set
+// Package sets implements sets of any comparable type.
+package sets
 
 // Set is a set of values.
 type Set[T comparable] map[T]struct{}
@@ -2865,7 +2878,7 @@ Example use:
 	// We have to pass an explicit type argument to Make.
 	// Function argument type inference doesn't work because the
 	// type argument to Make is only used for a result parameter type.
-	s := set.Make[int]()
+	s := sets.Make[int]()
 
 	// Add the value 1 to the set s.
 	s.Add(1)
@@ -3057,8 +3070,8 @@ The important points are:
   not using pointers and not boxed as interface values.
 
 ```Go
-// Package orderedmap provides an ordered map, implemented as a binary tree.
-package orderedmap
+// Package orderedmaps provides an ordered map, implemented as a binary tree.
+package orderedmaps
 
 import "chans"
 
@@ -3170,11 +3183,11 @@ func (it *Iterator[K, V any]) Next() (K, V, bool) {
 This is what it looks like to use this package:
 
 ```Go
-import "container/orderedmap"
+import "container/orderedmaps"
 
 // Set m to an ordered map from string to string,
 // using strings.Compare as the comparison function.
-var m = orderedmap.New[string, string](strings.Compare)
+var m = orderedmaps.New[string, string](strings.Compare)
 
 // Add adds the pair a, b to m.
 func Add(a, b string) {
@@ -3266,8 +3279,7 @@ report](https://medium.com/@sameer_74231/go-experience-report-for-generics-googl
 Sameer Ajmani describes a metrics implementation.
 Each metric has a value and one or more fields.
 The fields have different types.
-Defining a metric requires specifying the types of the fields, and
-creating a value with an `Add` method.
+Defining a metric requires specifying the types of the fields.
 The `Add` method takes the field types as arguments, and records an
 instance of that set of fields.
 The C++ implementation uses a variadic template.
@@ -3381,8 +3393,8 @@ another type, as an example of using different instantiations of the
 same generic type.
 
 ```Go
-// Package list provides a linked list of any type.
-package list
+// Package lists provides a linked list of any type.
+package lists
 
 // List is a linked list.
 type List[T any] struct {
@@ -3502,7 +3514,10 @@ the methods can vary based on the kind of type being used.
 ```Go
 // NumericAbs matches numeric types with an Abs method.
 type NumericAbs[T any] interface {
-	Numeric
+	type int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64, uintptr,
+		float32, float64,
+		complex64, complex128
 	Abs() T
 }
 
