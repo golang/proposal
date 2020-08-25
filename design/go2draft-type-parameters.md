@@ -1704,6 +1704,73 @@ func (mi MyInt) String() string {
 }
 ```
 
+#### Types with methods in type lists
+
+Using a type list permits a generic function to use an operation that
+is permitted by all the types in the type list.
+However, that does not apply to methods.
+Even if every type in the type list supports the same method with the
+same signature, the generic function may not call that method.
+It may only call methods that are explicitly listed in the constraint,
+as explained in the previous section.
+
+Here is an example of types with the same method.
+This example is invalid.
+Even though both `MyInt` and `MyFloat` have a `String` method, the
+`ToString` function is not permitted to call that method.
+
+```Go
+// MyInt has a String method.
+type MyInt int
+
+func (i MyInt) String() string {
+	return strconv.Itoa(int(i))
+}
+
+// MyFloat also has a String method.
+type MyFloat float64
+
+func (f MyFloat) String() string {
+	return strconv.FormatFloat(float64(f), 'g', -1, 64)
+}
+
+// MyIntOrFloat is a type constraint that accepts MyInt or MyFloat.
+type MyIntOrFloat interface {
+	type MyInt, MyFloat
+}
+
+// ToString converts a value to a string.
+// This function is INVALID.
+func ToString[T MyIntOrFloat](v T) string {
+	return v.String() // INVALID
+}
+```
+
+To permit the `String` method to be called, it must be explicitly
+listed in the constraint.
+
+```Go
+// MyIntOrFloatStringer accepts MyInt or MyFloat, and defines a String
+// method. Note that both MyInt and MyFloat have a String method.
+// If either did not have a String method, they would not satisfy the
+// constraint even though the type list lists them. To satisfy a
+// constraint a type must both match the type list (if any) and
+// implement all the methods (if any).
+type MyIntOrFloatStringer interface {
+	type MyInt, MyFloat
+	String() string
+}
+
+// ToString2 convers a value to a string.
+func ToString2[T MyIntOrFloatStringer](v T) string {
+	return v.String()
+}
+```
+
+The reason for this rule is to simplify complex cases involving
+embedded type parameters in which it may not be immediately clear
+whether the type has a particular method or not.
+
 #### Composite types in constraints
 
 A type in a constraint may be a type literal.
