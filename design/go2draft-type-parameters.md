@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-August 26, 2020
+August 27, 2020
 
 ## Abstract
 
@@ -41,12 +41,13 @@ generics would work in a language like Go.
 These concepts will be explained in detail in the following sections.
 
 * Functions can have an additional type parameter list that uses
-  square brackets: `func F[T any](p T) { ... }`.
+  square brackets but otherwise looks like an ordinary parameter list:
+  `func F[T any](p T) { ... }`.
 * These type parameters can be used by the regular parameters and in
   the function body.
 * Types can also have a type parameter list: `type M[T any] []T`.
-* Each type parameter has a type constraint: `func F[T Constraint](p
-  T) { ... }`.
+* Each type parameter has a type constraint, just as each ordinary
+  parameter has a type: `func F[T Constraint](p T) { ... }`.
 * Type constraints are interface types.
 * The new predeclared name `any` is a type constraint that permits any
   type.
@@ -105,11 +106,10 @@ examples.
 
 ### Type parameters
 
-Generic code is code that is written using types that will be
-specified later.
-An unspecified type is called a _type parameter_.
-When running the generic code, the type parameter will be set to a
-_type argument_.
+Generic code is written using abstract data types that we call _type
+parameters_.
+When running the generic code, the type parameters are replaced by
+_type arguments_.
 
 Here is a function that prints out each element of a slice, where the
 element type of the slice, here called `T`, is unknown.
@@ -175,8 +175,8 @@ the non-type argument, by using [type inference](#Type-inference).
 For now, we'll pass the type argument explicitly.
 Type arguments are passed much like type parameters are declared: as a
 separate list of arguments.
-As with the parameter list, the list of type arguments uses square
-brackets.
+As with the type parameter list, the list of type arguments uses
+square brackets.
 
 ```Go
 	// Call Print with a []int.
@@ -471,7 +471,7 @@ We suggest that types be extended to take type parameters.
 type Vector[T any] []T
 ```
 
-A type's parameters are just like a function's type parameters.
+A type's type parameters are just like a function's type parameters.
 
 Within the type definition, the type parameters may be used like any
 other type.
@@ -664,11 +664,12 @@ This means that `SignedInteger` will accept the listed integer types,
 and will also accept any type that is defined as one of those types.
 
 When a generic function uses a type parameter with one of these
-constraints, it may use any operation that is permitted by all of the
+constraints, it may use it in any way that is permitted by all of the
 listed types.
-This can be an operation like `<`, `range`, `<-`, and so forth.
+This could mean operators like `<`, `<-`, or use in a `range` loop, or
+in general any language construct.
 If the function can be compiled successfully using each type listed in
-the constraint, then the operation is permitted.
+the constraint, then the use is permitted.
 
 A constraint may only have one type list.
 
@@ -757,6 +758,21 @@ The constraint `ComparableHasher` is implemented by any type that is
 comparable and also has a `Hash() uintptr` method.
 A generic function that uses `ComparableHasher` as a constraint can
 compare values of that type and can call the `Hash` method.
+
+It's possible to use `comparable` to produce a constraint that can not
+be satisifed by any type.
+
+```Go
+// ImpossibleConstraint is a type constraint that no type can satisfy,
+// because slice types are not comparable.
+type ImpossibleConstraint interface {
+	comparable
+	type []int
+}
+```
+
+This is not in itself an error, but of course there is no way to
+instantiate a type parameter that uses such a constraint.
 
 #### Type lists in interface types
 
@@ -890,7 +906,7 @@ against the instantiated constraint.
 In this example, the `Node` type argument to `graph.New` has a
 constraint `NodeConstraint[Edge]`.
 When we call `graph.New` with a `Node` type argument of `*Vertex` and
-a `Edge` type argument of `*FromTo`, in order to check the constraint
+an `Edge` type argument of `*FromTo`, in order to check the constraint
 on `Node` the compiler instantiates `NodeConstraint` with the type
 argument `*FromTo`.
 That produces an instantiated constraint, in this case a requirement
@@ -991,7 +1007,9 @@ are equivalent if they are
 channel types that are identical ignoring channel direction, or if
 their underlying types are equivalent.
 It's OK to permit types to not be identical during type inference,
-because we will still check the constraints if inference succeeds.
+because we will still check the constraints if inference succeeds, and
+we will still check that the function arguments are assignable to the
+inferred types.
 
 For example, if `T1` and `T2` are type parameters, `[]map[int]bool`
 can be unified with any of the following:
@@ -1040,8 +1058,8 @@ function's result parameter types, or only in the body of the
 function, then those type arguments cannot be inferred using function
 argument type inference.
 
-To infer function type arguments, we unify the caller's argument types
-with the function's parameter types.
+To infer function type arguments, we unify the types of the function
+call arguments with the types of the function's non-type parameters.
 On the caller side we have the list of types of the actual (non-type)
 arguments, which for the `Print` example is simply `[]int`.
 On the function side is the list of the types of the function's
@@ -1073,7 +1091,8 @@ Otherwise, for the second pass, for any untyped constants whose
 corresponding function types are not yet set, we determine the default
 type of the untyped constant in [the usual
 way](https://golang.org/ref/spec#Constants).
-Then we unify the types again, this time with no untyped constants.
+Then we unify the remaining types again, this time with no untyped
+constants.
 
 In this example
 
@@ -1167,7 +1186,7 @@ other type parameter.
 Constraint type inference can only infer types if some type parameter
 has a constraint that has a type list with exactly one type in it.
 We call such a constraint a _structural constraint_, as the type list
-describes the structure of the type.
+describes the structure of the type parameter.
 A structural constraint may also have methods in addition to the type
 list, but the methods are ignored by constraint type inference.
 For constraint type inference to be useful, the constraint type will
@@ -1177,6 +1196,11 @@ Constraint type inference is applied after function argument type
 inference.
 It is only tried if there is at least one type parameter whose type
 argument is not yet known.
+
+While the algorithm we describe here may seem complex, for typical
+concrete examples it is straightforward to see what constraint type
+inference will deduce.
+The description of the algorithm is followed by a couple of examples.
 
 We start by creating a mapping from type parameters to type arguments.
 We initialize the mapping with all type parameters whose type
@@ -1555,24 +1579,17 @@ func Index[T Equaler](s []T, e T) int {
 
 In order to write the `Equaler` constraint, we have to write a
 constraint that can refer to the type argument being passed in.
-There is no way to do that directly, but what we can do is write an
-interface type that use a type parameter.
+The easiest way to do this is to take advantage of the fact that a
+constraint does not have to be a defined type, it can simply be an
+interface type literal.
+This interface type literal can then refer to the type parameter.
 
 ```Go
-// Equaler is a type constraint for types with an Equal method.
-type Equaler[type T] interface {
-	Equal(T) bool
+// Index returns the index of e in s, or -1 if not found.
+func Index[T interface { Equal(T) bool }](s []T, e T) int {
+	// same as above
 }
 ```
-
-To make this work, `Index` will pass `T` as the type argument to
-`Equaler`.
-The rule is that if a type contraint has a single type parameter, and
-it is used in a function's type parameter list without an explicit
-type argument, then the type argument is the type parameter being
-constrained.
-In other words, in the definition of `Index` above, the constraint
-`Equaler` is treated as `Equaler[T]`.
 
 This version of `Index` would be used with a type like `equalInt`
 defined here:
@@ -1593,20 +1610,12 @@ func indexEqualInt(s []equalInt, e equalInt) int {
 ```
 
 In this example, when we pass `equalInt` to `Index`, we check whether
-`equalInt` implements the constraint `Equaler`.
-Since `Equaler` has a type parameter, we pass the type argument of
-`Index`, which is `equalInt`, as the type argument to `Equaler`.
-The constraint is, then, `Equaler[equalInt]`, which is satisfied
-by any type with a method `Equal(equalInt) bool`.
-The `equalInt` type has a method `Equal` that accepts a parameter of
-type `equalInt`, so all is well, and the compilation succeeds.
-
-(Note: using the type parameter as the default argument for its
-constraint is a convenience feature.
-It would be possible to omit it from the initial implementation, and
-see whether it seems to be needed.
-That said, this feature doesn't require additional syntax, and
-produces more readable code.)
+`equalInt` implements the constraint `interface { Equal(T) bool }`.
+The constraint has a type parameter, so we replace the type parameter
+with the type argument, which is `equalInt` itself.
+That gives us `interface { Equal(equalInt) bool }`.
+The `equalInt` type has an `Equal` method with that signature, so all
+is well, and the compilation succeeds.
 
 ### Values of type parameters are not boxed
 
@@ -1879,7 +1888,7 @@ In a function with two type parameters `From` and `To`, a value of
 type `From` may be converted to a value of type `To` if all the
 types accepted by `From`'s constraint can be converted to all the
 types accepted by `To`'s constraint.
-If either type parameter does not accept types, then type conversions
+If either type parameter does not have a type list, type conversions
 are not permitted.
 
 This is a consequence of the general rule that a generic function may
@@ -1909,8 +1918,8 @@ every integer type to be converted to every other integer type.
 #### Untyped constants
 
 Some functions use untyped constants.
-An untyped constant is permitted with a value of some type parameter
-if it is permitted with every type accepted by the type parameter's
+An untyped constant is permitted with a value of a type parameter if
+it is permitted with every type accepted by the type parameter's
 constraint.
 
 As with type conversions, this is a consequence of the general rule
@@ -2131,8 +2140,8 @@ We expect that a few new packages will be added to the standard
 library.
 A new `slices` packages will be similar to the existing bytes and
 strings packages, operating on slices of any element type.
-New `maps` and `chans` packages will provide simple algorithms that
-are currently duplicated for each element type.
+New `maps` and `chans` packages will provide algorithms that are
+currently duplicated for each element type.
 A `sets` package may be added.
 
 A new `constraints` package will provide standard constraints, such as
@@ -2201,10 +2210,9 @@ supported.
   There is no way to write code that is executed at compile time to
   generate code to be executed at run time.
 * No higher level abstraction.
-  There is no way to speak about a function with type arguments other
-  than to call it or instantiate it.
-  There is no way to speak about a generic type other than to
-  instantiate it.
+  There is no way to use a function with type arguments other than to
+  call it or instantiate it.
+  There is no way to use a generic type other than to instantiate it.
 * No general type description.
   In order to use operators in a generic function, constraints list
   specific types, rather than describing the characteristics that a
@@ -2216,8 +2224,8 @@ supported.
   but you can only access it with ordinary methods, not with syntax
   like `c[k]`.
 * No currying.
-  There is no way to specify only some of the type arguments, other
-  than by using a helper function or a wrapper type.
+  There is no way to partially instantiate a generic function or type,
+  other than by using a helper function or a wrapper type.
   All type arguments must be either explicitly passed or inferred at
   instantiation time.
 * No variadic type parameters.
@@ -2277,7 +2285,7 @@ Some approaches to this are:
   but requires an extra statement.
 * Use `*new(T)`, which is cryptic but works with the existing
   design.
-* For results only, name the result parameter `_`, and use a naked
+* For results only, name the result parameter, and use a naked
   `return` statement to return the zero value.
 * Extend the design to permit using `nil` as the zero value of any
   generic type (but see [issue 22729](https://golang.org/issue/22729)).
@@ -2366,7 +2374,7 @@ func Copy[T1, T2 any](dst []T1, src []T2) int {
 The conversion from type `T2` to type `T1` is invalid, as there is no
 constraint on either type that permits the conversion.
 Worse, there is no way to write such a constraint in general.
-In the particular case that both `T1` and `T2` can require some type
+In the particular case where both `T1` and `T2` can require some type
 list, then this function can be written as described earlier when
 discussing [type conversions using type lists](#Type-conversions).
 But, for example, there is no way to write a constraint for the case
@@ -2452,15 +2460,16 @@ func CheckSIdentity() {
 }
 ```
 
-In this example, we have a type `S` with a parameterized method and a
-type `HasIdentity` that also has a parameterized method.
-`S` implements `HasIdentity`.
+In this example, we have a type `p1.S` with a parameterized method and
+a type `p2.HasIdentity` that also has a parameterized method.
+`p1.S` implements `p2.HasIdentity`.
 Therefore, the function `p3.CheckIdentity` can call `vi.Identity` with
-an `int` argument, which in this example will be a call to
-`S.Identity[int]`.
+an `int` argument, which in the call from `p4.CheckSIdentity` will be
+a call to `p1.S.Identity[int]`.
 But package p3 does not know anything about the type `p1.S`.
-There may be no other call to `S.Identity` elsewhere in the program.
-We need to instantiate `S.Identity[int]` somewhere, but how?
+There may be no other call to `p1.S.Identity` elsewhere in the
+program.
+We need to instantiate `p1.S.Identity[int]` somewhere, but how?
 
 We could instantiate it at link time, but in the general case that
 requires the linker to traverse the complete call graph of the program
@@ -2631,10 +2640,11 @@ It also introduces a new set of names that not only the writer of
 generic code, but, more importantly, the reader, must remember.
 One of the driving goals of this design is to introduce as few new
 names as possible.
-In this design we introduce only two new predeclared names.
+In this design we introduce only two new predeclared names,
+`comparable` and `any`.
 
 We expect that if people find such names useful, we can introduce a
-package `constraints` that defines the useful names in the form of
+package `constraints` that defines those names in the form of
 constraints that can be used by other types and functions and embedded
 in other constraints.
 That will define the most useful names in the standard library while
@@ -2675,7 +2685,7 @@ This means that changing template code can accidentally break far-off
 instantiations.
 It also means that error messages are reported only at instantiation
 time, and can be deeply nested and difficult to understand.
-This design avoids these problems through explicit required
+This design avoids these problems through mandatory and explicit
 constraints.
 
 C++ supports template metaprogramming, which can be thought of as
@@ -3710,23 +3720,6 @@ func F(v S) int {
 }
 ```
 
-### Inline constraints
-
-It's not necessary for a constraint to use a named interface type.
-A type parameter list can use an interface type literal, just as an
-ordinary parameter list can use a type literal for a parameter type.
-
-```Go
-// Stringify calls the String method on each element of s,
-// and returns the results.
-func Stringify[T interface { String() string }](s []T) (ret []string) {
-	for _, v := range s {
-		ret = append(ret, v.String())
-	}
-	return ret
-}
-```
-
 ### Type inference for composite literals
 
 This is a feature we are not suggesting now, but could consider for
@@ -3802,5 +3795,4 @@ type.
 Similar methods could be defined for `reflect.Value`, for which
 `NumTypeArgument` would return non-zero for an instantiated generic
 function.
-There might be some kind of programs that would care about this
-information.
+There might be programs that care about this information.
