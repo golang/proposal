@@ -3710,6 +3710,27 @@ func (l *Lockable[T]) Set(v T) {
 }
 ```
 
+### Embedded type parameter methods
+
+When a generic type is a struct, and the type parameter is embedded as
+a field in the struct, any methods of the type parameter's constraint
+are promoted to be methods of the struct.
+
+```Go
+// NamedInt is an int with a name. The name can be any type with
+// a String method.
+type NamedInt[Name fmt.Stringer] struct {
+	Name
+	val int
+}
+
+// Name returns the name of a NamedInt.
+func (ni NamedInt[Name]) Name() string {
+	// The String method is promoted from the embedded Name.
+	return ni.String()
+}
+```
+
 ### Embedded instantiated type
 
 When embedding an instantiated type, the name of the field is the name
