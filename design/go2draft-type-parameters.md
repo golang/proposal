@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-August 27, 2020
+August 28, 2020
 
 ## Abstract
 
@@ -52,7 +52,7 @@ These concepts will be explained in detail in the following sections.
 * The new predeclared name `any` is a type constraint that permits any
   type.
 * Interface types used as type constraints can have a list of
-  predeclared types; only types which match one of those types can
+  predeclared types; only type arguments that match one of those types
   satisfy the constraint.
 * Generic functions may only use operations permitted by the type
   constraint.
@@ -81,7 +81,7 @@ languages) but by explicitly defined structural constraints.
 
 This version of the design draft has many similarities to the one
 presented on July 31, 2019, but contracts have been removed and
-replaced by interface types, and the syntax has changed somewhat.
+replaced by interface types, and the syntax has changed.
 
 There have been several proposals for adding type parameters, which
 can be found through the links above.
@@ -167,6 +167,11 @@ The `any` means that `T` can be any type at all.
 As seen above, the type parameter may be used as a type when
 describing the types of the ordinary non-type parameters.
 It may also be used as a type within the body of the function.
+
+Unlike regular parameter lists, in type parameter lists names are
+required for the type parameters.
+This avoids a syntactic ambiguity, and, as it happens, there is no
+reason to ever omit the type parameter names.
 
 Since `Print` has a type parameter, any call of `Print` must provide a
 type argument.
