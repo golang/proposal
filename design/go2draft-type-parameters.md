@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-August 28, 2020
+September 9, 2020
 
 ## Abstract
 
@@ -792,16 +792,19 @@ type, albeit one that can have the value `nil`.
 
 A type argument satisfies a type constraint with a type list if the
 type argument or its underlying type is present in that type list.
-If we permitted interface types with type lists outside of type
-constraints, then using a list of non-predeclared defined types would
-mean that only those types would implement the interface.
-Using a list of predeclared types, and/or type literals, would mean
-that any type defined as one of those types would implement the
-interface.
-There would be no way to restrict the interface type to only accept a
-predeclared type or a type literal.
-That might be acceptable for the cases where people want to use sum
-types.
+If in some future language version we permit interface types with type
+lists outside of type constraints, this rule will make them usable
+both as type constraints and as sum types.
+Using a list of defined types would mean that only those exact types
+would implement the interface, which is to say that only those exact
+types could be assigned to the sum type.
+Using a list of predeclared types and/or type literals would mean that
+any type defined as one of those types would implement the interface
+or be assignable to the sum type.
+There would be no way to write a sum type to accept only a predeclared
+type or type literal and reject types defined as those types.
+That restriction is likely acceptable for the cases where people want
+to use sum types.
 
 ### Mutually referencing type parameters
 
@@ -1366,8 +1369,6 @@ type Setter interface {
 // Note that because T is only used for a result parameter,
 // function argument type inference does not work when calling
 // this function.
-//
-// This example compiles but is unlikely to work as desired.
 func FromStrings[T Setter](s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
@@ -1427,6 +1428,8 @@ That pointer is `nil`.
 The `Settable.Set` method will be invoked with a `nil` receiver, and
 will raise a panic due to a `nil` dereference error.
 
+The pointer type `*Settable` implements the constraint, but the code
+really wants to use the non-pointer type`Settable`.
 What we need is a way to write `FromStrings` such that it can take the
 type `Settable` as an argument but invoke a pointer method.
 To repeat, we can't use `Settable` because it doesn't have a `Set`
@@ -2501,6 +2504,57 @@ implemented as a parameterized function.
 So while parameterized methods seem clearly useful at first glance, we
 would have to decide what they mean and how to implement that.
 
+##### No way to require pointer methods
+
+In some cases a parameterized function is naturally written such that
+it always invokes methods on addressable values.
+For example, this happens when calling a method on each element of a
+slice.
+In such a case, the function only requires that the method be in the
+slice element type's pointer method set.
+The type constraints described in this design draft have no way to
+write that requirement.
+
+For example, consider a variant of the `Stringify` example we [showed
+earlier](#Using-a-constraint).
+
+```
+// Stringify2 calls the String method on each element of s,
+// and returns the results.
+func Stringify2[T Stringer](s []T) (ret []string) {
+	for i := range s {
+		ret = append(ret, s[i].String())
+	}
+	return ret
+}
+```
+
+Suppose we have a `[]bytes.Buffer` and we want to convert it into a
+`[]string`.
+The `Stringify2` function here won't help us.
+We want to write `Stringify2[bytes.Buffer]`, but we can't, because
+`bytes.Buffer` doesn't have a `String` method.
+The type that has a `String` method is `*bytes.Buffer`.
+Writing `Stringify2[*bytes.Buffer]` doesn't help because that function
+expects a `[]*bytes.Buffer`, but we have a `[]bytes.Buffer`.
+
+We discussed a similar case in the [pointer method
+example](#Pointer-method-example) above.
+There we used constraint type inference to help simplify the problem.
+Here that doesn't help, because `Stringify2` doesn't really care about
+calling a pointer method.
+It just wants a type that has a `String` method, and it's OK if the
+method is only in the pointer method set, not the value method set.
+But we also want to accept the case where the method is in the value
+method set, for example if we really do have a `[]*bytes.Buffer`.
+
+What we need is a way to say that the type constraint applies to
+either the pointer method set or the value method set.
+The body of the function would be required to only call the method on
+addressable values of the type.
+
+It's not clear how often this problem comes up in practice.
+
 ##### No association between float and complex
 
 Constraint type inference lets us give a name to the element of a
@@ -2999,6 +3053,37 @@ With this design they become straightforward to write.
 package chans
 
 import "runtime"
+
+// Drain drains any elements remaining on the channel.
+func Drain[T any](c <-chan T) {
+	for range c {
+	}
+}
+
+// Merge merges two channels of some element type into a single channel.
+func Merge[T any](c1, c2 <-chan T) <-chan T {
+	r := make(chan T)
+	go func(c1, c2 <-chan T, r chan<- T) {
+		defer close(r)
+		for c1 != nil || c2 != nil {
+			select {
+			case v1, ok := <-c1:
+				if ok {
+					r <- v1
+				} else {
+					c1 = nil
+				}
+			case v2, ok := <-c2:
+				if ok {
+					r <- v2
+				} else {
+					c2 = nil
+				}
+			}
+		}
+	}(c1, c2, r)
+	return r
+}
 
 // Ranger provides a convenient way to exit a goroutine sending values
 // when the receiver stops reading them.
