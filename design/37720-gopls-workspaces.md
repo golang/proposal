@@ -4,7 +4,9 @@ Author(s): Heschi Kreinick, Rebecca Stambler
 
 Last updated: [Date]
 
-Discussion at https://golang.org/issue/37720.
+Discussion at https://golang.org/issue/32394.
+
+(Previously, https://golang.org/issue/37720)
 
 ## Abstract
 
