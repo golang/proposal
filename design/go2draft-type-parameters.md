@@ -3274,7 +3274,7 @@ type Iterator[K, V any] struct {
 // Next returns the next key and value pair. The bool result reports
 // whether the values are valid. If the values are not valid, we have
 // reached the end.
-func (it *Iterator[K, V any]) Next() (K, V, bool) {
+func (it *Iterator[K, V]) Next() (K, V, bool) {
 	kv, ok := it.r.Next()
 	return kv.k, kv.v, ok
 }
