@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-September 9, 2020
+September 21, 2020
 
 ## Abstract
 
@@ -1146,7 +1146,7 @@ To see the untyped constant rule in effect, consider:
 
 ```
 // NewPair returns a pair of values of the same type.
-func NewPair[F any](f1, f2 F) *Pair(F) { ... }
+func NewPair[F any](f1, f2 F) *Pair[F] { ... }
 ```
 
 In the call `NewPair(1, 2)` both arguments are untyped constants, so
