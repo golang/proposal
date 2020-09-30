@@ -4,7 +4,7 @@ This document describes a method to implement the [Go generics proposal](https:/
 
 When we generate code for a generic function, we will generate only a single chunk of assembly for that function. It will take as an argument a _dictionary_, which is a set of information describing the concrete types that the parameterized types take on. It includes the concrete types themselves, of course, but also derived information as we will see below.
 
-A counter-proposal would generate a different chunk of assembly for each instantiation and not require dictionaries - see the [Generics Implementation - Stenciling](https://go.googlesource.com/proposal/+/refs/heads/master/design/generics-implementation-stenciling.md) proposal.
+A counter-proposal would generate a different chunk of assembly for each instantiation and not require dictionaries - see the [Generics Implementation - Stenciling](https://go.googlesource.com/proposal/+/refs/heads/master/design/generics-implementation-stenciling.md) proposal. The [Generics Implementation - GC Shape Stenciling](https://go.googlesource.com/proposal/+/refs/heads/master/design/generics-implementation-gcshape.md) proposal is a hybrid of that proposal and this one.
 
 The most important feature of a dictionary is that it is compile-time computeable. All dictionaries will reside in the read-only data section, and will be passed around by reference. Anything they reference (types, other dictionaries, etc.) must also be in the read-only or code data sections.
 
