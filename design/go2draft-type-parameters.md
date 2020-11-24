@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-September 21, 2020
+November 25, 2020
 
 ## Abstract
 
@@ -1846,6 +1846,69 @@ func Join[T byteseq](a []T, sep T) (ret T) {
 }
 ```
 
+For composite types (string, pointer, array, slice, struct, function,
+map, channel) we impose an additional restriction: an operation may
+only be used if the operator accepts identical input types (if any)
+and produces identical result types for all of the types listed in the
+type list.
+To be clear, this additional restriction is only imposed when a
+composite type appears in a type list.
+It does not apply when a composite type is formed from a type
+parameter outside of a type list, as in `var v []T` for some type
+parameter `T`.
+
+```
+// structField is a type constraint with a list of structs that all
+// have a field named x.
+type structField interface {
+	type struct { a int; x int },
+		struct { b int; x float64 },
+		struct { c int; x uint64 }
+}
+
+// This function is INVALID.
+func IncrementX[T structField](p *T) {
+	v := p.x // INVALID: type of p.x is not the same for all types in list
+	v++
+	p.x = v
+}
+
+// sliceOrMap is a type constraint for a slice or a map.
+type sliceOrMap interface {
+	type []int, map[int]int
+}
+
+// Entry returns the i'th entry in a slice or the value of a map
+// at key i. This is valid as the result of the operator is always int.
+func Entry[T sliceOrMap](c T, i int) int {
+	// This is either a slice index operation or a map key lookup.
+	// Either way, the index and result types are type int.
+	return c[i]
+}
+
+// sliceOrFloatMap is a type constraint for a slice or a map.
+type sliceOrFloatMap interface {
+	type []int, map[float64]int
+}
+
+// This function is INVALID.
+// In this example the input type of the index operation is either
+// int (for a slice) or float64 (for a map), so the operation is
+// not permitted.
+func FloatEntry[T sliceOrFloatMap](c T) int {
+	return c[1.0] // INVALID: input type is either int or float64.
+}
+```
+
+Imposing this restriction makes it easier to reason about the type of
+some operation in a generic function.
+It avoids introducing the notion of a value whose type is the union of
+a set of types found by applying some operation to each element of a
+type list.
+
+(Note: with more understanding of how people want to write code, it
+may be possible to relax this restriction in the future.)
+
 #### Type parameters in type lists
 
 A type literal in a constraint can refer to type parameters of the
@@ -1953,37 +2016,6 @@ func Add1024[T integer](s []T) {
 	}
 }
 ```
-
-#### Notes on composite types in type lists
-
-Type lists may include composite types.
-
-```
-type structField interface {
-	type struct { a int; x int },
-		struct { b int; x float64 },
-		struct { c int; x uint64 }
-}
-
-func IncrementX[T structField](p *T) {
-	v := p.x
-	v++
-	p.x = v
-}
-```
-
-This constraint on the type parameter of `IncrementX` is such that
-every valid type argument is a struct with a field `x` of some numeric
-type.
-Therefore, `IncrementX` is a valid function.
-The type of `v` is a type based on a type parameter, with an implicit
-constraint of `interface { type int, float64, uint64 }`.
-
-Admittedly this can get fairly complex, and there may be details here
-that we don't fully understand.
-In general, though, an operation (other than a method call) is
-permitted if it would be permitted for each separate type in the type
-list.
 
 #### Type lists in embedded constraints
 
@@ -3829,6 +3861,53 @@ type S struct {
 func F(v S) int {
 	return v.T // not v.T[int]
 }
+```
+
+### Generic types as type switch cases
+
+A generic type may be used as the type in a type assertion or as a
+case in a type switch.
+
+Here are some trivial examples:
+
+```
+func Assertion[T any](v interface{}) (T, bool) {
+	t, ok := v.(T)
+	return t, ok
+}
+
+func Switch[T any](v interface{}) (T, bool) {
+	switch v := v.(type) {
+	case T:
+		return v, true
+	default:
+		var zero T
+		return zero, false
+	}
+}
+```
+
+In a type switch, it's OK if a generic type turns out to duplicate
+some other case in the type switch.
+The first matching case is chosen.
+
+```
+func Switch2[T any](v interface{}) int {
+	switch v.(type) {
+	case T:
+		return 0
+	case string:
+		return 1
+	default:
+		return 2
+	}
+}
+
+// S2a will be set to 0.
+var S2a = Switch2[string]("a string")
+
+// S2b will be set to 1.
+var S2b = Switch2[int]("another string")
 ```
 
 ### Type inference for composite literals
