@@ -492,7 +492,7 @@ the type definition is replaced by the corresponding type argument.
 // v is a Vector of int values.
 //
 // This is similar to pretending that "Vector[int]" is a valid identifier,
-// and writing
+// and writing - 
 //   type "Vector[int]" []int
 //   var v "Vector[int]"
 // All uses of Vector[int] will refer to the same "Vector[int]" type.
@@ -719,7 +719,7 @@ func Smallest[T constraints.Ordered](s []T) T {
 Earlier we mentioned that there are two exceptions to the rule that
 operators may only be used with types that are predeclared by the
 language.
-The exceptions are `==` and `!=`, which are permitted for struct,
+The exceptions are `==` and `!=`, which are permitted for the struct,
 array, and interface types.
 These are useful enough that we want to be able to write a constraint
 that accepts any comparable type.
@@ -1506,7 +1506,7 @@ As before, we create a mapping of known type arguments:
 We then unify each type parameter with a structural constraint.
 In this case, we unify `PT` with the single type of `Setter2[T]`,
 which is `*T`.
-The mapping is now
+The mapping is now:
 
 ```
 {T -> Settable, PT -> *T}
@@ -1595,7 +1595,7 @@ This interface type literal can then refer to the type parameter.
 ```
 // Index returns the index of e in s, or -1 if not found.
 func Index[T interface { Equal(T) bool }](s []T, e T) int {
-	// same as above
+	// Same as above.
 }
 ```
 
@@ -1639,7 +1639,7 @@ For example, let's look back at our earlier example of
 `FromStrings2`.
 When it is instantiated with type `Settable`, it returns a value of
 type `[]Settable`.
-For example, we can write
+For example, we can write:
 
 ```
 // Settable is an integer type that can be set from a string.
@@ -1647,7 +1647,7 @@ type Settable int
 
 // Set sets the value of *p from a string.
 func (p *Settable) Set(s string) {
-	// same as above
+	// Same as above.
 }
 
 func F() {
