@@ -233,7 +233,7 @@ A week after a proposal moves to Likely Decline, absent a change in consensus,
 the proposal review group moves the proposal to the Declined column.
 If significant discussion happens during that week,
 the proposal review group may leave the proposal
-in Likely Decline for another week or even move the proposal back to Declined.
+in Likely Decline for another week or even move the proposal back to Active.
 Once a proposal is marked Declined, it is closed.
 
 #### Hold
