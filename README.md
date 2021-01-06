@@ -147,6 +147,103 @@ consensus has been reached and the process can be
 advanced to the next step (by marking the proposal accepted
 or declined or by asking for a design doc).
 
+Minutes are posted to [golang.org/s/proposal-minutes](https://golang.org/s/proposal-minutes)
+after the conclusion of the weekly meeting, so that anyone
+interested in which proposals are under active consideration
+can follow that issue.
+
+Proposal issues are tracked in the
+[Proposals project](https://github.com/golang/go/projects/1) on the Go issue tracker.
+The current state of the proposal is captured by the columns in that project,
+as described below.
+
+The proposal review group can, at their discretion, make exceptions for
+proposals that need not go through all the stages, fast-tracking them
+to Likely Accept/Likely Decline or even Accept/Decline, such as for
+proposals that do not merit the full review or that need to be considered
+quickly due to pending releases.
+
+#### Incoming
+
+New proposals are added to the Incoming column.
+
+The weekly proposal review meetings aim to look at all the issues
+in the Active, Likely Accept, and Likely Decline columns.
+If time is left over, then proposals from Incoming are selected
+to be moved to Active.
+
+Holding proposals in Incoming until attention can be devoted to them
+(at which they move to Active, and then onward) ensures that
+progress is made moving active proposals out to Accepted or Declined,
+so we avoid [receive livelock](http://www.news.cs.nyu.edu/~jinyang/sp09/readings/mogul96usenix.pdf),
+in which accepting new work prevents finishing old work.
+
+#### Active
+
+Issues in the Active column are reviewed at each weekly proposal meeting
+to watch for emerging consensus in the discussions.
+The proposal review group may also comment, make suggestions,
+ask clarifying questions, and try to restate the proposals to make sure
+everyone agrees about what exactly is being discussed.
+
+#### Likely Accept
+
+If an issue discussion seems to have reached
+a consensus to accept the proposal, the proposal review group
+moves the issue to the Likely Accept column
+and posts a comment noting that change.
+This marks the final period for comments that might
+change the recognition of consensus.
+
+#### Likely Decline
+
+If a proposal discussion seems to have reached
+a consensus to decline the proposal, the proposal review group
+moves the issue to the Likely Decline column.
+An issue may also be moved to Likely Decline if the
+proposal review group identifies that no consensus
+is likely to be reached and that the default of not accepting
+the proposal is appropriate.
+
+Just as for Likely Accept, the group posts a comment noting the change,
+and this marks the final period for comments that might
+change the recognition of consensus.
+
+#### Accepted
+
+A week after a proposal moves to Likely Accept, absent a change in consensus,
+the proposal review group moves the proposal to the Accepted column.
+If significant discussion happens during that week,
+the proposal review group may leave the proposal
+in Likely Accept for another week or even move the proposal back to Active.
+
+Once a proposal is marked Accepted, the Proposal-Accepted label is applied,
+it is moved out of the Proposal milestone into a work milestone,
+and the issue is repurposed to track the work of implementing the proposal.
+
+The default work milestone is Backlog, indicating
+that the work applies to the Go release itself but is not slated for a particular release.
+Another common next milestone is Unreleased, used for work that is not part
+of any Go release (for example, work in parts of golang.org/x that are not vendored
+into the standard releases).
+
+#### Declined
+
+A week after a proposal moves to Likely Decline, absent a change in consensus,
+the proposal review group moves the proposal to the Declined column.
+If significant discussion happens during that week,
+the proposal review group may leave the proposal
+in Likely Decline for another week or even move the proposal back to Declined.
+Once a proposal is marked Declined, it is closed.
+
+#### Hold
+
+If discussion of a proposal requires design revisions or additional information
+that will not be available for a couple weeks or more, the proposal review group
+moves the proposal to the Hold column with a note of what it is waiting on.
+Once that thing is ready, anyone who can edit the issue tracker can move the
+proposal back to the Active column for consideration at the next proposal review meeting.
+
 ### Consensus and Disagreement
 
 The goal of the proposal process is to reach general consensus about the outcome
@@ -156,11 +253,11 @@ If general consensus cannot be reached,
 the proposal review group decides the next step
 by reviewing and discussing the issue and
 reaching a consensus among themselves.
+
 If even consensus among the proposal review group
 cannot be reached (which would be exceedingly unusual),
 the arbiter ([rsc@](mailto:rsc@golang.org))
-reviews the discussion and
-decides the next step.
+reviews the discussion and decides the next step.
 
 ## Help
 
