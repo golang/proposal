@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-November 25, 2020
+January 11, 2021
 
 ## Abstract
 
@@ -3832,6 +3832,11 @@ func (l *Lockable[T]) Set(v T) {
 When a generic type is a struct, and the type parameter is embedded as
 a field in the struct, any methods of the type parameter's constraint
 are promoted to be methods of the struct.
+(For purposes of [selector
+resolution](https://golang.org/ref/spec#Selectors), these methods are
+treated as being at depth 0 of the type parameter, even if in the
+actual type argument the methods were themselves promoted from an
+embedded type.)
 
 ```
 // NamedInt is an int with a name. The name can be any type with
