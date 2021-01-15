@@ -765,7 +765,7 @@ A generic function that uses `ComparableHasher` as a constraint can
 compare values of that type and can call the `Hash` method.
 
 It's possible to use `comparable` to produce a constraint that can not
-be satisifed by any type.
+be satisfied by any type.
 
 ```
 // ImpossibleConstraint is a type constraint that no type can satisfy,
@@ -946,7 +946,7 @@ In many cases we can use type inference to avoid having to explicitly
 write out some or all of the type arguments.
 We can use _function argument type inference_ for a function call to
 deduce type arguments from the types of the non-type arguments.
-We can use _contraint type inference_ to deduce unknown type arguments
+We can use _constraint type inference_ to deduce unknown type arguments
 from known type arguments.
 
 In the examples above, when instantiating a generic function or type,
@@ -2592,7 +2592,7 @@ It's not clear how often this problem comes up in practice.
 Constraint type inference lets us give a name to the element of a
 slice type, and to apply other similar type decompositions.
 However, there is no way to associate a float type and a complex type.
-For example, there is no way to write the predecared `real`, `imag`,
+For example, there is no way to write the predeclared `real`, `imag`,
 or `complex` functions with this design draft.
 There is no way to say "if the argument type is `complex64`, then the
 result type is `float32`."
