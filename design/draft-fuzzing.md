@@ -138,7 +138,7 @@ support these functions within yyy\_test.go files.
 
 ## Implementation
 
-There are several components to this proposal which are described below.
+There are several components to this design draft which are described below.
 The big pieces to be supported in the MVP are: support for fuzzing built-in
 types, structs, and types which implement the BinaryMarshaler and
 BinaryUnmarshaler interfaces or the TextMarshaler and TextUnmarshaler
@@ -169,8 +169,8 @@ test](#go-command)</code> by default, and can provide a starting point for a
 [mutation engine](#fuzzing-engine-and-mutator) if fuzzing.
 The testing portion of the fuzz target is a function within an `f.Fuzz`
 invocation.
-This function runs like a standard unit test with `testing.T` for each input in
-the seed corpus.
+This function runs much like a standard unit test with `testing.T` for each
+input in the seed corpus.
 If the developer is fuzzing this target with the new `-fuzz` flag with `go
 test`, then a [generated corpus](#generated-corpus) will be managed by the
 fuzzing engine, and a mutator will generate new inputs to run against the
@@ -182,14 +182,12 @@ With the new support, a fuzz target could look like this:
 ```
 func FuzzMarshalFoo(f *testing.F) {
 	// Seed the initial corpus
-	inputs := []string{"cat", "DoG", "!mouse!"}
-	for _, input := range inputs {
-		f.Add(input, big.NewInt(0))
-	}
+    f.Add("cat", big.NewInt(1341))
+    f.Add("!mouse", big.NewInt(0))
 
 	// Run the fuzz test
 	f.Fuzz(func(t *testing.T, a string, num *big.Int) {
-		t.Parallel()
+		t.Parallel() // seed corpus tests can run in parallel
 		if num.Sign() <= 0 {
 			t.Skip() // only test positive numbers
 		}
@@ -226,10 +224,11 @@ Functions that are new and only apply to `testing.F` are listed below.
 // those in the Fuzz function.
 func (f *F) Add(args ...interface{})
 
-// Fuzz runs the fuzz function, ff, for fuzz testing. It runs ff in a separate
-// goroutine. Only one call to Fuzz is allowed per fuzz target, and any
-// subsequent calls will panic. If ff fails for a set of arguments, those
-// arguments will be added to the seed corpus.
+// Fuzz runs the fuzz function, ff, for fuzz testing. While fuzzing with -fuzz,
+// the fuzz target and ff may be run in multiple worker processes that don't
+// share global state within the process. Only one call to Fuzz is allowed per
+// fuzz target, and any subsequent calls will panic. If ff fails for a set of
+// arguments, those arguments will be added to the seed corpus.
 func (f *F) Fuzz(ff interface{})
 ```
 
@@ -238,19 +237,25 @@ func (f *F) Fuzz(ff interface{})
 A fuzz target has two main components: 1) seeding the corpus and 2) the `f.Fuzz`
 function which is executed for items in the corpus.
 
-1.  The corpus generation is done first, and builds a seed corpus with
-    interesting input values for the fuzz test.  This should be fairly quick,
-    thus able to run before the fuzz testing begins, every time it’s run. These
-    inputs are run by default with `go test`.
-1.  The `f.Fuzz(...)` function is executed for each item in the corpus. If this
-    target is being fuzzed, then new inputs will be generated and continously
-    tested against the `f.Fuzz(...)` function.
+1.  Defining the seed corpus and any necessary setup work is done before the
+    `f.Fuzz` function, to prepare for fuzzing.
+    These inputs, as well as those in `testdata/corpus/FuzzTarget`, are run by
+    default with `go test`.
+1.  The `f.Fuzz(...)` function is executed for each item in the seed corpus.
+    If this target is being fuzzed, then new inputs will be generated and
+    continously tested using the `f.Fuzz(...)` function.
 
-The arguments to `f.Add(...)` and the function in `f.Fuzz(...)` must be the same
-type within the target, and there must be at least one argument specified.
+The arguments to `f.Add(...)` and the fuzzing arguments in the `f.Fuzz` function
+must be the same type within the target, and there must be at least one argument
+specified.
 This will be ensured by a vet check.
+
 Fuzzing of built-in types (e.g. simple types, maps, arrays) and types which
 implement the BinaryMarshaler and TextMarshaler interfaces are supported.
+
+In the future, structs that do not implement the BinaryMarshaler and
+TextMarshaler interfaces may be supported by building them based on their
+exported fields.
 
 Interfaces, functions, and channels are not appropriate types to fuzz, so will
 never be supported.
@@ -264,50 +269,77 @@ package, as well as a set of regression inputs for any newly discovered bugs
 identified by the fuzzing engine.
 This set of inputs is also used to “seed” the corpus used by the fuzzing engine
 when mutating inputs to discover new code coverage.
+A good seed corpus can save the mutation engine a lot of work (for example
+adding a new key type to a key parsing function).
 
-The seed corpus can be populated programmatically using `f.Add` within the
-fuzz target.
-Programmatic seed corpuses make it easy to add new entries when support for new
-things are added (for example adding a new key type to a key parsing function)
-saving the mutation engine a lot of work.
-These can also be more clear for the developer when they break the build when
-something changes.
+Each fuzz target will always look in the package’s `testdata/corpus/FuzzTarget`
+directory for an existing seed corpus to use, if one exists.
+New crashes will also be written to this directory.
 
-The fuzz target will always look in the package’s testdata/ directory for an
-existing seed corpus to use as well, if one exists.
-This seed corpus will be in a directory of the form `testdata/<target_name>`,
-with a file for each unit that can be unmarshaled for testing.
+The seed corpus can be populated programmatically using `f.Add` within the fuzz
+target.
 
 _Examples:_
 
-1: A fuzz target’s `f.Fuzz` function takes three arguments
-
-```
-f.Fuzz(func(t *testing.T, a string, b myStruct, num *big.Int) {...})
-
-type myStruct struct {
-    A, B string
-    num int
-}
-```
-
-In this example, string is a built-in type, so can be decoded directly.
-`*big.Int` implements `UnmarshalText`, so can also be unmarshaled directly.
-However, `myStruct` does not implement `UnmarshalBinary` or `UnmarshalText` so
-the struct is pieced together recursively from its exported types. That would
-mean two sets of bytes will be written for this type, one for each of A and B.
-In total, four files would be written, and four inputs can be mutated when
-fuzzing.
-
-2:  A fuzz target’s `f.Fuzz` function takes a single `[]byte`
+1:  A fuzz target’s `f.Fuzz` function takes a single `[]byte`.
 
 ```
 f.Fuzz(func(t *testing.T, b []byte) {...})
 ```
 
-This is the typical “non-structured fuzzing” approach.
-There is only one set of bytes to be provided by the mutator, so only one file
-will be written.
+This is the typical “non-structured fuzzing” approach, and only the single
+[]byte will be mutated while fuzzing.
+
+2: A fuzz target’s `f.Fuzz` function takes two arguments.
+
+```
+f.Fuzz(func(t *testing.T, a string, num *big.Int) {...})
+```
+
+This example uses string, which is a built-in type, and as such can be decoded directly.
+`*big.Int` implements `UnmarshalText`, so can also be unmarshaled using that
+method.
+The mutator will alter the bytes of both the string and the *big.Int while
+seeking new code coverage.
+
+### Corpus file encoding
+
+The `testdata/corpus` directory will hold corpus files which act as the seed
+corpus as well as a set of regression tests for identified crashers.
+Corpus files must be encoded to support multiple fuzzing arguments.
+
+The first line of the corpus file indicates the encoding "version" of this file,
+e.g. "version 1". This is to indicate how the file was encoded, which allows for
+new, improved encodings in the future.
+
+For version 1, each subsequent line represents the value of each type making up
+the corpus entry. Each line is copy-pastable directly into Go code. The only
+case where the line would require editing is for imported struct types, in which
+case the import path would be removed when used in code.
+
+For example:
+```
+encV1
+float(45.241)
+int(12345)
+[]byte("ABC\xa8\x8c\xb3G\xfc")
+example.com/foo.Bar.UnmarshalText("\xfe\x99Uh\xb4\xe29\xed")
+```
+
+A tool will be provided that can convert between binary files and corpus files
+(in both directions).
+This tool would serve two main purposes.
+It would allow binary files, such as images, or files from other fuzzers, to be
+ported over into seed corpus for Go fuzzing.
+It would also convert otherwise indecipherable hex bytes into a binary format
+which may be easier to read and edit.
+
+To make it easier to understand new crashes, each crash found by the fuzzing
+engine will be written to a binary file in $GOCACHE.
+This file should not be checked in, as the crash will have already been written
+to a corpus file in testdata within the module.
+Instead, this file is a way to quickly get an idea about the input which caused
+the crash, without requiring a tool to decode it.
 
 ### Fuzzing Engine and Mutator
 
@@ -345,56 +377,49 @@ For other types, this can be done using either
 or
 <code>[UnmarshalText](https://pkg.go.dev/encoding?tab=doc#TextUnmarshaler)</code>
 if implemented on the type.
-If building a struct, it can also build exported fields recursively as needed.
+In the future, it may support fuzzing struct types which don't implement these
+marshalers by building it through its exported fields.
 
 #### Generated corpus
 
 A generated corpus will be managed by the fuzzing engine and will live outside
-the module.
-New items can be added to this corpus in several ways, e.g. as part of the seed
-corpus, or by the fuzzing engine (e.g. because of new code coverage).
+the module in a subdirectory of $GOCACHE.
+This generated corpus will grow as the fuzzing engine discovers new coverage.
 
 The details of how the corpus is built and processed should be unimportant to
 users.
 This should be a technical detail that developers don’t need to understand in
 order to seed a corpus or write a fuzz target.
-Any existing files that a developer wants to include in the fuzz test should be
-added to the seed corpus directory, `testdata/<target_name>`.
-
-
-#### Minification + Pruning
-
-Corpus entries will be minified to the smallest input that causes the failure
-where possible, and pruned wherever possible to remove corpus entries that don’t
-add additional coverage.
-If a developer manually adds input files to the corpus directory, the fuzzing
-engine may change the file names in order to help with this.
+Any existing files that a developer wants to include in the fuzz test may be
+added to the seed corpus.
 
 ### Crashers
 
-A **crasher** is a panic or failure in `f.Fuzz(...)`, or a race condition.
+A **crasher** is a panic or failure in `f.Fuzz(...)`, or a race condition, which
+was found while fuzzing.
 By default, the fuzz target will stop after the first crasher is found, and a
 crash report will be provided.
 Crash reports will include the inputs that caused the crash and the resulting
 error message or stack trace.
-The crasher inputs will be written to the package's testdata/ directory as a
-seed corpus entry.
+The crasher inputs will be written to the package's testdata/corpus directory as
+after being minified where possible.
 
-Since this crasher is added to testdata/, which will then be run by default as
-part of the seed corpus for the fuzz target, this can act as a test for the new
-failure.
+Since this crasher is added to testdata/corpus, which will then be run by
+default as part of the seed corpus for the fuzz target, this can act as a test
+for the new failure.
 A user experience may look something like this:
 
 1.  A user runs `go test -fuzz=FuzzFoo`, and a crasher is found while fuzzing.
-1.  The arguments that caused the crash are added to a testdata directory within
-    the package automatically.
-1.  A subsequent run of `go test` (even without `-fuzz=FuzzFoo`) will then hit
-    this newly discovering failing condition, and continue to fail until the bug
-    is fixed.
+1.  The arguments that caused the crash are added to the testdata/corpus
+    directory of that package.
+1.  A subsequent run of `go test` (without needing `-fuzz=FuzzFoo`) will then
+    reproduce this crash, and continue to fail until the bug is fixed.
+    A user could also run `go test -run=FuzzFoo/<filename>` to only run a
+    specific file in the testdata/corpus directory when debugging.
 
 ### Go command
 
-Fuzz testing will only be supported in module mode, and if run in GOPATH mode
+Fuzz testing will only be supported in module mode, and if run in GOPATH mode,
 the fuzz targets will be ignored.
 
 Fuzz targets will be in *_test.go files, and can be in the same file as Test and
@@ -403,12 +428,9 @@ These test files can exist wherever *_test.go files can currently live, and do
 not need to be in any fuzz-specific directory or have a fuzz-specific file name
 or build tag.
 
-A new environment variable will be added, `$GOFUZZCACHE`, which will default to
-an appropriate cache directory on the developer's machine.
-This directory will hold the generated corpus.
-For example, the corpus for each fuzz target will be managed in a subdirectory
-called `<module_name>/<pkg>/@corpus/<target_name>` where `<module_name>` will
-follow module case-encoding and include the major version.
+The generated corpus will be in a new directory within `$GOCACHE`, in the form
+$GOCACHE/fuzz/$pkg/$test/$name, where $pkg is the package path containing the
+fuzz target, $test is the target name, and $name is the name of the file.
 
 The default behavior of `go test` will be to build and run the fuzz targets
 using the seed corpus only.
@@ -437,44 +459,27 @@ The following flags will be added or have modified meaning:
 -keepfuzzing
     Keep running the target if a crasher is found. (default false)
 -parallel
-    Allow parallel execution of f.Fuzz functions that call f.Parallel.
-    The value of this flag is the maximum number of f.Fuzz functions to run
-    simultaneously within the given fuzz target. (default GOMAXPROCS)
+    Allow parallel execution of f.Fuzz functions that call t.Parallel when
+    running the seed corpus.
+    While fuzzing with -fuzz, the value of this flag is the maximum number of
+    workers to run the fuzz function simultaneously; by default, it is set to
+    the value of GOMAXPROCS.
+    Note that -parallel only applies within a single test binary.
 -race
-    Enable data race detection while fuzzing. (default true)
+    Enable data race detection while fuzzing. (default false)
+-run
+    Run only those tests, examples, and fuzz targets matching the regular
+    expression.
+    For testing a single seed corpus entry for a target, the regular
+    expression can be in the form $target/$name, where $target is the name of
+    the fuzz target, and $name is the name of the file (ignoring file
+    extensions) to run.
 ```
 
 `go test` will not respect `-p` when running with `-fuzz`, as it doesn't make
 sense to fuzz multiple packages at the same time.
 
 ## Open issues and future work
-
-### Naming scheme for corpus files
-
-There are several naming schemes for the corpus files which may be appropriate,
-and the final decision is still undecided.
-
-Take the following example:
-
-```
-f.Fuzz(func(t *testing.T, a string, b myStruct, num *big.Int) {...})
-
-type myStruct struct {
-    A, B string
-    num int
-}
-```
-
-For two corpus entries, this could be structured as follows:
-* 0000001.string
-* 0000001.myStruct.string
-* 0000001.myStruct.string
-* 0000001.big_int
-* 0000002.string
-* 0000002.myStruct.string
-* 0000002.myStruct.string
-* 0000002.big_int
-
 
 ### Options
 
