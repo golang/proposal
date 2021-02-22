@@ -182,8 +182,8 @@ With the new support, a fuzz target could look like this:
 ```
 func FuzzMarshalFoo(f *testing.F) {
 	// Seed the initial corpus
-    f.Add("cat", big.NewInt(1341))
-    f.Add("!mouse", big.NewInt(0))
+	f.Add("cat", big.NewInt(1341))
+	f.Add("!mouse", big.NewInt(0))
 
 	// Run the fuzz test
 	f.Fuzz(func(t *testing.T, a string, num *big.Int) {
@@ -309,8 +309,9 @@ corpus as well as a set of regression tests for identified crashers.
 Corpus files must be encoded to support multiple fuzzing arguments.
 
 The first line of the corpus file indicates the encoding "version" of this file,
-e.g. "version 1". This is to indicate how the file was encoded, which allows for
-new, improved encodings in the future.
+which for version 1 will be `go test fuzz v1`.
+This is to indicate how the file was encoded, which allows for new, improved
+encodings in the future.
 
 For version 1, each subsequent line represents the value of each type making up
 the corpus entry. Each line is copy-pastable directly into Go code. The only
@@ -319,7 +320,7 @@ case the import path would be removed when used in code.
 
 For example:
 ```
-encV1
+go test fuzz v1
 float(45.241)
 int(12345)
 []byte("ABC\xa8\x8c\xb3G\xfc")
@@ -479,29 +480,29 @@ The following flags will be added or have modified meaning:
 `go test` will not respect `-p` when running with `-fuzz`, as it doesn't make
 sense to fuzz multiple packages at the same time.
 
-## Open issues and future work
+## Open questions and future work
+
+### Fuzzing engine supports multiple targets at once
+
+The current design allows matching one and only one fuzz target with `-fuzz` per
+package.
+This is to eliminate complexity in the early prototype, and move towards a
+working solution as quickly as possible.
+However, there are use cases for matching more than one fuzz target with
+`-fuzz`.
+For example, in the cases where developers want to fuzz an entire package over a
+long period of time, it would be useful for the fuzzing engine to support
+cycling around multiple targets at once with a single `go test -fuzz` command.
+This is likely to be considered in future iterations of the design.
 
 ### Options
 
 There are options that developers often need to fuzz effectively and safely.
 These options will likely make the most sense on a target-by-target basis,
 rather than as a `go test` flag.
-Which options to make available still needs some investigation.
-The options may be set in a few ways.
-
-As a struct:
-
-```
-func FuzzFoo(f *testing.F) {
-   f.FuzzOpts(&testing.FuzzOpts {
-      MaxInputSize: 1024,
-   })
-   f.Fuzz(func(t *testing.T, a string) {
-      ...
-   })
-```
-
-Or individually as:
+Which options to make available, and precisely how these will be defined still
+needs some investigation.
+For example, it could look something like this:
 
 ```
 func FuzzFoo(f *testing.F) {
@@ -511,6 +512,14 @@ func FuzzFoo(f *testing.F) {
    })
 }
 ```
+
+### Flag for generated corpus directory
+
+Developers may prefer to store the generated corpus in a seperate repository, in cloud storage, or some other shared location, rather than in each developer's `$GOCACHE`.
+The details about how best to support developers with these use cases still
+needs investigation, and is not a requirement for the MVP.
+However, there may be support for a `-fuzzdir` flag (or something similar) in
+the future, which specifies the location of the generated corpus.
 
 ### Dictionaries
 
