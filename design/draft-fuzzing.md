@@ -480,6 +480,12 @@ The following flags will be added or have modified meaning:
 `go test` will not respect `-p` when running with `-fuzz`, as it doesn't make
 sense to fuzz multiple packages at the same time.
 
+There will also be a new flag, `-fuzzcache` introduced to `go clean`.
+When this flag is not set, `go clean` will not automatically remove generated
+corpus files, even though they are written into a subdirectory of `$GOCACHE`.
+In order to remove the generated corpus files, one must run
+`go clean -fuzzcache`, which will remove all generated corpus in `$GOCACHE`.
+
 ## Open questions and future work
 
 ### Fuzzing engine supports multiple targets at once
