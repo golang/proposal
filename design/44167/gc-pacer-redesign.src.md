@@ -573,6 +573,32 @@ condition to include these limits.
 It's not important to put these limits in the rest of the pacer because it no
 longer tries to compute the trigger point ahead of time.
 
+### Initial conditions
+
+Like today, the pacer has to start somewhere for the first GC.
+I propose we carry forward what we already do today: set the trigger point at
+7/8ths of the first heap goal, which will always be the minimum heap size.
+If GC 1 is the first GC, then in terms of the math above, we choose to avoid
+defining `$M_0$`, and instead directly define
+
+```render-latex
+\begin{aligned}
+N_1 & = \textrm{minimum heap size} \\
+T_1 & = \frac{7}{8} N_1 \\
+P_0 & = 0
+\end{aligned}
+```
+
+The definition of `$P_0$` is necessary for the GC assist pacer.
+
+Furthermore, the PI controller's state will be initialized to zero otherwise.
+
+These choices are somewhat arbitrary, but the fact is that the pacer has no
+knowledge of the progam's past behavior for the first GC.
+Naturally the behavior of the GC will always be a little odd, but it should, in
+general, stabilize quite quickly (note that this is the case in each scenario
+for the [simulations](#simulations).
+
 ## A note about CPU utilization
 
 This document uses the term "GC CPU utilization" quite frequently, but so far
