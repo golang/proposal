@@ -1856,6 +1856,67 @@ composite type appears in a type list.
 It does not apply when a composite type is formed from a type
 parameter outside of a type list, as in `var v []T` for some type
 parameter `T`.
+##Arrays
+Arrays can be reffered to as a __list__ of iteams of the same type.
+Go's Arrays are fixed size,this means that during declaration,you must specify
+the size of array and type it will contain,these cannot be change at runtime.
+...GO
+  var children[2]string
+  children[0] = "Elves"
+  //or
+  children := [2]string{"Elves","Men"}
+
+We can use 'len' to get the length of the array.For cases where we don't know 
+the number of elements we'll be dealing with upfront,we can turn to slices.
+##Slices
+Slices are lightweight structures that represent a portion of an array. You'll
+most likely use slices way more than you'll be using Arrays in your programs.
+...go                   0       1
+  children :=[]string{"Elves","Men"}
+//or
+  children := make([]string,2,5)
+A slices can also be created from an existing array
+...go                  0        1      2       3        4      5       6     
+  valar := [7]string{"Manwe","Ulmo","Aule","Yavanna","Varda","Este","Nienna"}
+  ladies := valar[2:]
+...
+##Maps
+Maps are key - value pairs structure. In some language ,they are called Hashtables or
+Dictionaries.
+...go
+  clans:= make(map[string]string)
+  clans["Feanor"] = "Noldo Elves"
+  
+  //or
+  clans := map[string]string{
+       "Feanor" : "Noldo",
+  }
+  //get the length
+  l := len(clans)
+  //Delete
+  delete(clans,"Noldo")
+...
+##Structs
+A struct is a data type that aggregates different kinds of data values of different types. A 
+classic example of a struct would be the data representation of the COVID19 status in Nigeria.
+...go
+   type COVID19Stats struct {
+        Country string
+	NumberOfCases int
+	Safety SafetyMeasures
+   }
+   type SafetyMeasures struct {
+        First string
+	Second string
+	Third string
+   }
+...
+Note : If you want output in JSON format thenthe first letter of  field name(Country,NumberOfCases,Safety)
+in  struct should be uppercase.
+
+   
+  
+  
 
 ```
 // structField is a type constraint with a list of structs that all
