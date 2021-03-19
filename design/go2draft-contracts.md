@@ -7,8 +7,8 @@ July 31, 2019
 ## Superseded
 
 We will not be pursuing the approach outlined in this design draft.
-It has been replaced by a [new design
-draft](https://go.googlesource.com/proposal/+/refs/heads/master/design/go2draft-type-parameters.md).
+It has been replaced by a [new
+proposal](https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md).
 This document exists for historical context.
 
 ## Abstract
