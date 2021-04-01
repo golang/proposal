@@ -2,7 +2,7 @@
 
 Ian Lance Taylor\
 Robert Griesemer\
-March 19, 2021
+August 20, 2021
 
 ## Status
 
@@ -18,8 +18,12 @@ release in early 2022.
 We suggest extending the Go language to add optional type parameters
 to type and function declarations.
 Type parameters are constrained by interface types.
-Interface types, when used as type constraints, permit listing the set
-of types that may be assigned to them.
+Interface types, when used as type constraints, support embedding
+additional elements that may be used to limit the set of types that
+satisfy the constraint.
+Parameterized types and functions may use operators with type
+parameters, but only when permitted by all types that satisfy the
+parameter's constraint.
 Type inference via a unification algorithm permits omitting type
 arguments from function calls in many cases.
 The design is fully backward compatible with Go 1.
@@ -60,11 +64,16 @@ These concepts will be explained in detail in the following sections.
 * Type constraints are interface types.
 * The new predeclared name `any` is a type constraint that permits any
   type.
-* Interface types used as type constraints can have a list of
-  predeclared types; only type arguments that match one of those types
-  satisfy the constraint.
-* Generic functions may only use operations permitted by the type
-  constraint.
+* Interface types used as type constraints can embed additional
+  elements to restrict the set of type arguments that satisfy the
+  contraint:
+  * an arbitrary type `T` restricts to that type
+  * an approximation element `~T` restricts to all types whose
+    underlying type is `T`
+  * a union element `T1 | T2 | ...` restricts to any of the listed
+    elements
+* Generic functions may only use operations supported by all the types
+  permitted by the constraint.
 * Using a generic function or type requires passing type arguments.
 * Type inference permits omitting the type arguments of a function
   call in common cases.
@@ -327,9 +336,9 @@ generic code can only use the operations permitted by the constraint
 (or operations that are permitted for any type).
 
 Therefore, in this design, constraints are simply interface types.
-Implementing a constraint means implementing the interface type.
-(Later we'll see how to define constraints for operations other than
-method calls, such as [binary operators](#Operators)).
+Satisfying a constraint means implementing the interface type.
+(Later we'll restate this in order to define constraints for
+operations other than method calls, such as [binary operators](#Operators)).
 
 For the `Stringify` example, we need an interface type with a `String`
 method that takes no arguments and returns a value of type `string`.
@@ -650,42 +659,240 @@ arbitrary defined type.
 
 This means that rather than try to write a constraint for `<`, we can
 approach this the other way around: instead of saying which operators
-a constraint should support, we can say which (underlying) types a
-constraint should accept.
+a constraint should support, we can say which types a constraint
+should accept.
+We do this by defining a _type set_ for a constraint.
 
-#### Type lists in constraints
+#### Type sets
 
-An interface type used as a constraint may list explicit types that
-may be used as type arguments.
-This is done using the `type` keyword followed by a comma-separated
-list of types.
+Although we are primarily interested in defining the type set of
+constraints, the most straightforward approach is to define the type
+set of all types.
+The type set of a constraint is then constructed out of the type sets
+of its elements.
+This may seem like a digression from the topic of using operators with
+parameterized types, but we'll get there in the end.
 
-For example:
+Every type has an associated type set.
+The type set of a non-interface type `T` is simply the set `{T}`: a
+set that contains just `T` itself.
+The type set of an ordinary interface type is the set of all types
+that declare all the methods of the interface.
+
+Note that the type set of an ordinary interface type is an infinite
+set.
+For any given type `T` and interface type `IT` it's easy to tell
+whether `T` is in the type set of `IT` (by checking if all methods of
+`IT` are declared by `T`), but there is no reasonable way to enumerate
+all the types in the type set of `IT`.
+The type `IT` is a member of its own type set, because an interface
+inherently declares all of its own methods.
+The type set of the empty interface `interface{}` is the set of all
+possible types.
+
+It will be useful to construct the type set of an interface type by
+looking at the elements of the interface.
+This will produce the same result in a different way.
+The elements of an interface can be either a method signature or an
+embedded interface type.
+Although a method signature is not a type, it's convenient to define a
+type set for it: the set of all types that declare that method.
+The type set of an embedded interface type `E` is simply that of `E`:
+the set of all types that declare all the methods of `E`.
+
+For any method signature `M`, the type set of `interface{ M }` is
+the type of `M`: the set of all types that declare `M`.
+For any method signatures `M1` and `M2`, the type set of `interface{
+M1; M2 }` is set of all types that declare both `M1` and `M2`.
+This is the intersection of the type set of `M1` and the type set of
+`M2`.
+To see this, observe that the type set of `M1` is the set of all types
+with a method `M1`, and similarly for `M2`.
+If we take the intersection of those two type sets, the result is the
+set of all types that declare both `M1` and `M2`.
+That is exactly the type set of `interface{ M1; M2 }`.
+
+The same applies to embedded interface types.
+For any two interface types `E1` and `E2`, the type set of `interface{
+E1; E2}` is the intersection of the type sets of `E1` and `E2`.
+
+Therefore, the type set of an interface type is the intersection of
+the type sets of the element of the interface.
+
+#### Type sets of constraints
+
+Now that we have described the type set of an interface type, we will
+redefine what it means to satisfy the constraint.
+Earlier we said that a type argument satisfies a constraint if it
+implements the constraint.
+Now we will say that a type argument satisfies a constraint if it is a
+member of the constraint's type set.
+
+For an ordinary interface type, one whose only elements are method
+signatures and embedded ordinary interface types, the meaning is
+exactly the same: the set of types that implement the interface type
+is exactly the set of types that are in its type set.
+
+We will now proceed to define additional elements that may appear in
+an interface type that is used as a constraint, and define how those
+additional elements can be used to further control the type set of the
+constraint.
+
+#### Constraint elements
+
+The elements of an ordinary interface type are method signatures and
+embedded interface types.
+We propose permitting three additional elements that may be used in an
+interface type used as a constraint.
+If any of these additional elements are used, the interface type may
+not be used as an ordinary type, but may only be used as a constraint.
+
+##### Arbitrary type constraint element
+
+The first new element is to simply permit listing any type, not just
+an interface type.
+For example: `type Integer interface{ int }`.
+When a non-interface type `T` is listed as an element of a constraint,
+its type set is simply `{T}`.
+The type set of `int` is `{int}`.
+Since the type set of a constraint is the intersection of the type
+sets of all elements, the type set of `Integer` is also `{int}`.
+This constraint `Integer` can be satisfied by any type that is a
+member of the set `{int}`.
+There is exactly one such type: `int`.
+
+The type may be a type literal that refers to a type parameter (or
+more than one), but it may not be a plain type parameter.
 
 ```
-// SignedInteger is a type constraint that permits any
-// signed integer type.
-type SignedInteger interface {
-	type int, int8, int16, int32, int64
+// EmbeddedParameter is INVALID.
+type EmbeddedParameter[T any] interface {
+	T // INVALID: may not list a plain type parameter
 }
 ```
 
-The `SignedInteger` constraint specifies that the type argument
-must be one of the listed types.
-More precisely, either the type argument or the underlying type of the
-type argument must be identical to one of the types in the type list.
-This means that `SignedInteger` will accept the listed integer types,
-and will also accept any type that is defined as one of those types.
+##### Approximation constraint element
 
-When a generic function uses a type parameter with one of these
-constraints, it may use it in any way that is permitted by all of the
-listed types.
-This could mean operators like `<`, `<-`, or use in a `range` loop, or
-in general any language construct.
-If the function can be compiled successfully using each type listed in
-the constraint, then the use is permitted.
+Listing a single type is useless by itself.
+For constraint satisfaction, we want to be able to say not just `int`,
+but "any type whose underlying type is `int`".
+Consider the `Smallest` example above.
+We want it to work not just for slices of the predeclared ordered
+types, but also for types defined by a program.
+If a program uses `type MyString string`, the program can use the `<`
+operator with values of type `MyString.
+It should be possible to instantiate `Smallest` with the type
+`MyString`.
 
-A constraint may only have one type list.
+To support this, the second new element we permit in a constraint is a
+new syntactic construct: an approximation element, written as `~T`.
+The type set of `~T` is the set of all types whose underlying type is
+`T`.
+
+For example: `type AnyString interface{ ~string }`.
+The type set of `~string`, and therefore the type set of `AnyString`,
+is the set of all types whose underlying type is `string`.
+That includes the type `MyString`; `MyString` used as a type argument
+will satisfy the constraint `AnyString`.
+
+This new `~T` syntax will be the first use of `~` as a token in Go.
+
+Since `~T` means the set of all types whose underlying type is `T`, it
+will be an error to use `~T` with a type `T` whose underlying type is
+not itself.
+Types whose underlying types are themselves are:
+
+1. Type literals, such as `[]byte` or `struct{ f int }`.
+2. Most predeclared types, such as `int` or `string` (but not
+   `error`).
+
+Using `~T` is not permitted if `T` is a type parameter or if `T` is an
+interface type.
+
+```
+type MyString string
+
+// AnyString matches any type whose underlying type is string.
+// This includes, among others, the type string itself, and
+// the type MyString.
+type AnyString interface {
+	~string
+}
+
+// ApproximateMyString is INVALID.
+type ApproximateMyString interface {
+	~MyString // INVALID: underlying type of MyString is not MyString
+}
+
+// ApproximateParameter is INVALID.
+type ApproximateParameter[T any] interface {
+	~T // INVALID: T is a type parameter
+}
+```
+
+##### Union constraint element
+
+The third new element we permit in a constraint is also a new
+syntactic construct: a union element, written as a series of
+constraint elements separated by vertical bars (`|`).
+For example: `int | float32` or `~int8 | ~int16 | ~int32 | ~int64`.
+The type set of a union element is the union of the type sets of each
+element in the sequence.
+The elements listed in a union must all be different.
+For example:
+
+```
+// PredeclaredSignedInteger is a constraint that matches the
+// five predeclared signed integer types.
+type PredeclaredSignedInteger interface {
+	int | int8 | int16 | int32 | int64
+}
+```
+
+The type set of this union element is the set `{int, int8, int16,
+int32, int64}`.
+Since the union is the only element of `PredeclaredSignedInteger`,
+that is also the type set of `PredeclaredSignedInteger`.
+This constraint can be satisfied by any of those five types.
+
+Here is an example using approximation elements:
+
+```
+// SignedInteger is a constraint that matches any signed integer type.
+type SignedInteger interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+```
+
+The type set of this constraint is the set of all types whose
+underlying type is one of `int`, `int8`, `int16`, `int32`, or
+`int64`.
+Any of those types will satisfy this constraint.
+
+The new constraint element syntax is
+
+```
+InterfaceType  = "interface" "{" {(MethodSpec | InterfaceTypeName | ConstraintElem) ";" } "}" .
+ConstraintElem = ConstraintTerm { "|" ConstraintTerm } .
+ConstraintTerm = ["~"] Type .
+```
+
+#### Operations based on type sets
+
+The purpose of type sets is to permit generic functions to use
+operators, such as `<`, with values whose type is a type parameter.
+
+The rule is that a generic function may use a value whose type is a
+type parameter in any way that is permitted by every member of the
+type set of the parameter's constraint.
+This applies to operators like '<' or '+' or other general operators.
+For special purpose operators like `range` loops, we permit their use
+of the type parameter has a structural constraint, as [defined
+later](#Constraint-type-inference); the definition here is basically
+that the constraint has a single underlying type.
+If the function can be compiled successfully using each type in the
+constraint's type set, or when applicable using the structural type,
+then the use is permitted.
 
 For the `Smallest` example shown earlier, we could use a constraint
 like this:
@@ -696,10 +903,10 @@ package constraints
 // Ordered is a type constraint that matches any ordered type.
 // An ordered type is one that supports the <, <=, >, and >= operators.
 type Ordered interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64,
-		string
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 |
+		~string
 }
 ```
 
@@ -735,9 +942,10 @@ that accepts any comparable type.
 
 To do this we introduce a new predeclared type constraint:
 `comparable`.
-A type parameter with the `comparable` constraint accepts as a type
-argument any comparable type.
-It permits the use of `==` and `!=` with values of that type parameter.
+The type set of the `comparable` constraint is the set of all
+comparable types.
+This permits the use of `==` and `!=` with values of that type
+parameter.
 
 For example, this function may be instantiated with any comparable
 type:
@@ -756,8 +964,8 @@ func Index[T comparable](s []T, x T) int {
 }
 ```
 
-Since `comparable`, like all constraints, is an interface type, it can
-be embedded in another interface type used as a constraint:
+Since `comparable` is a constraint, it can be embedded in another
+interface type used as a constraint.
 
 ```
 // ComparableHasher is a type constraint that matches all
@@ -775,45 +983,16 @@ compare values of that type and can call the `Hash` method.
 
 It's possible to use `comparable` to produce a constraint that can not
 be satisfied by any type.
+See also the [discussion of empty type sets below](#Empty-type-sets).
 
 ```
 // ImpossibleConstraint is a type constraint that no type can satisfy,
 // because slice types are not comparable.
 type ImpossibleConstraint interface {
 	comparable
-	type []int
+	[]int
 }
 ```
-
-This is not in itself an error, but of course there is no way to
-instantiate a type parameter that uses such a constraint.
-
-#### Type lists in interface types
-
-Interface types with type lists may only be used as constraints on
-type parameters.
-They may not be used as ordinary interface types.
-The same is true of the predeclared interface type `comparable`.
-
-This restriction may be lifted in future language versions.
-An interface type with a type list may be useful as a form of sum
-type, albeit one that can have the value `nil`.
-
-A type argument satisfies a type constraint with a type list if the
-type argument or its underlying type is present in that type list.
-If in some future language version we permit interface types with type
-lists outside of type constraints, this rule will make them usable
-both as type constraints and as sum types.
-Using a list of defined types would mean that only those exact types
-would implement the interface, which is to say that only those exact
-types could be assigned to the sum type.
-Using a list of predeclared types and/or type literals would mean that
-any type defined as one of those types would implement the interface
-or be assignable to the sum type.
-There would be no way to write a sum type to accept only a predeclared
-type or type literal and reject types defined as those types.
-That restriction is likely acceptable for the cases where people want
-to use sum types.
 
 ### Mutually referencing type parameters
 
@@ -1111,6 +1290,9 @@ way](https://golang.org/ref/spec#Constants).
 Then we unify the remaining types again, this time with no untyped
 constants.
 
+When constraint type inference is possible, as described below, it is
+applied between the two passes.
+
 In this example
 
 ```
@@ -1201,18 +1383,23 @@ function wants to apply a constraint to a type that is based on some
 other type parameter.
 
 Constraint type inference can only infer types if some type parameter
-has a constraint that has a type list with exactly one type in it.
-We call such a constraint a _structural constraint_, as the type list
-describes the structure of the type parameter.
-A structural constraint may also have methods in addition to the type
-list, but the methods are ignored by constraint type inference.
-For constraint type inference to be useful, the constraint type will
-normally refer to one or more type parameters.
+has a constraint that has a type set with exactly one type in it, or a
+type set for which the underlying type of every type in the type set
+is the same type.
+The two cases are slightly different, as in the first case, in which
+the type set has exactly one type, the single type need not be its own
+underlying type.
+Either way, the single type is called a _structural type_, and the
+constraint is called a _structural constraint_.
+The structural type describes the required structure of the type
+parameter.
+A structural constraint may also define methods, but the methods are
+ignored by constraint type inference.
+For constraint type inference to be useful, the structural type will
+normally be defined using one or more type parameters.
 
-Constraint type inference is applied after function argument type
-inference.
-It is only tried if there is at least one type parameter whose type
-argument is not yet known.
+Constraint type inference is only tried if there is at least one type
+parameter whose type argument is not yet known.
 
 While the algorithm we describe here may seem complex, for typical
 concrete examples it is straightforward to see what constraint type
@@ -1224,7 +1411,7 @@ We initialize the mapping with all type parameters whose type
 arguments are already known, if any.
 
 For each type parameter with a structural constraint, we unify the
-type parameter with the single type in the constraint's type list.
+type parameter with the structural type.
 This will have the effect of associating the type parameter with its
 constraint.
 We add the result into the mapping we are maintaining.
@@ -1248,6 +1435,17 @@ Anywhere that `T` appears in a type argument in the mapping, we
 replace `T` with `A`.
 We repeat this process until we have replaced every type parameter.
 
+When constraint type inference is possible, type inference proceeds as
+followed:
+
+* Build the mapping using known type arguments.
+* Apply constraint type inference.
+* Apply function type inference using typed arguments.
+* Apply constraint type inference again.
+* Apply function type inference using the default types of any
+  remainint untyped arguments.
+* Apply constraint type inference again.
+
 ##### Element constraint example
 
 For an example of where constraint type inference is useful, let's
@@ -1255,9 +1453,9 @@ consider a function that takes a defined type that is a slice of
 numbers, and returns an instance of that same defined type in which
 each number is doubled.
 
-Using type lists, it's easy to write a function similar to this if we
-ignore the [defined
-type](https://golang.org/ref/spec#Type_definitions) requirement.
+It's easy to write a function similar to this if we ignore the
+[defined type](https://golang.org/ref/spec#Type_definitions)
+requirement.
 
 ```
 // Double returns a new slice that contains all the elements of s, doubled.
@@ -1288,7 +1486,7 @@ We can do what we want by introducing a new type parameter.
 ```
 // SC constraints a type to be a slice of some type E.
 type SC[E any] interface {
-	type []E
+	[]E // non-interface type constraint element
 }
 
 // DoubleDefined returns a new slice that contains the elements of s,
@@ -1337,7 +1535,7 @@ We create a mapping of known type arguments:
 ```
 
 We then unify each type parameter with a structural constraint with
-the single type listed by that constraint.
+the single type in that constraint's type set.
 In this case the structural constraint is `SC[E]` which has the single
 type `[]E`, so we unify `S` with `[]E`.
 Since we already have a mapping for `S`, we then unify `[]E` with
@@ -1453,7 +1651,7 @@ What we can do is pass both types.
 // and also requires that the type be a pointer to its type parameter.
 type Setter2[B any] interface {
 	Set(string)
-	type *B
+	*B // non-interface type constraint element
 }
 
 // FromStrings2 takes a slice of strings and returns a slice of T,
@@ -1465,7 +1663,7 @@ type Setter2[B any] interface {
 func FromStrings2[T any, PT Setter2[T]](s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
-		// The type of &result[i] is *T which is in the type list
+		// The type of &result[i] is *T which is in the type set
 		// of Setter2, so we can convert it to PT.
 		p := PT(&result[i])
 		// PT has a Set method.
@@ -1545,7 +1743,7 @@ type arguments are determined.
 
 In the `FromStrings2` example above, we were able to deduce the type
 argument for `PT` based on the `Setter2` constraint.
-But in doing so we only looked at the type list, we didn't look at the
+But in doing so we only looked at the type set, we didn't look at the
 methods.
 We still have to verify that the method is there, satisfying the
 constraint, even if constraint type inference succeeds.
@@ -1691,34 +1889,49 @@ unexpected memory allocations will occur.
 The type `Pair[int, string]` is convertible to `struct { first int;
 second string }`.
 
-### More on type lists
+### More on type sets
 
-Let's return now to type lists to cover some less important details
+Let's return now to type sets to cover some less important details
 that are still worth noting.
 These are not additional rules or concepts, but are consequences of
-how type lists work.
+how type sets work.
 
-#### Both type lists and methods in constraints
+#### Both elements and methods in constraints
 
-As seen earlier for `Setter2`, a constraint may use both type lists
-and methods.
+As seen earlier for `Setter2`, a constraint may use both constraint
+elements and methods.
 
 ```
 // StringableSignedInteger is a type constraint that matches any
 // type that is both 1) defined as a signed integer type;
 // 2) has a String method.
 type StringableSignedInteger interface {
-	type int, int8, int16, int32, int64
+	~int | ~int8 | ~int16 | ~int32| ~int64
 	String() string
 }
 ```
 
-This constraint permits any type whose underlying type is one of the
-listed types, provided it also has a `String() string` method.
-It's worth noting that although the `StringableSignedInteger`
-constraint explicitly lists `int`, the type `int` will not itself be
-permitted as a type argument, since `int` does not have a `String`
-method.
+The rules for type sets define what this means.
+The type set of the union element is the set of all types whose
+underlying type is one of the predeclared signed integer types.
+The type set of `String() string` is the set of all types that define
+that method.
+The type set of `StringableSignedInteger` is the intersection of those
+two type sets.
+The result is the set of all types whose underlying type is one of the
+predeclared signed integer types and that defines the method `String()
+string`.
+A function that uses a parameterized type `P` that uses
+`StringableSignedInteger` as a constraint may use the operations
+permitted for any integer type (`+`, `*`, and so forth) on a value of
+type `P`.
+It may also call the `String` method on a value of type `P` to get
+back a `string`.
+
+It's worth noting that the `~` is essential here.
+The `StringableSignedInteger` constraint uses `~int`, not `int`.
+The type `int` would not itself be permitted as a type argument, since
+`int` does not have a `String` method.
 An example of a type argument that would be permitted is `MyInt`,
 defined as:
 
@@ -1732,87 +1945,20 @@ func (mi MyInt) String() string {
 }
 ```
 
-#### Types with methods in type lists
-
-Using a type list permits a generic function to use an operation that
-is permitted by all the types in the type list.
-However, that does not apply to methods.
-Even if every type in the type list supports the same method with the
-same signature, the generic function may not call that method.
-It may only call methods that are explicitly listed in the constraint,
-as explained in the previous section.
-
-Here is an example of types with the same method.
-This example is invalid.
-Even though both `MyInt` and `MyFloat` have a `String` method, the
-`ToString` function is not permitted to call that method.
-
-```
-// MyInt has a String method.
-type MyInt int
-
-func (i MyInt) String() string {
-	return strconv.Itoa(int(i))
-}
-
-// MyFloat also has a String method.
-type MyFloat float64
-
-func (f MyFloat) String() string {
-	return strconv.FormatFloat(float64(f), 'g', -1, 64)
-}
-
-// MyIntOrFloat is a type constraint that accepts MyInt or MyFloat.
-type MyIntOrFloat interface {
-	type MyInt, MyFloat
-}
-
-// ToString converts a value to a string.
-// This function is INVALID.
-func ToString[T MyIntOrFloat](v T) string {
-	return v.String() // INVALID
-}
-```
-
-To permit the `String` method to be called, it must be explicitly
-listed in the constraint.
-
-```
-// MyIntOrFloatStringer accepts MyInt or MyFloat, and defines a String
-// method. Note that both MyInt and MyFloat have a String method.
-// If either did not have a String method, they would not satisfy the
-// constraint even though the type list lists them. To satisfy a
-// constraint a type must both match the type list (if any) and
-// implement all the methods (if any).
-type MyIntOrFloatStringer interface {
-	type MyInt, MyFloat
-	String() string
-}
-
-// ToString2 convers a value to a string.
-func ToString2[T MyIntOrFloatStringer](v T) string {
-	return v.String()
-}
-```
-
-The reason for this rule is to simplify complex cases involving
-embedded type parameters in which it may not be immediately clear
-whether the type has a particular method or not.
-
 #### Composite types in constraints
 
-A type in a constraint may be a type literal.
+As we've seen in some earlier examples, a constraint element may be a
+type literal.
 
 ```
 type byteseq interface {
-	type string, []byte
+	string | []byte
 }
 ```
 
 The usual rules apply: the type argument for this constraint may be
-`string` or `[]byte` or a type defined as one of those types; a
-generic function with this constraint may use any operation permitted
-by both `string` and `[]byte`.
+`string` or `[]byte`; a generic function with this constraint may use
+any operation permitted by both `string` and `[]byte`.
 
 The `byteseq` constraint permits writing generic functions that work
 for either `string` or `[]byte` types.
@@ -1858,33 +2004,33 @@ func Join[T byteseq](a []T, sep T) (ret T) {
 For composite types (string, pointer, array, slice, struct, function,
 map, channel) we impose an additional restriction: an operation may
 only be used if the operator accepts identical input types (if any)
-and produces identical result types for all of the types listed in the
-type list.
+and produces identical result types for all of the types in the type
+set.
 To be clear, this additional restriction is only imposed when a
-composite type appears in a type list.
+composite type appears in a type set.
 It does not apply when a composite type is formed from a type
-parameter outside of a type list, as in `var v []T` for some type
+parameter outside of a type set, as in `var v []T` for some type
 parameter `T`.
 
 ```
-// structField is a type constraint with a list of structs that all
-// have a field named x.
+// structField is a type constraint whose type set consists of some
+// struct types that all have a field named x.
 type structField interface {
-	type struct { a int; x int },
-		struct { b int; x float64 },
+	struct { a int; x int } |
+		struct { b int; x float64 } |
 		struct { c int; x uint64 }
 }
 
 // This function is INVALID.
 func IncrementX[T structField](p *T) {
-	v := p.x // INVALID: type of p.x is not the same for all types in list
+	v := p.x // INVALID: type of p.x is not the same for all types in set
 	v++
 	p.x = v
 }
 
 // sliceOrMap is a type constraint for a slice or a map.
 type sliceOrMap interface {
-	type []int, map[int]int
+	[]int | map[int]int
 }
 
 // Entry returns the i'th entry in a slice or the value of a map
@@ -1897,7 +2043,7 @@ func Entry[T sliceOrMap](c T, i int) int {
 
 // sliceOrFloatMap is a type constraint for a slice or a map.
 type sliceOrFloatMap interface {
-	type []int, map[float64]int
+	[]int | map[float64]int
 }
 
 // This function is INVALID.
@@ -1911,27 +2057,26 @@ func FloatEntry[T sliceOrFloatMap](c T) int {
 
 Imposing this restriction makes it easier to reason about the type of
 some operation in a generic function.
-It avoids introducing the notion of a value whose type is the union of
-a set of types found by applying some operation to each element of a
-type list.
+It avoids introducing the notion of a value with a constructed type
+set based on applying some operation to each element of a type set.
 
 (Note: with more understanding of how people want to write code, it
 may be possible to relax this restriction in the future.)
 
-#### Type parameters in type lists
+#### Type parameters in type sets
 
-A type literal in a constraint can refer to type parameters of the
-constraint.
+A type literal in a constraint element can refer to type parameters of
+the constraint.
 In this example, the generic function `Map` takes two type parameters.
 The first type parameter is required to have an underlying type that
 is a slice of the second type parameter.
-There are no constraints on the second slice parameter.
+There are no constraints on the second type parameter.
 
 ```
 // SliceConstraint is a type constraint that matches a slice of
 // the type parameter.
 type SliceConstraint[T any] interface {
-	type []T
+	[]T
 }
 
 // Map takes a slice of some element type and a transformation function,
@@ -1965,22 +2110,20 @@ We showed other examples of this earlier in the discussion of
 #### Type conversions
 
 In a function with two type parameters `From` and `To`, a value of
-type `From` may be converted to a value of type `To` if all the
-types accepted by `From`'s constraint can be converted to all the
-types accepted by `To`'s constraint.
-If either type parameter does not have a type list, type conversions
-are not permitted.
+type `From` may be converted to a value of type `To` if all the types
+in the type set of `From`'s constraint can be converted to all the
+types in the type set of `To`'s constraint.
 
 This is a consequence of the general rule that a generic function may
 use any operation that is permitted by all types listed in the type
-list.
+set.
 
 For example:
 
 ```
 type integer interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
 
 func Convert[To, From integer](from From) To {
@@ -1999,17 +2142,17 @@ every integer type to be converted to every other integer type.
 
 Some functions use untyped constants.
 An untyped constant is permitted with a value of a type parameter if
-it is permitted with every type accepted by the type parameter's
-constraint.
+it is permitted with every type in the type set of the type
+parameter's constraint.
 
 As with type conversions, this is a consequence of the general rule
 that a generic function may use any operation that is permitted by all
-types listed in the type list.
+types in the type set.
 
 ```
 type integer interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
 
 func Add10[T integer](s []T) {
@@ -2026,38 +2169,122 @@ func Add1024[T integer](s []T) {
 }
 ```
 
-#### Type lists in embedded constraints
+#### Type sets of embedded constraints
 
-When a constraint embeds another constraint, the type list of the
-final constraint is the intersection of all the type lists involved.
+When a constraint embeds another constraint, the type set of the
+outer constraint is the intersection of all the type sets involved.
 If there are multiple embedded types, intersection preserves the
-property that any  type argument must satisfy the requirements of all
-embedded types.
+property that any type argument must satisfy the requirements of all
+constraint elements.
 
 ```
 // Addable is types that support the + operator.
 type Addable interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64, complex64, complex128,
-		string
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 | ~complex64 | ~complex128 |
+		~string
 }
 
 // Byteseq is a byte sequence: either string or []byte.
 type Byteseq interface {
-	type string, []byte
+	~string | ~[]byte
 }
 
 // AddableByteseq is a byte sequence that supports +.
-// This is every type is that is both Addable and Byteseq.
-// In other words, just the type string.
+// This is every type that is both Addable and Byteseq.
+// In other words, just the type set ~string.
 type AddableByteseq interface {
 	Addable
 	Byteseq
 }
 ```
 
-#### General notes on type lists
+An embedded constraint may appear in a union element.
+The type set of the union is, as usual, the union of the type sets of
+the elements listed in the union.
+
+```
+// Signed is a constraint with a type set of all signed integer
+// types.
+type Signed interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+
+// Unsigned is a constraint with a type set of all unsigned integer
+// types.
+type Unsigned interface {
+	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+}
+
+// Integer is a constraint with a type set of all integer types.
+type Integer interface {
+	Signed | Unsigned
+}
+```
+
+#### Interface types in union elements
+
+We've said that the type set of a union element is the union of the
+type sets of all types in the union.
+For most types `T` the type set of `T` is simply `T` itself.
+For interface types (and approximation elements), however, that is not
+the case.
+
+The type set of an interface type that does not embed a non-interface
+element is, as we said earlier, the set of all types that declare all
+the methods of the interface, including the interface type itself.
+Using such an interface type in a union element will add that type set
+to the union.
+
+```
+type Stringish interface {
+	string | fmt.Stringer
+}
+```
+
+The type set of `Stringish` is the type `string` and all types that
+implement `fmt.Stringer`.
+Any of those types (including `fmt.Stringer` itself) will be permitted
+as a type argument for this constraint.
+No operations will be permitted for a value of a type parameter that
+uses `Stringish` as a constraint (other than operations supported by
+all types).
+This is because `fmt.Stringer` is in the type set of `Stringish`, and
+`fmt.Stringer`, an interface type, does not support any type-specific
+operations.
+The operations permitted by `Stringish` are those operations supported
+by all the types in the type set, including `fmt.Stringer`, so in this
+case there are no operations other than those supported by all types.
+A parameterized function that uses this constraint will have to use
+type assertions or reflection in order to use the values.
+Still, this may be useful in some cases for stronger static type
+checking.
+The main point is that it follows directly from the definition of type
+sets and constraint satisfaction.
+
+#### Empty type sets
+
+It is possible to write a constraint with an empty type set.
+There is no type argument that will satisfy such a constraint,
+so any attempt to instantiate a function that uses constraint with an
+empty type set will fail.
+It is not possible in general for the compiler to detect all such
+cases.
+Probably the vet tool should give an error for cases that it is able
+to detect.
+
+```
+// Unsatisfiable is an unsatisfiable constraint with an empty type set.
+// No predeclared types have any methods.
+// If this used ~int | ~float32 the type set would not be empty.
+type Unsatisfiable interface {
+	int | float32
+	String() string
+}
+```
+
+#### General notes on type sets
 
 It may seem awkward to explicitly list types in a constraint, but it
 is clear both as to which type arguments are permitted at the call
@@ -2075,7 +2302,7 @@ this approach will continue to be useful.
 This approach does not attempt to handle every possible operator.
 The expectation is that composite types will normally be handled using
 composite types in generic function and type declarations, rather than
-putting composite types in a type list.
+putting composite types in a type set.
 For example, we expect functions that want to index into a slice to be
 parameterized on the slice element type `T`, and to use parameters or
 variables of type `[]T`.
@@ -2152,7 +2379,7 @@ We believe that the increased complexity is small for people reading
 well written generic code, rather than writing it.
 Naturally people must learn the new syntax for declaring type
 parameters.
-This new syntax, and the new support for type lists in interfaces, are
+This new syntax, and the new support for type sets in interfaces, are
 the only new syntactic constructs in this design.
 The code within a generic function reads like ordinary Go code, as can
 be seen in the examples below.
@@ -2353,7 +2580,7 @@ deciding what, if anything, to do here.
 ##### Identifying the matched predeclared type
 
 The design doesn't provide any way to test the underlying type matched
-by a type argument.
+by a `~T` constraint element.
 Code can test the actual type argument through the somewhat awkward
 approach of converting to an empty interface type and using a type
 assertion or a type switch.
@@ -2364,7 +2591,7 @@ Here is an example that shows the difference.
 
 ```
 type Float interface {
-	type float32, float64
+	~float32 | ~float64
 }
 
 func NewtonSqrt[T Float](v T) T {
@@ -2389,14 +2616,13 @@ This code will panic when initializing `G`, because the type of `v` in
 the `NewtonSqrt` function will be `MyFloat`, not `float32` or
 `float64`.
 What this function actually wants to test is not the type of `v`, but
-the type that `v` matched in the constraint.
+the approximate type that `v` matched in the constraint's type set.
 
-One way to handle this would be to permit type switches on the type
-`T`, with the proviso that the type `T` would always match a type
-defined in the constraint.
-This kind of type switch would only be permitted if the constraint
-lists explicit types, and only types listed in the constraint would be
-permitted as cases.
+One way to handle this would be to permit writing approximate types in
+a type switch, as in `case ~float32:`.
+Such a case would match any type whose underlying type is `float32`.
+This would be meaningful, and potentially useful, even in type
+switches outside of generic functions.
 
 ##### No way to express convertibility
 
@@ -2423,9 +2649,9 @@ func Copy[T1, T2 any](dst []T1, src []T2) int {
 The conversion from type `T2` to type `T1` is invalid, as there is no
 constraint on either type that permits the conversion.
 Worse, there is no way to write such a constraint in general.
-In the particular case where both `T1` and `T2` can require some type
-list, then this function can be written as described earlier when
-discussing [type conversions using type lists](#Type-conversions).
+In the particular case where both `T1` and `T2` have limited type sets
+this function can be written as described earlier when discussing
+[type conversions using type sets](#Type-conversions).
 But, for example, there is no way to write a constraint for the case
 in which `T1` is an interface type and `T2` is a type that implements
 that interface.
@@ -2627,8 +2853,7 @@ The ideas are presented in the form of a FAQ.
 
 An earlier draft design of generics implemented constraints using a
 new language construct called contracts.
-Type lists appeared only in contracts, rather than on interface
-types.
+Type sets appeared only in contracts, rather than on interface types.
 However, many people had a hard time understanding the difference
 between contracts and interface types.
 It also turned out that contracts could be represented as a set of
@@ -2636,9 +2861,9 @@ corresponding interfaces; there was no loss in expressive power
 without contracts.
 We decided to simplify the approach to use only interface types.
 
-##### Why not use methods instead of type lists?
+##### Why not use methods instead of type sets?
 
-_Type lists are weird._
+_Type sets are weird._
 _Why not write methods for all operators?_
 
 It is possible to permit operator tokens as method names, leading to
@@ -2661,7 +2886,7 @@ generic function can also use `<=`, and similarly whether support for
 It might be possible to make this approach work but it's not
 straightforward.
 The approach used in this design seems simpler and relies on only one
-new syntactic construct (type lists) and one new name (`comparable`).
+new syntactic construct (type sets) and one new name (`comparable`).
 
 ##### Why not put type parameters on packages?
 
@@ -2705,7 +2930,7 @@ generics.
 An earlier version of this design used that syntax.
 It was workable but it introduced several parsing ambiguities.
 For example, when writing `var f func(x(T))` it wasn't clear whether
-this the type was a function with a single unnamed parameter of the
+the type was a function with a single unnamed parameter of the
 instantiated type `x(T)` or whether it was a function with a parameter
 named `x` with type `(T)` (more usually written as `func(x T)`, but in
 this case with a parenthesized type).
@@ -2732,7 +2957,7 @@ non-ASCII.
 
 ##### Why not define constraints in a builtin package?
 
-_Instead of writing out type lists, use names like_
+_Instead of writing out type sets, use names like_
 _`constraints.Arithmetic` and `constraints.Comparable`._
 
 Listing all the possible combinations of types gets rather lengthy.
@@ -2760,10 +2985,10 @@ We removed this facility because it is always possible to convert a
 value of any type to the empty interface type, and then use a type
 assertion or type switch on that.
 Also, it was sometimes confusing that in a constraint with a type
-list, a type assertion or type switch would use the actual type
-argument, not the underlying type of the type argument (the difference
-is explained in the section on [identifying the matched predeclared
-type](#Identifying-the-matched-predeclared-type)).
+set that uses approximation elements, a type assertion or type switch
+would use the actual type argument, not the underlying type of the
+type argument (the difference is explained in the section on
+[identifying the matched predeclared type](#Identifying-the-matched-predeclared-type)).
 
 #### Comparison with Java
 
@@ -2821,7 +3046,7 @@ Just as Go types can satisfy Go interfaces without an explicit
 declaration, in this design Go type arguments can satisfy a constraint
 without an explicit declaration.
 
-Where this design uses type lists, the Rust standard library defines
+Where this design uses type sets, the Rust standard library defines
 standard traits for operations like comparison.
 These standard traits are automatically implemented by Rust's
 primitive types, and can be implemented by user defined types as
@@ -3012,10 +3237,10 @@ With this design, we can add to the sort package as follows:
 // In practice this type constraint would likely be defined in
 // a standard library package.
 type Ordered interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64,
-		string
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 |
+		~string
 }
 
 // orderedSlice is an internal type that implements sort.Interface.
@@ -3614,10 +3839,10 @@ numeric type.
 // Numeric is a constraint that matches any numeric type.
 // It would likely be in a constraints package in the standard library.
 type Numeric interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64,
-		complex64, complex128
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 |
+		~complex64 | ~complex128
 }
 
 // DotProduct returns the dot product of two slices.
@@ -3655,10 +3880,10 @@ the methods can vary based on the kind of type being used.
 ```
 // NumericAbs matches numeric types with an Abs method.
 type NumericAbs[T any] interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64,
-		complex64, complex128
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 |
+		~complex64 | ~complex128
 	Abs() T
 }
 
@@ -3675,14 +3900,14 @@ We can define an `Abs` method appropriate for different numeric types.
 ```
 // OrderedNumeric matches numeric types that support the < operator.
 type OrderedNumeric interface {
-	type int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64, uintptr,
-		float32, float64
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64
 }
 
 // Complex matches the two complex types, which do not have a < operator.
 type Complex interface {
-	type complex64, complex128
+	~complex64 | ~complex128
 }
 
 // OrderedAbs is a helper type that defines an Abs method for
@@ -3923,6 +4148,57 @@ var S2a = Switch2[string]("a string")
 // S2b will be set to 1.
 var S2b = Switch2[int]("another string")
 ```
+
+### Method sets of constraint elements
+
+Much as the type set of an interface type is the intersection of the
+type sets of the elements of the interface, the method set of an
+interface type can be defined as the union of the method sets of the
+elements of the interface.
+In most cases, an embedded element will have no methods, and as such
+will not contribute any methods to the interface type.
+That said, for completeness, we'll note that the method set of `~T` is
+the method set of `T`.
+The method set of a union element is the intersection of the method
+sets of the elements of the union.
+These rules are implied by the definition of type sets, but they are
+not needed for understanding the behavior of constraints.
+
+### Permitting constraints as ordinary interface types
+
+This is a feature we are not suggesting now, but could consider for
+later versions of the language.
+
+We have proposed that constraints can embed some additional elements.
+With this proposal, any interface type that embeds anything other than
+an interface type can only be used as a constraint or as an embedded
+element in another constraint.
+A natural next step would be to permit using interface types that
+embed any type, or that embed these new elements, as an ordinary type,
+not just as a constraint.
+
+We are not proposing that now.
+But the rules for type sets and method sets above describe how they
+would behave.
+Any type that is an element of the type set could be assigned to such
+an interface type.
+A value of such an interface type would permit calling any member of
+the method set.
+
+This would permit a version of what other languages call sum types or
+union types.
+It would be a Go interface type to which only specific types could be
+assigned.
+Such an interface type could still take the value `nil`, of course, so
+it would not be quite the same as a typical sum type as found in other
+languages.
+
+Another natural next step would be to permit approximation elements
+and union elements in type switch cases.
+That would make it easier to determine the contents of an interface
+type that used those elements.
+That said, approximation elements and union elements are not types,
+and as such could not be used in type assertions.
 
 ### Type inference for composite literals
 
