@@ -22,7 +22,8 @@ a decision about whether to accept or decline the proposal.
 
 1. The proposal author [creates a brief issue](https://golang.org/issue/new) describing the proposal.\
    Note: There is no need for a design document at this point.\
-   Note: A non-proposal issue can be turned into a proposal by simply adding the proposal label.
+   Note: A non-proposal issue can be turned into a proposal by simply adding the proposal label.\
+   Note: [Language changes](#language-changes) should follow a separate [template](go2-language-changes.md)
 
 2. A discussion on the issue tracker aims to triage the proposal into one of three outcomes:
      - Accept proposal, or
@@ -90,8 +91,10 @@ As explained in the blog entry, language change proposals should
 - have minimal impact on everybody else, and
 - come with a clear and well-understood solution.
 
-(See the [release notes](https://golang.org/doc/devel/release.html) for
-examples of recent language changes.)
+Proposals should follow the [Go 2 template](go2-language-changes.md).
+See the [Go 2 review minutes](https://golang.org/issue/33892)
+and the [release notes](https://golang.org/doc/devel/release.html) for
+examples of recent language changes.
 
 ### Design Documents
 
