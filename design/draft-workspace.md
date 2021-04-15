@@ -21,24 +21,24 @@ These terms are used often in this document. The
 [Go Modules Reference](https://golang.org/ref/mod) and its
 [Glossary](https://golang.org/ref/mod#glossary) provide more detail.
 
-*   **_Main_ modules:** The module the user is working in. Before this
+*   ***Main*** **modules**: The module the user is working in. Before this
     proposal, this is the single module containing the directory where the `go`
     command is invoked. This module is used as the starting point when running
     MVS. This proposal proposes allowing multiple main modules.
-*   **_Module version_:** From the perspective of the go command, a module
+*   ***Module version***: From the perspective of the go command, a module
     version is a particular instance of a module. This can be a released version
     or pseudo version of a module, or a directory with a go.mod file.
-*   **_Build list_:** The _build list_ is the list of _module versions_ used for
+*   ***Build list***: The _build list_ is the list of _module versions_ used for
     a build command such as go build, go list, or go test. The build list is
     determined from the main module's go.mod file and go.mod files in
     transitively required modules using minimal version selection. The build
     list contains versions for all modules in the module graph, not just those
     relevant to a specific command.
-*   **_MVS_ or _Minimal Version Selection_**: The algorithm used to determine
+*   ***MVS*** **or** ***Minimal Version Selection***: The algorithm used to determine
     the versions of all modules that will be used in a build. See the
     [Minimal Version Selection](https://golang.org/ref/mod#minimal-version-selection)
     section in the Go Modules Reference for more information.
-*   **_mode_**: This document references module _mode_ and workspace _mode_. The
+*   ***mode***: This document references module _mode_ and workspace _mode_. The
     modes are the different ways the `go` command determines which modules and
     packages it's building and how dependencies are resolved. For example the
     `-mod=readonly` mode uses the versions of the modules listed in the `go.mod`
