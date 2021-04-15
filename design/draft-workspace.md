@@ -2,7 +2,7 @@
 
 Author(s): Michael Matloob
 
-Last updated: 2021-04-13
+Last updated: 2021-04-15
 
 Discussion at https://golang.org/issue/NNNNN.
 
@@ -127,9 +127,6 @@ env` variable `GOWORK`. When not in workspace mode, `GOWORK` will be `off`.
 
 ### The `go.work` file
 
-TODO(matloob) how much detail do we need here? can I just link to the modules
-reference for most if it?
-
 The following is an example of a valid `go.work` file:
 
 ```
@@ -203,7 +200,7 @@ replace (
 
 The `replace` directives in the `go.work` are applied in addition to and with
 higher precedence than `replaces` in the workspace modules. A `replace`
-directive in the `go.work` file will overrides replace directives in workspace
+directive in the `go.work` file overrides replace directives in workspace
 modules applying to the same module or module version. If two or more workspace
 modules replace the same module or module version with different module versions
 or directories, and there is not an overriding `replace` in the `go.work` file,
@@ -231,7 +228,8 @@ workspace, and the package's imports will be resolved according to the
 workspace's build list.
 
 The `all` pattern in workspace mode resolves to the union of `all` for over the
-set of workspace modules.
+set of workspace modules. `all` is the set of packages needed to build and test
+packages in the workspace modules.
 
 To construct the build list, each of the workspace modules are main modules and
 are selected by MVS and their `replace` and `exclude` directives will be
@@ -292,13 +290,6 @@ when working in those modules. One way to do this is to work in a top level
 module that transitively requires the others, if it exists, and replace the
 dependencies. But they then need to remember to not check in the replace and
 always need to run their go commands from that designated module.
-
-The issue of maintaining user-specific replaces in `go.mod` files was brought up
-in [Issue #26640](https://golang.org/issue/26640). It proposes an alternative
-`go.mod.local` file so that local changes to the go.mod file could be made
-adding replaces without needing to risk local changes being committed in
-`go.mod` itself. The `go.work` file provides users a place to put many of the
-local changes that would be put in teh proposed `go.mod.local` file.
 
 ##### Example
 
@@ -363,8 +354,6 @@ each user may have a different directory structure on their computer outside of
 that repository.
 
 ##### Example
-
-TODO(matloob): better example? This one doesn't show the scaling issue.
 
 As a simple example the `gopls` binary is in the module
 `golang.org/x/tools/gopls` which depends on other packages in the
@@ -568,18 +557,67 @@ completed in time because it will never be active in the release. We could also
 set the `-workfile` flag's default to `off` in the first version and change it
 to its automatic behavior later.
 
-## Open issues
+## Related issues
 
-TODO(matloob): How does this proposal intersect with issues #32394 and #44347?
-If this is filed as a proposal issue, be sure to mention them.
+### [#32394](https://golang.org/issue/32394) x/tools/gopls: support multi-module workspaces
+
+Issue [#32394](https://golang.org/issue/32394) is about `gopls`' support for
+multi-module workspaces. `gopls` currently allows users to provide a "workspace
+root" which is a directory it searches for `go.mod` files to build a supermodule
+from. Alternatively, users can create a `gopls.mod` file in their workspace root
+that `gopls` will use as its supermodule. This proposal creates a concept
+of a workspace that is similar to that `gopls` that is understood by the `go`
+command so that users can have a consistent configuration across their editor
+and direct invocations of the `go` command.
+
+### [#44347](https://golang.org/issue/44347) proposal: cmd/go: support local experiments with interdependent modules; then retire GOPATH
+
+Issue [#44347](https://golang.org/issue/44347) proposes adding a `GOTINKER`
+mode to the `go` command. Under the proposal, if `GOTINKER` is set to a
+directory, the `go` command will resolve import paths and  dependencies in
+modules by looking first in a `GOPATH`-structured tree under the `GOTINKER`
+directory before looking at the module cache. This would allow users who want
+to have a `GOPATH` like workflow to build a `GOPATH` at `GOTINKER`, but still
+resolve most of their dependencies (those not in the `GOTINKER` tree) using
+the standard module resolution system. It also provides for a multi-module
+workflow for users who put their modules under `GOTINKER` and work in those
+modules.
+
+This proposal also tries to provide some aspects of the `GOPATH` workflow and
+to help with multi-module workflows. A user could put the modules that they
+would put under `GOTINKER` in that proposal into their `go.work` files to get
+a similar experience to the one they'd get under the `GOTINKER` proposal. A
+major difference between the proposals is that in `GOTINKER` modules would be
+found by their paths under the `GOTINKER` tree instead of being explicitly
+listed in the `go.work` file. But both proposals provide for a set of replaced
+module directories that take precedence over the module versions that would
+normally be resolved by MVS, when working in any of those modules.
+
+### [#26640](https://golang.org/issue/26640) cmd/go: allow go.mod.local to contain replace/exclude lines
+
+The issue of maintaining user-specific replaces in `go.mod` files was brought up
+in [#26640](https://golang.org/issue/26640). It proposes an alternative
+`go.mod.local` file so that local changes to the go.mod file could be made
+adding replaces without needing to risk local changes being committed in
+`go.mod` itself. The `go.work` file provides users a place to put many of the
+local changes that would be put in teh proposed `go.mod.local` file.
+
+### [#39005](https://github.com/golang/go/issues/39005) proposal: cmd/go: introduce a build configurations file
+
+This issue proposes to add a mechanism to specify configurations for builds,
+such as build tags. This might be something that can be added in a future
+extension of `go.work` files.
+
+## Open issues
 
 ### `go.work.sum` files
 
-In the future we might want to add a `go.work.sum` file sitting alongside the
-`go.work` file because module loading may need to consider dependency modules
-that aren't in any of the workspace modules' `go.sum` files. This isn't strictly
-necessary for the first version of workspace support because workspace mode
-doesn't make the same guarantees about consistent builds as module mode.
+We might want to add a `go.work.sum` file, sitting alongside the `go.work` file
+because module loading may need to consider dependency modules that aren't in
+any of the workspace modules' `go.sum` files. This is more important for
+`go.work` files checked in alongside `go.mod` files. Even without a
+`go.work.sum`, the `go` command will still verify sums in the workspace modules'
+`go.sum` files.
 
 ### Clearing `replace`s
 
@@ -601,17 +639,12 @@ because the replacement is actually in a separate repo).
 
 `GOWORK` can't be set by users because we don't want there to be ambiguity about
 how to enter workspace mode, but an alternative could be to use an environment
-variable instead of the `-workfile` flag to allow users to change the location
-of the workspace file.
+variable instead of the `-workfile` flag to change the location of the workspace
+file. Note that with the proposal as is, `-workfile` may be set in `GOFLAGS`,
+and that may be persisted with `go env -w`. Developers won't need to type it out
+every time.
 
 ## Future work
-
-### Storing build tags and other configuration in `go.work` files
-
-There have been proposals such as
-[proposal: cmd/go: introduce a build configurations file](https://github.com/golang/go/issues/39005)
-files to provide build configuration. This might be something that can be added
-in a future extension of `go.work` files.
 
 ### Versioning and releasing dependent modules
 
