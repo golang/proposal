@@ -605,3 +605,13 @@ versioning and releasing modules so that new versions of dependent modules
 depend on new versions of the dependency modules. A tool built in the future can
 use the current workspace as well as the set of dependencies in the module graph
 to automate this work.
+
+### Pushing down dependencies from the build list back to the workspace modules
+
+Even though it's out of scope to update the dependencies between workspace
+modules because that requires a release, it might be useful to make dependency
+versions consistent. One idea could be to push the module versions of dependency
+modules back into the go.mod files of the dependency modules. But this could
+lead to confusion because while the dependency versions will be consistent, the
+dependencies between the workspace modules will still need to be updated
+separately.
