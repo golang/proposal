@@ -347,7 +347,7 @@ systems will not test that version requirements among the repository's modules
 are properly incremented to use changes in the modules.
 
 As a counterpoint to the above, most go.work files should exist outside of any
-repository: `go.work` files sholud only be used in repositories if they contain
+repository: `go.work` files should only be used in repositories if they contain
 multiple tightly-coupled modules. If a repository contains a single module, or
 unrelated modules, there's not much utility to adding a `go.work` file because
 each user may have a different directory structure on their computer outside of
@@ -403,6 +403,11 @@ alternate versions of dependencies that are commonly used. By making a workspace
 with the development versions of the dependencies and another adding the
 alternative versions of the dependencies with replaces, it's easy to switch
 between the three configurations.
+
+Users who want to test using a subset of the workspace modules can also easily
+comment out some of the directory directives in their workspace file instead of
+making separate workspace files with the appropriate subset of workspace
+modules, if that works better for their workflows.
 
 #### Workspaces in `gopls`
 
@@ -624,10 +629,9 @@ any of the workspace modules' `go.sum` files. This is more important for
 We might want to add a mechanism to ignore all replaces of a module or module
 version.
 
-For example one module in the workspace could have `replace example.com/foo * =>
+For example one module in the workspace could have `replace example.com/foo =>
 example.com/foo v0.3.4` because v0.4.0 would be selected otherwise and they
-think it's broken (and they used a wildcard instead of a specific version out of
-confusion or misguided simplicity). Another module in the workspace could have
+think it's broken. Another module in the workspace could have
 `require example.com/foo v0.5.0` which fixes the incompatibilities and also adds
 some features that are necessary.
 
@@ -671,3 +675,6 @@ workspaces' root dependencies is split among many files, and the same is true
 of the set of replaces. It may be helpful to add a command to list the effective
 set of root dependencies and replaces and which go.mod file each of them comes
 from.
+
+Perhaps there could be a command named `go mod workstatus` that gives an
+overview of the status of the modules in the workspace.
