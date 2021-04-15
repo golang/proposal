@@ -202,16 +202,16 @@ replace (
 ```
 
 The `replace` directives in the `go.work` are applied in addition to and with
-higher precedence than `replaces` in the workspac modules. A `replace` directive
-in the `go.work` file will overrides replace directives in workspace modules
-applying to the same module or module version. If two or more workspace modules
-replace the same module or module version with different module versions or
-directories, and there is not an overriding `replace` in the `go.work` file, the
-`go` command will report an error. The `go` command will report errors for
+higher precedence than `replaces` in the workspace modules. A `replace`
+directive in the `go.work` file will overrides replace directives in workspace
+modules applying to the same module or module version. If two or more workspace
+modules replace the same module or module version with different module versions
+or directories, and there is not an overriding `replace` in the `go.work` file,
+the `go` command will report an error. The `go` command will report errors for
 replacements of workspace modules that don't refer to the same directory as the
 workspace module. If any of those exist in a workspace module replacing another
 workspace module, the user will have to explicitly replace that workspace module
-with its
+with its path on disk.
 
 ### Semantics of workspace mode
 
