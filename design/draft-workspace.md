@@ -355,6 +355,13 @@ systems should be configured to test with `-workfile=off`. If not, the CI/CD
 systems will not test that version requirements among the repository's modules
 are properly incremented to use changes in the modules.
 
+As a counterpoint to the above, most go.work files should exist outside of any
+repository: `go.work` files sholud only be used in repositories if they contain
+multiple tightly-coupled modules. If a repository contains a single module, or
+unrelated modules, there's not much utility to adding a `go.work` file because
+each user may have a different directory structure on their computer outside of
+that repository.
+
 ##### Example
 
 TODO(matloob): better example? This one doesn't show the scaling issue.
@@ -426,7 +433,7 @@ and users could set any other value to turn off workspace mode. This removes the
 redundant knob that exists in this proposal where workspace mode is set
 independently of the `-mod` flag, but only `-mod=readonly` is allowed. The
 reason this alternative was adopted for this proposal is that it could be
-unintuitive and hard for for users to remember to set `-mod=readonly` to turn
+unintuitive and hard for users to remember to set `-mod=readonly` to turn
 workspace mode off. Users might think to set `-mod=mod` to turn workspace mode
 off even though they don't intend to modify their `go.mod` file.
 
@@ -435,7 +442,7 @@ workspace mode, but the existence of `vendor/module.txt` implies `-mod=vendor`.
 Separating the configurations makes it clear that the `go.work` file takes
 precedence.
 
-But regardless of the above it's useful to have a way to specify the path to a
+But regardless of the above, it's useful to have a way to specify the path to a
 different `go.work` file similar to the `-modfile` flag for the same reasons
 that `-modfile` exists. Given that `-workfile` exists it's natural to add a
 `-workfile=off` option to turn off workspace mode.
@@ -446,6 +453,14 @@ The configuration of multi-module workspaces is put in a file rather than being
 passed through an environment variable or flag because there are multiple
 parameters for configuration that would be difficult to put into a single flag
 or environment variable and unwieldy to put into multiple.
+
+The location of the `go.work` file determines the set of directories that are
+part of the workspace similar to the way the `go.mod` files determines the set
+of directories part of the module so that the scoping rules are familiar to
+go users who already use modules. `go.work` files allow users to operate in
+directories outside of any modules but still use the workspace build list.
+This makes it easy for users to have a `GOPATH`-like user experience by placing
+a `go.work` file in their home directory linking their modules together.
 
 Like the `go.mod` file, we want the format of the configuration for multi-module
 workspaces to be machine writable and human readable. Though there are other
@@ -615,3 +630,11 @@ modules back into the go.mod files of the dependency modules. But this could
 lead to confusion because while the dependency versions will be consistent, the
 dependencies between the workspace modules will still need to be updated
 separately.
+
+### Listing the module versions in the workspace
+
+While modules have a single file listing all their root dependencies, the set of
+workspaces' root dependencies is split among many files, and the same is true
+of the set of replaces. It may be helpful to add a command to list the effective
+set of root dependencies and replaces and which go.mod file each of them comes
+from.
