@@ -193,7 +193,7 @@ Example:
 
 ```
 replace (
-    golang.org/x/tools => ./tools
+    golang.org/x/tools => ../tools
     golang.org/x/mod v0.4.1  => example.com/mymod v0.5
 )
 ```
@@ -491,8 +491,11 @@ modules already have many `replace`s in them that are necessary to properly
 build them. Not respecting them would break users unnessesarily. `replace`
 directives exist in the workspace file to allow for resolving conflicts between
 `replace`s in workspace modules. Because all workspace modules exist as
-co-equals in the workspace, there is no other clear and intuitive way to resolve
-`replace` conflicts.
+co-equals in the workspace, there is no clear and intuitive way to resolve
+`replace` conflicts without explicit input from the user. One alternative is
+to add special syntax for overriding replaces to make the overriding behavior
+more explicit, and an additional option is to add an option to add syntax to
+nullify replaces without overriding them.
 
 Working in modules not listed in the workspace file is disallowed to avoid what
 could become a common source of confusion: if the `go` command stayed in
