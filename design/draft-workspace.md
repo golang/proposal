@@ -203,6 +203,10 @@ one `directory` directive. The `go` command may optionally edit the comments on
 the `directory` directive when doing any operation in workspace mode to add the
 module path from the directory's `go.mod` file.
 
+Note that the `directory` directive has no restriction on where the directory
+is located: module directories listed in `go.work` file can be located outside
+the directory the `go.work` file itself is in.
+
 Example:
 
 ```
@@ -459,6 +463,27 @@ The semantics of workspace mode are not quite the same as for a supermodule in
 general (for instance `...` and `all` have different meanings) but are the same
 or close enough for the cases that matter.
 
+#### A `GOPATH`-like setup
+
+While this proposal does not aim to completely recreate all `GOPATH` workflows,
+it can be used to create a setup that shares some aspects of the `GOPATH` setup:
+A user who is working with a set of modules in `GOPATH`, but in `GOPATH` mode
+so that all dependencies are resolved from the `GOPATH` tree can add a `go.work`
+file to the base of a `GOPATH` directory that lists all the modules in that
+`GOPATH` (and even those in other `GOPATH` directories, if their path has
+multiple elements). Then all their dependencies that are under that `GOPATH`
+directory will continue to be resolved from those locations.
+
+Of course there are caveats to this workflow: `GOPATH` packages that are not
+contained in a module can't be added to the workspace, and the `go.work` file
+needs to be manually maintained to add modules instead of walking a directory
+tree like `GOPATH` mode does. And opting into workspace mode piecemeal by adding
+modules one by one can be frustrating because the modules outside of the new
+workspace will require `-modfile` to be set to `off` or another `go.work` file
+that includes it. But even with these differences, used this way, `go.work` can
+recreate some of the convenience of `GOPATH` while still providing the benefits
+of modules.
+
 ### The `workfile` flag
 
 One alternative that was considered for disabling module mode would be to have
@@ -574,6 +599,25 @@ of Go, and the build list used by the workspace is different than that used in
 the module, vendoring is not as useful for workspaces as it is for individual
 modules.
 
+### `go.work.sum` files
+
+The `go` command will use the collective set of `go.sum` files that exist across
+the workspace modules to verify dependency modules, but there are cases where
+the `go.sum` files in the workspace modules collectively do not contain all sums
+needed to verify the build: The simpler case is if the workspace go.mod files
+themselves are incomplete, the `go` command will add missing sums to the
+workspace's `go.work.sum` file rather than to the module's `go.sum`. But even
+if all workspace `go.sum` files are complete, they may still not contain all
+necessary sums:
+
+> If the workspace includes modules `X` and `Y`, and `X` imports a package from
+> `example.com/foo@v1.0.0`, and `Y` has a transitive requirement on
+> `example.com/foo@v1.1.0` (but does not import any packages from it), then
+> `X/go.sum` will contain a checksum only for `v1.0.0/go.sum` and `v1.0.0`, and
+> `Y` will contain a checksum only for `v1.1.0/go.sum`. No individual module
+> will have a checksum for the source code for `v1.1.0`, because no module in
+> isolation actually uses that source code.
+
 ### Creating and editing `go.work` files
 
 The `go mod initwork` and `go mod editwork` subcommands are being added for the
@@ -669,15 +713,6 @@ extension of `go.work` files.
 
 ## Open issues
 
-### `go.work.sum` files
-
-We might want to add a `go.work.sum` file, sitting alongside the `go.work` file
-because module loading may need to consider dependency modules that aren't in
-any of the workspace modules' `go.sum` files. This is more important for
-`go.work` files checked in alongside `go.mod` files. Even without a
-`go.work.sum`, the `go` command will still verify sums in the workspace modules'
-`go.sum` files.
-
 ### Clearing `replace`s
 
 We might want to add a mechanism to ignore all replaces of a module or module
@@ -693,6 +728,18 @@ In that case, the user might just want to knock the replacements away, but they
 might not want to remove the existing replacements for policy reasons (or
 because the replacement is actually in a separate repo).
 
+### A rough edge with checked-in `go.work` files
+
+If a repository already has a checked in `go.work` file in the module root,
+this can create an inconvenience for developers who want to set up a different
+workspace. The `go.work` file will override any `go.work` file that exists
+outside the repo, and they will need to either work with their current directory
+outside the repo or pass `-workfile` to the `go` command. In either case it's an
+inconvenience. The hope is that `go.work` files are rarely checked into repos:
+checked in `go.work` files are only useful in multi-module repositories
+(otherwise they'd point to directories outside the repo or only contain
+replaces) and most repositories contain only a single module.
+
 ### Setting the `GOWORK` environment variable instead of `-workfile`
 
 `GOWORK` can't be set by users because we don't want there to be ambiguity about
@@ -701,6 +748,13 @@ variable instead of the `-workfile` flag to change the location of the workspace
 file. Note that with the proposal as is, `-workfile` may be set in `GOFLAGS`,
 and that may be persisted with `go env -w`. Developers won't need to type it out
 every time.
+
+### Patterns and Anti-Patterns
+
+If this proposal is accepted, before it is released the documentation should
+specify a set of patterns and anti-patterns and how to achieve certain workflows
+using workspaces. For instance, it should mention that single-module
+repositories should rarely contain `go.work` files.
 
 ## Future work
 
