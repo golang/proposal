@@ -4,7 +4,7 @@ Author(s): Michael Matloob
 
 Last updated: 2021-04-22
 
-Discussion at https://golang.org/issue/NNNNN.
+Discussion at https://golang.org/issue/45713.
 
 ## Abstract
 
@@ -134,8 +134,6 @@ will also ignore the workspace.
 | `list`         |  o     |  o         |
 | `build`        |  o     |  o         |
 | `test `        |  o     |  o         |
-
-
 
 If `-workfile` is set to `off`, workspace mode will
 be disabled. If it is `auto` (the default), workspace mode will be enabled if a
@@ -703,7 +701,7 @@ in [#26640](https://golang.org/issue/26640). It proposes an alternative
 `go.mod.local` file so that local changes to the go.mod file could be made
 adding replaces without needing to risk local changes being committed in
 `go.mod` itself. The `go.work` file provides users a place to put many of the
-local changes that would be put in teh proposed `go.mod.local` file.
+local changes that would be put in the proposed `go.mod.local` file.
 
 ### [#39005](https://github.com/golang/go/issues/39005) proposal: cmd/go: introduce a build configurations file
 
