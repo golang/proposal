@@ -2,7 +2,7 @@
 
 Author(s): Michael Matloob
 
-Last updated: 2021-04-15
+Last updated: 2021-04-22
 
 Discussion at https://golang.org/issue/NNNNN.
 
@@ -58,16 +58,17 @@ might have working versions at different location on disk, so having the
 directive in a file that needs to be distributed with the module isn't a good
 fit for all use cases.
 
-`gopls` offers users a convenient way to make changes across modules without
-needing to manipulate replacements. When multiple modules are opened in a
-`gopls` workspace, it synthesizes a single go.mod file, called a _supermodule_
-that pulls in each of the modules being worked on. The supermodule results in a
-single build list allowing the tooling to surface changes made in a dependency
-module to a dependent module. But this means that `gopls` is building with a
-different set of versions than an invocation of the `go` command from the
-command line, potentially producing different results. Users would have a better
-experience if they could create a configuration that could be used by `gopls` as
-well as their direct invocations of `cmd/go` and other tools. See the
+[`gopls`](https://golang.org/s/gopls) offers users a convenient way to make
+changes across modules without needing to manipulate replacements. When multiple
+modules are opened in a `gopls` workspace, it synthesizes a single go.mod file,
+called a _supermodule_ that pulls in each of the modules being worked on.
+The supermodule results in a single build list allowing the tooling to surface
+changes made in a dependency module to a dependent module. But this means that
+`gopls` is building with a different set of versions than an invocation of the
+`go` command from the command line, potentially producing different results.
+Users would have a better experience if they could create a configuration that
+could be used by `gopls` as well as their direct invocations of `cmd/go` and
+other tools. See the
 [Multi-project gopls workspaces](37720-gopls-workspaces.md) document and
 proposal issues [#37720](https://golang.org/issue/37720) and
 [#32394](https://golang.org/issue/32394).
@@ -104,7 +105,39 @@ tools for testing modules in different configurations.
 ### The `-workfile` flag
 
 The new `-workfile` flag will be accepted by module-aware build commands and
-most `go mod` subcommands. If `-workfile` is set to `off`, workspace mode will
+most `go mod` subcommands. The following is a table of which commands can
+operate in workspace mode and which can operate in module mode. Commands that
+can operate in workspace mode will accept `-workfile` and follow the workspace
+resolution steps below.
+
+`go mod download`, `go mod graph`, `go mod verify` and `go mod why` all have
+meanings based on the build list, so they will all work in workspace mode
+according to the build list.
+`go mod edit`, `go mod init` `go mod tidy` and `go mod vendor` only make sense
+in a single module context, so they will ignore the workspace.
+`go get` could make sense in workspace mode but not in all contexts, so it
+will also ignore the workspace.
+
+| Subcommand     | Module | Workspace  |
+|----------------|--------|------------|
+| `mod init`     |  o     |            |
+| `mod initwork` |        |  o         |
+| `mod download` |  o     |  o         |
+| `mod graph`    |  o     |  o         |
+| `mod verify`   |  o     |  o         |
+| `mod why`      |  o     |  o         |
+| `mod edit`     |  o     |            |
+| `mod tidy`     |  o     |            |
+|` mod vendor`   |  o     |            |
+| `get`          |  o     |            |
+| `install`      |  o     |            |
+| `list`         |  o     |  o         |
+| `build`        |  o     |  o         |
+| `test `        |  o     |  o         |
+
+
+
+If `-workfile` is set to `off`, workspace mode will
 be disabled. If it is `auto` (the default), workspace mode will be enabled if a
 file named `go.work` is found in the current directory (or any of its parent
 directories), and disabled otherwise. If `-workfile` names a path to an existing
@@ -179,8 +212,13 @@ directory (
 )
 ```
 
+Each directory listed (in this example `./tools` and `./mod`) refers to a single
+module: the module specified by the `go.mod` file in that directory. It does
+not refer to any other modules specified by `go.mod` files in subdirectories of
+that directory.
+
 The modules specified by `directory` directives in the `go.work` file are the
-_workspace modules_. The workpace modules will collectively be the main modules
+_workspace modules_. The workspace modules will collectively be the main modules
 when doing a build in workspace mode. These modules are always selected by MVS
 with the version `""`, and their `replace` and `exclude` directives are applied.
 
@@ -223,7 +261,7 @@ be declared with a `directory` directive in the `go.work` file. Because the
 build list is determined by the workspace rather than a `go.mod` file, outside
 of a module, the `go` command will proceed as normal to build any non-relative
 package paths or patterns. Outside of a module, a package composed of `.go`
-files listed on the comantd line resolves its imports according to the
+files listed on the command line resolves its imports according to the
 workspace, and the package's imports will be resolved according to the
 workspace's build list.
 
@@ -251,10 +289,12 @@ editwork`.
 `go mod initwork` will take as arguments a (potentially empty) list of
 directories it will use to write out a `go.work` file in the working directory
 with a `go` statement and a `directory` statement listing each of the
-directories.
+directories. `go mod initwork` will take an optional `-o` flag to specify a
+different output file path, which can be used to create workspace files for
+other configurations.
 
 `go mod editwork` will work similarly to `go mod edit` and take the following
-arguments:
+flags:
 
 *   `-fmt` will reformat the `go.work` file
 *   `-go=version` will set the file's `go` directive to `version`
@@ -264,7 +304,7 @@ arguments:
 
 ## Rationale
 
-This proposal is meant to address these workflows among others:
+This proposal addresses these workflows among others:
 
 ### Workflows
 
@@ -448,13 +488,14 @@ passed through an environment variable or flag because there are multiple
 parameters for configuration that would be difficult to put into a single flag
 or environment variable and unwieldy to put into multiple.
 
-The location of the `go.work` file determines the set of directories that are
-part of the workspace similar to the way the `go.mod` files determines the set
-of directories part of the module so that the scoping rules are familiar to
-go users who already use modules. `go.work` files allow users to operate in
-directories outside of any modules but still use the workspace build list.
-This makes it easy for users to have a `GOPATH`-like user experience by placing
-a `go.work` file in their home directory linking their modules together.
+The `go` command locates `go.work` files the same way it locates `go.mod` files
+to make it easy for users already familiar with modules to learn the rules for
+whether their current directory is in a workspace and which one.
+
+`go.work` files allow users to operate in directories outside of any modules but
+still use the workspace build list. This makes it easy for users to have a
+`GOPATH`-like user experience by placing a `go.work` file in their home
+directory linking their modules together.
 
 Like the `go.mod` file, we want the format of the configuration for multi-module
 workspaces to be machine writable and human readable. Though there are other
@@ -462,14 +503,24 @@ popular configuration formats such as yaml and json, they can often be confusing
 or annoying to write. The format used by the `go.mod` file is already familar to
 Go programmers, and is easy for both humans and computers to read and write.
 
-Modules are listed only by directory because the directory is all that is needed
-to locate the module and its `go.mod` file, and determine its path. But because
+Modules are listed by the directory containing the module's `go.mod` file rather
+than listing the paths to the `go.mod` files themselves to avoid the redundant
+basename in every path. Alternatively, if the `go.mod` files were listed
+directly it would be more clear that directories aren't being searched for all
+modules contained under them but rather refer to a single module. Modules are
+required to be listed explicitly instead of allowing for patterns that match
+all modules under a directory because those entries would require slow directory
+walks each time the `go` command would need to load a workspace. Because
 a module's path is not always clear from its directory name, we will allow the
-go command add comments on the `directory` directive with the module path. An
-alternative to listing module directories would be to list the go.mod files
-rather than the directory. That would make it more clear that submodules are not
-added to the workspace, but then every path would end in 'go.mod' which would be
-redundant.
+go command add comments on the `directory` directive with the module path.
+
+Requiring the directories listed in the `go.work` file to have `go.mod` files
+means that projects without `go.mod` files can't be added to a workspace even
+though they can be required as implicit modules in `go.mod` files. To support
+these we would have to add to the `go.work` file some way of associating the
+directories with `go.mod` files. But these projects are already getting more
+rare and the missing `go.mod` can be worked around by adding a temporary
+`go.mod` file to the project's directory.
 
 The naming of the `go` and `replace` directives is straightforward: they are the
 same as in `go.mod`. The `directory` directive is called `directory` because
