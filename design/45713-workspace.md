@@ -378,19 +378,14 @@ modules in the repository. This is a case of the problem of updating version
 requirements on released modules which is out of scope for this proposal.
 
 Our goal is that when there are several tightly coupled modules in the same
-repository, users would choose to check `go.work` files defining the workspace
-into the repository instead of `replaces` in the `go.mod` files. A monorepo with
-multiple modules might choose to have a `go.work` file in the root, and users
-can change the workspace with the `-workfile` flag to confirm the build
-configurations when the modules are depended on from outside. Because the `go`
-command will operate in workspace mode when run within the repository, CI/CD
-systems should be configured to test with `-workfile=off`. If not, the CI/CD
-systems will not test that version requirements among the repository's modules
-are properly incremented to use changes in the modules.
-
-As a counterpoint to the above, most go.work files should exist outside of any
-repository: `go.work` files should only be used in repositories if they contain
-multiple tightly-coupled modules. If a repository contains a single module, or
+repository, users would choose to create `go.work` files defining the workspace
+using the modules in those repositories instead of adding `replaces` in the
+`go.mod` files. These `go.work` files should not be checked into the
+repositories so that they don't override the workspaces users explicitly define.
+Checking in `go.work` files could also lead to CI/CD systems not testing the
+actual set of version requirements on a module and that version requirements
+among the repository's modules are properly incremented to use changes in the
+modules. And of course, if a repository contains only a single module, or
 unrelated modules, there's not much utility to adding a `go.work` file because
 each user may have a different directory structure on their computer outside of
 that repository.
@@ -417,16 +412,15 @@ require (
 replace golang.org/x/tools  => ../
 ```
 
-This `replace` can be removed and replaced with a `go.work` file in the top
-level of the `golang.org/x/tools` repo that includes both modules:
-
+This `replace` can be removed and replaced with a `go.work` file that includes
+both modules in the directory above the checkout of the `golang.org/x/tools`
 ```
 // golang.org/x/tools/go.work
 go 1.17
 
 directory (
-    .
-    ./gopls
+    ./tools
+    ./tools/gopls
 )
 ```
 
@@ -551,6 +545,11 @@ that is its argument. Using `module` to list the module directories could be
 confusing because there is already a module directive in `go.mod` that has a
 different meaning. On the other hand, names like `modvers` and `moddir` are
 awkward.
+
+`go.work` files should not be checked into version control repos containing
+modules so that the `go.work` file in a module does not end up overriding
+the configuration a user created themselves outside of the module. The `go.work`
+documentation should contain clear warnings about this.
 
 ### Semantics of workspace mode
 
@@ -705,11 +704,20 @@ local changes that would be put in the proposed `go.mod.local` file.
 
 ### [#39005](https://github.com/golang/go/issues/39005) proposal: cmd/go: introduce a build configurations file
 
-This issue proposes to add a mechanism to specify configurations for builds,
-such as build tags. This might be something that can be added in a future
-extension of `go.work` files.
+Issue [#39005](https://github.com/golang/go/issues/39005) proposes to add a
+mechanism to specify configurations for builds, such as build tags. This issue
+is similar in that it is a proposal for additional configuration outside the
+`go.mod` file. This proposal does not advocate for adding this type of
+information to `go.work` and is focused on making changes across multiple
+modules.
 
 ## Open issues
+
+### The name of the `directory` directive
+
+The name `directory` could lead people to believe that all modules under the
+directory are included rather than just one. It might be better to use another
+name. One alternative that has been suggested is `include`.
 
 ### Clearing `replace`s
 
@@ -726,17 +734,15 @@ In that case, the user might just want to knock the replacements away, but they
 might not want to remove the existing replacements for policy reasons (or
 because the replacement is actually in a separate repo).
 
-### A rough edge with checked-in `go.work` files
+### Preventing `go.work` files from being checked in to repositories
 
-If a repository already has a checked in `go.work` file in the module root,
-this can create an inconvenience for developers who want to set up a different
-workspace. The `go.work` file will override any `go.work` file that exists
-outside the repo, and they will need to either work with their current directory
-outside the repo or pass `-workfile` to the `go` command. In either case it's an
-inconvenience. The hope is that `go.work` files are rarely checked into repos:
-checked in `go.work` files are only useful in multi-module repositories
-(otherwise they'd point to directories outside the repo or only contain
-replaces) and most repositories contain only a single module.
+`go.work` files that checked into repositories would cause confusion for Go
+users because they change the build configuration without the user explicitly
+opting in. Because of this they should be strongly discouraged. Though it's
+not clear that the Go tool should enforce this, other tools that vet
+repositories and releases should output warnings or errors for repositories
+containing `go.work` files. There may also be other mechanisms not yet
+considered in this document to discourage checked-in `go.work` files.
 
 ### Setting the `GOWORK` environment variable instead of `-workfile`
 
