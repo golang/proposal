@@ -380,7 +380,9 @@ requirements on released modules which is out of scope for this proposal.
 Our goal is that when there are several tightly coupled modules in the same
 repository, users would choose to create `go.work` files defining the workspace
 using the modules in those repositories instead of adding `replaces` in the
-`go.mod` files. These `go.work` files should not be checked into the
+`go.mod` files. Perhaps the creation of the file can be automated by an external
+tool that scans for all the `go.mod` files recursively contained in a directory.
+These `go.work` files should not be checked into the
 repositories so that they don't override the workspaces users explicitly define.
 Checking in `go.work` files could also lead to CI/CD systems not testing the
 actual set of version requirements on a module and that version requirements
