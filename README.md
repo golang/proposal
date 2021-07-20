@@ -239,6 +239,26 @@ the proposal review group may leave the proposal
 in Likely Decline for another week or even move the proposal back to Active.
 Once a proposal is marked Declined, it is closed.
 
+#### Declined as Duplicate
+
+If a proposal duplicates a previously decided proposal,
+the proposal review group may decline the proposal as a duplicate
+without progressing through the Active or Likely Decline stages.
+
+Generally speaking, our approach to reconsidering previously decided proposals
+follows John Ousterhout's advice in his post
+“[Open Decision-Making](https://web.stanford.edu/~ouster/cgi-bin/decisions.php),”
+in particular the “Reconsideration” section.
+
+#### Declined as Retracted
+
+If a proposal is closed or retracted in a comment by the original author,
+the proposal review group may declined the proposal as retracted
+without progressing through the Active or Likely Decline stages.
+
+If it seems like there is still general interest from others, the proposal
+may also be kept open and the discussion continued.
+
 #### Hold
 
 If discussion of a proposal requires design revisions or additional information
