@@ -6,7 +6,7 @@ Last Updated: 2021-08-18
 
 ## Abstract
 
-This document proposes changes to `go/ast` to store the additional syntactic information necessary for the type parameters proposal ([#43651](golang.org/issues/43651)), including the amendment for type sets ([#45346](https://golang.org/issues/45346)). The changes to `go/types` related to type checking are discussed in a [separate proposal](https://golang.org/cl/328610).
+This document proposes changes to `go/ast` to store the additional syntactic information necessary for the type parameters proposal ([#43651](https://golang.org/issues/43651)), including the amendment for type sets ([#45346](https://golang.org/issues/45346)). The changes to `go/types` related to type checking are discussed in a [separate proposal](https://golang.org/cl/328610).
 
 ## Syntax Changes
 
