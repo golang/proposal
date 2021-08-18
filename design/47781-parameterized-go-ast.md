@@ -1,4 +1,4 @@
-# Additions to `go/ast` and `go/token` to support parameterized functions and types
+# Additions to go/ast and go/token to support parameterized functions and types
 
 Authors: Rob Findley, Robert Griesemer
 
