@@ -94,7 +94,7 @@ For the purpose of this document, I propose the following heuristic:
 > We consider all documented invariants plus any additional invariants that are
 > assumed in significant amounts of code.
 
-Of these two clauses, (1) is straightforward and hopefully uncontroversial: code that is valid in Go 1.17 must parse to an equivalent AST in Go 1.18. (2) is more subtle: there is no guarantee that the syntax tree of invalid code will not change. After all, use of type parameters is invalid in go1.17. Rather, the only guarantee is that _if a property of existing fields holds for a node type N in all representations of code, invalid or invalid, it should continue to hold_. For example, `ast.Walk` assumes that `ast.IndexExpr.Index` is never nil. This must be preserved if we use `IndexExpr` to represent type instantiation, even for invalid instantiation expressions such as `var l List[]`.
+Of these two clauses, (1) is straightforward and hopefully uncontroversial: code that is valid in Go 1.17 must parse to an equivalent AST in Go 1.18. (2) is more subtle: there is no guarantee that the syntax tree of invalid code will not change. After all, use of type parameters is invalid in go1.17. Rather, the only guarantee is that _if a property of existing fields holds for a node type N in all representations of code, valid or invalid, it should continue to hold_. For example, `ast.Walk` assumes that `ast.IndexExpr.Index` is never nil. This must be preserved if we use `IndexExpr` to represent type instantiation, even for invalid instantiation expressions such as `var l List[]`.
 
 The rationale for this heuristic is pragmatic: there is too much code in the wild that makes assumptions about nodes in AST representations; that code should not break.
 
