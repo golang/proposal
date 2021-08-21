@@ -3295,7 +3295,7 @@ func (s sliceFn[T]) Swap(i, j int)      { s.s[i], s.s[j] = s.s[j], s.s[i] }
 
 // SliceFn sorts the slice s according to the function cmp.
 func SliceFn[T any](s []T, cmp func(T, T) bool) {
-	sort.Sort(sliceFn[E]{s, cmp})
+	sort.Sort(sliceFn[T]{s, cmp})
 }
 ```
 
