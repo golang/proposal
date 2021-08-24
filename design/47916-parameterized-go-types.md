@@ -35,7 +35,7 @@ The sections below describe new types and functions to be added, as well as how 
 ```go
 func NewTypeParam(obj *TypeName, constraint Type) *TypeParam
 
-func (*TypeParam) Constraint() *Interface
+func (*TypeParam) Constraint() Type
 func (*TypeParam) SetConstraint(Type)
 func (*TypeParam) Obj() *TypeName
 
@@ -44,7 +44,7 @@ func (*TypeParam) Underlying() Type
 func (*TypeParam) String() string
 ```
 
-Within type and function declarations, type parameters names denote type parameter types, represented by the new `TypeParam` type. It is a `Type` with two additional methods: `Constraint`, which returns its type constraint, and `SetConstraint` which may be used to set its type constraint. The `SetConstraint` method is necessary to break cycles in situations where the constraint type references the type parameter itself.
+Within type and function declarations, type parameters names denote type parameter types, represented by the new `TypeParam` type. It is a `Type` with two additional methods: `Constraint`, which returns its type constraint (which may be a `*Named` or `*Interface`), and `SetConstraint` which may be used to set its type constraint. The `SetConstraint` method is necessary to break cycles in situations where the constraint type references the type parameter itself.
 
 For a `*TypeParam`, `Underlying` is the identity method, and `String` returns its name.
 
