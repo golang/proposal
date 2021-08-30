@@ -63,8 +63,8 @@ Type parameters are considered identical (as reported by the `Identical` functio
 ```go
 type TParamList struct { /* ... */ }
 
-func (*TypeList) Len() int
-func (*TypeList) At(i int) *TypeParam
+func (*TParamList) Len() int
+func (*TParamList) At(i int) *TypeParam
 
 type TypeList struct { /* ... */ }
 
