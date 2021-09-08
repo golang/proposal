@@ -61,10 +61,10 @@ Type parameters are considered identical (as reported by the `Identical` functio
 ### Type parameter and type argument lists
 
 ```go
-type TParamList struct { /* ... */ }
+type TypeParamList struct { /* ... */ }
 
-func (*TParamList) Len() int
-func (*TParamList) At(i int) *TypeParam
+func (*TypeParamList) Len() int
+func (*TypeParamList) At(i int) *TypeParam
 
 type TypeList struct { /* ... */ }
 
@@ -72,18 +72,18 @@ func (*TypeList) Len() int
 func (*TypeList) At(i int) Type
 ```
 
-A `TParamList` type is added to represent lists of type parameters.  Similarly, a `TypeList` type is added to represent lists of type arguments. Both types have a `Len` and `At` methods, with the only difference between them being the type returned by `At`.
+A `TypeParamList` type is added to represent lists of type parameters.  Similarly, a `TypeList` type is added to represent lists of type arguments. Both types have a `Len` and `At` methods, with the only difference between them being the type returned by `At`.
 
 ### Changes to `types.Named`
 
 ```go
-func (*Named) TParams() *TParamList
-func (*Named) SetTParams([]*TypeParam)
+func (*Named) TypeParams() *TypeParamList
+func (*Named) SetTypeParams([]*TypeParam)
 func (*Named) TArgs() *TypeList
 func (*Named) Orig() *Named
 ```
 
-The `TParams` and `SetTParams` methods are added to `*Named` to get and set type parameters. Once a type parameter has been passed to `SetTParams`, it is considered _bound_ and must not be used in any subsequent calls to `Named.SetTParams` or `Signature.SetTParams`; doing so will panic. For non-parameterized types, `TParams` returns nil.
+The `TypeParams` and `SetTypeParams` methods are added to `*Named` to get and set type parameters. Once a type parameter has been passed to `SetTypeParams`, it is considered _bound_ and must not be used in any subsequent calls to `Named.SetTypeParams` or `Signature.SetTypeParams`; doing so will panic. For non-parameterized types, `TypeParams` returns nil.
 
 When a `*Named` type is instantiated (see [instantiation](#instantiation) below), the result is another `*Named` type which retains the original type parameters but gains type arguments. These type arguments are substituted in the underlying type of the original type to produce a new underlying type. Similarly, type arguments are substituted for the corresponding receiver type parameter in method declarations to produce a new method type.
 
@@ -110,16 +110,16 @@ Parameterized named types continue to be considered identical (as reported by th
 ### Changes to `types.Signature`
 
 ```go
-func (*Signature) TParams() *TParamList
-func (*Signature) SetTParams([]*TypeParam)
+func (*Signature) TypeParams() *TypeParamList
+func (*Signature) SetTypeParams([]*TypeParam)
 
-func (*Signature) RParams() *TParamList
+func (*Signature) RParams() *TypeParamList
 func (*Signature) SetRParams([]*TypeParam)
 ```
 
-The `TParams` and `SetTParams` methods are added to `*Signature` to get and set type parameters. As described in the section on `*Named` types, passing a type parameter more than once to either `Named.SetTParams` or `Signature.SetTParams` will panic.
+The `TypeParams` and `SetTypeParams` methods are added to `*Signature` to get and set type parameters. As described in the section on `*Named` types, passing a type parameter more than once to either `Named.SetTypeParams` or `Signature.SetTypeParams` will panic.
 
-The `RParams` and `SetRParams` methods allow getting and setting receiver type parameters. Signatures cannot have both type parameters and receiver type parameters. For a given receiver `t`, once `t.SetTParams` has been called with a non-empty slice, calling `t.SetRParams` with a non-empty slice will panic, and vice-versa.
+The `RParams` and `SetRParams` methods allow getting and setting receiver type parameters. Signatures cannot have both type parameters and receiver type parameters. For a given receiver `t`, once `t.SetTypeParams` has been called with a non-empty slice, calling `t.SetRParams` with a non-empty slice will panic, and vice-versa.
 
 For `Signatures` to be identical (as reported by `Identical`), they must be identical ignoring type parameters, have the same number of type parameters, and have pairwise identical type parameter constraints.
 
