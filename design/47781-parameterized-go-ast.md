@@ -27,17 +27,17 @@ The sections below describe new types and functions to be added, as well as thei
 type TypeSpec struct {
 	// ...existing fields
 
-	TParams *FieldList
+	TypeParams *FieldList
 }
 
 type FuncType struct {
 	// ...existing fields
 
-	TParams *FieldList
+	TypeParams *FieldList
 }
 ```
 
-To represent type parameters in type and function declarations, both `ast.TypeSpec` and `ast.FuncType` gain a new `TParams *FieldList` field, which will be nil in the case of non-parameterized types and functions.
+To represent type parameters in type and function declarations, both `ast.TypeSpec` and `ast.FuncType` gain a new `TypeParams *FieldList` field, which will be nil in the case of non-parameterized types and functions.
 
 ### For type and function instantiation
 
