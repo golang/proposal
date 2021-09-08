@@ -41,29 +41,29 @@ To represent type parameters in type and function declarations, both `ast.TypeSp
 
 ### For type and function instantiation
 
-To represent both type and function instantiation with type arguments, we introduce a new node type `ast.MultiIndexExpr`, which is an `Expr` node similar to `ast.IndexExpr`, but with a slice of indices rather than a single index:
+To represent both type and function instantiation with type arguments, we introduce a new node type `ast.IndexListExpr`, which is an `Expr` node similar to `ast.IndexExpr`, but with a slice of indices rather than a single index:
 
 ```go
-type MultiIndexExpr struct {
+type IndexListExpr struct {
 	X Expr
 	Lbrack token.Pos
 	Indices []Expr
 	Rbrack token.Pos
 }
 
-func (*MultiIndexExpr) End() token.Pos
-func (*MultiIndexExpr) Pos() token.Pos
+func (*IndexListExpr) End() token.Pos
+func (*IndexListExpr) Pos() token.Pos
 ```
 
-Type and function instance expressions will be parsed into a single `IndexExpr` if there is only one index, and a `MultiIndexExpr` if there is more than one index. Specifically, when encountering an expression `f[expr1, ..., exprN]` with `N` argument expressions, we parse as follows:
+Type and function instance expressions will be parsed into a single `IndexExpr` if there is only one index, and an `IndexListExpr` if there is more than one index. Specifically, when encountering an expression `f[expr1, ..., exprN]` with `N` argument expressions, we parse as follows:
 
 1. If `N == 1`, as in normal index expressions `f[expr]`, we parse an `IndexExpr`.
-2. If `N > 1`, parse a `MultiIndexExpr` with `Indices` set to the parsed expressions `expr1, …, exprN`
+2. If `N > 1`, parse an `IndexListExpr` with `Indices` set to the parsed expressions `expr1, …, exprN`
 3. If `N == 0`, as in the invalid expression `f[]`, we parse an `IndexExpr` with `BadExpr` for its `Index` (this matches the current behavior for invalid index expressions).
 
 There were several alternatives considered for representing this syntax. At least two of these alternatives were implemented. They are worth discussing:
  - Add a new `ListExpr` node type that holds an expression list, to serve as the `Index` field for an `IndexExpr` when `N >= 2`.  This is an elegant solution, but results in inefficient storage and, more importantly, adds a new node type that exists only to alter the meaning of an existing node. This is inconsistent with the design of other nodes in `go/ast`, where additional nodes are preferred to overloading existing nodes. Compare with `RangeStmt` and `TypeSwitchStmt`, which are distinct nodes in `go/ast`. Having distinct nodes is generally easier to work with, as each node has a more uniform composition.
- - Overload `ast.CallExpr` to have a `Brackets bool` field, so `f[T]` would be analogous to `f(T)`, but with `Brackets` set to `true`. This is roughly equivalent to the `MultiIndexExpr` node, and allows us to avoid adding a new type. However, it overloads the meaning of `CallExpr` and adds an additional field.
+ - Overload `ast.CallExpr` to have a `Brackets bool` field, so `f[T]` would be analogous to `f(T)`, but with `Brackets` set to `true`. This is roughly equivalent to the `IndexListExpr` node, and allows us to avoid adding a new type. However, it overloads the meaning of `CallExpr` and adds an additional field.
  - Add an `Tail []Expr` field to `IndexExpr` to hold additional type arguments. While this avoids a new node type, it adds an extra field to IndexExpr even when not needed.
 
 ### For type restrictions
