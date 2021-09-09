@@ -780,7 +780,7 @@ Consider the `Smallest` example above.
 We want it to work not just for slices of the predeclared ordered
 types, but also for types defined by a program.
 If a program uses `type MyString string`, the program can use the `<`
-operator with values of type `MyString.
+operator with values of type `MyString`.
 It should be possible to instantiate `Smallest` with the type
 `MyString`.
 
