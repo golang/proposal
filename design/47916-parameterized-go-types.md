@@ -79,7 +79,7 @@ A `TypeParamList` type is added to represent lists of type parameters.  Similarl
 ```go
 func (*Named) TypeParams() *TypeParamList
 func (*Named) SetTypeParams([]*TypeParam)
-func (*Named) TArgs() *TypeList
+func (*Named) TypeArgs() *TypeList
 func (*Named) Orig() *Named
 ```
 
@@ -87,7 +87,7 @@ The `TypeParams` and `SetTypeParams` methods are added to `*Named` to get and se
 
 When a `*Named` type is instantiated (see [instantiation](#instantiation) below), the result is another `*Named` type which retains the original type parameters but gains type arguments. These type arguments are substituted in the underlying type of the original type to produce a new underlying type. Similarly, type arguments are substituted for the corresponding receiver type parameter in method declarations to produce a new method type.
 
-These type arguments can be accessed via the `TArgs` method. For non-instantiated types, `TArgs` returns nil.
+These type arguments can be accessed via the `TypeArgs` method. For non-instantiated types, `TypeArgs` returns nil.
 
 For instantiated types, the `Orig` method returns the parameterized type that was used to create the instance. For non-instantiated types, `Orig` returns the receiver.
 
@@ -113,13 +113,13 @@ Parameterized named types continue to be considered identical (as reported by th
 func (*Signature) TypeParams() *TypeParamList
 func (*Signature) SetTypeParams([]*TypeParam)
 
-func (*Signature) RParams() *TypeParamList
-func (*Signature) SetRParams([]*TypeParam)
+func (*Signature) RecvTypeParams() *TypeParamList
+func (*Signature) SetRecvTypeParams([]*TypeParam)
 ```
 
 The `TypeParams` and `SetTypeParams` methods are added to `*Signature` to get and set type parameters. As described in the section on `*Named` types, passing a type parameter more than once to either `Named.SetTypeParams` or `Signature.SetTypeParams` will panic.
 
-The `RParams` and `SetRParams` methods allow getting and setting receiver type parameters. Signatures cannot have both type parameters and receiver type parameters. For a given receiver `t`, once `t.SetTypeParams` has been called with a non-empty slice, calling `t.SetRParams` with a non-empty slice will panic, and vice-versa.
+The `RecvTypeParams` and `SetRecvTypeParams` methods allow getting and setting receiver type parameters. Signatures cannot have both type parameters and receiver type parameters. For a given receiver `t`, once `t.SetTypeParams` has been called with a non-empty slice, calling `t.SetRecvTypeParams` with a non-empty slice will panic, and vice-versa.
 
 For `Signatures` to be identical (as reported by `Identical`), they must be identical ignoring type parameters, have the same number of type parameters, and have pairwise identical type parameter constraints.
 
@@ -199,52 +199,33 @@ If `orig` is a `*Named` or `*Signature` type, the length of `targs` matches the 
 
 An `Environment` type is introduced to represent an opaque type checking environment. This environment may be passed as the first argument to `Instantiate`, or as a field on `Checker`. When a single non-nil `env` argument is used for subsequent calls to `Instantiate`, identical instantiations may re-use existing type instances. Similarly, passing a non-nil `Environment` to `Config` may result in type instances being re-used during the type checking pass. This is purely a memory optimization, and callers may not rely on pointer identity for instances: they must still use `Identical` when comparing instantiated types.
 
-### Type inference
+### Instance information
 
 ```go
 type Info struct {
   // ...
 
-  Inferred map[ast.Expr]Inferred`
+  Instances map[*ast.Ident]Instance`
 }
 
-type Inferred struct {
-  TArgs *TypeList
-  Sig   *Signature
+type Instance struct {
+  TypeArgs *TypeList
+  Type     Type
 }
 ```
 
-In addition to explicit instantiation, type arguments to parameterized functions may be _inferred_, either from other constraints, or from function arguments, or both. See the [type parameters proposal] for various examples of inference.
+Whenever a type or function is instantiated (via explicit instantiation or type inference), we record information about the instantiation in a new `Instances` map on the `Info` struct. This maps the identifier denoting the parameterized function or type in an instantiation expression to the type arguments used in instantiation and resulting instantiated `*Named` or `*Signature` type. For example:
 
-Notably, as `*Signature` does not have the equivalent of `Named.TArgs`, and there may not be explicit type arguments in the syntax, the existing content of the `Info` struct does not provide a way to look up the type arguments used for instantiation. For this we need a new construct, the `Inferred` type, which holds both the inferred type arguments and resulting non-parameterized signature. This may be looked up in a new `Inferred` map on the `Info` struct, which contains an entry for each expression where type inference occurred.
+- In the explicit type instantiation `T[int, string]`, `Instances` maps the identifier for `T` to the type arguments `int, string` and resulting `*Named` type.
+- Given a parameterized function declaration `func F(P any) (P)` and a call expression `F(int(1))`, `Instances` would map the identifier for `F` in the call expression to the type argument `int`, and resulting `*Signature` type.
 
-Type inference may occur in two distinct syntactic forms: at a function call, as in the expression `f[...](...)`, or in the function valued expresion `f[...]`. For the latter function argument type inference does not apply, but constraint type inference may still be used. Corresponding to these forms, `Info.Inferred` maps `*ast.CallExpr`, `*ast.IndexExpr`, and `*ast.MultiIndexExpr` expressions to their inference information.
+Notably, instantiating `Uses[id].Type()` with `Instances[id].TypeArgs` results in a type that is identical to `Instances[id].Type`.
 
-Exactly when information is recorded in `Info` can be subtle. For example, considering the following code:
+The `Instances` map serves several purposes:
 
-```
-func push[T1 interface{ type []T2 }, T2 any](t1 T1, t2 T2) T1 {
-  return append(t1, t2)
-}
-
-var s = []int{0}
-
-var a = push(s, 1)
-var b = push[[]int](s, 2)
-var c = (push[[]int])(s, 3)
-var d = (push[[]int, int])(s, 4)
-var e = push[[]int, int](s, 5)
-```
-
-In this example, each variable declaration instantiates the `push` function in a different way. Using short-hand notation:
-
-- In the declaration for `a`, `info.Inferred` maps `push(s, 1)` to the inferred `([]int, int)`, and `info.Types` maps `push` to the parameterized `push` function.
-- In the declaration for `b`, `info.Inferred` maps `push[[]int]](s, 2)` to `([]int, int)`, and `info.Types` maps `push[[]int]]` to the parameterized `push` function.
-- In the declaration for `c`, constraint type inference alone is used, and `info.Inferred` maps `push[[]int]]` to `([]int, int)`. However, this time `info.Types[push[[]int]]` is non-parameterized, because the type of that expression in isolation is non-parameterized. There is no entry in `info.Inferred` for the call expression.
-- In the declaration for `d` no type inference occurs, and `info.Inferred` does not have a corresponding entry. `info.Types` maps `push[[]int, int]` to the non-parameterized function.
-- In the declaration for `e`, inference (albeit trivial) still occurs. `info.Inferred` maps `push[[]int, int](s, 5)` to `([]int, int)`, and `info.Types` maps `push[[]int, int]` to the parameterized `push` function.
-
-In the future it may be helpful to add helper methods to the `Info` type, similar to `Info.TypeOf`.
+- Providing a mechanism for finding all instances. This could be useful for applications like code generation or go/ssa.
+- Mapping an instance back to positions where it occurs, for the purpose of e.g. presenting diagnostics.
+- Finding inferred type arguments.
 
 ### `comparable` and `any`
 
