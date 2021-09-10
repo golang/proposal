@@ -714,7 +714,7 @@ That is exactly the type set of `interface{ M1; M2 }`.
 
 The same applies to embedded interface types.
 For any two interface types `E1` and `E2`, the type set of `interface{
-E1; E2}` is the intersection of the type sets of `E1` and `E2`.
+E1; E2 }` is the intersection of the type sets of `E1` and `E2`.
 
 Therefore, the type set of an interface type is the intersection of
 the type sets of the element of the interface.
@@ -887,7 +887,7 @@ type parameter in any way that is permitted by every member of the
 type set of the parameter's constraint.
 This applies to operators like '<' or '+' or other general operators.
 For special purpose operators like `range` loops, we permit their use
-of the type parameter has a structural constraint, as [defined
+if the type parameter has a structural constraint, as [defined
 later](#Constraint-type-inference); the definition here is basically
 that the constraint has a single underlying type.
 If the function can be compiled successfully using each type in the
