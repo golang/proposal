@@ -409,6 +409,37 @@ As a result, I propose the target utilization be reduced once again to 25%,
 eliminating GC assists in the steady-state (that's not out-pacing the GC), and
 potentially improving application latency as a result.
 
+#### Idle-priority background GC workers
+
+Idle-priority GC workers are extra workers that run if the application isn't
+utilizing all `GOMAXPROCS` worth of parallelism.
+The scheduler schedules "low priority" background workers on any additional CPU
+resources, and this ultimately skews utilization measurements in the GC.
+In today's pacer, they're somewhat accounted for.
+In general, the idle workers skew toward undershoot: because the pacer is not
+explicitly aware of the idle workers, GC cycles will complete sooner than it
+might expect.
+However if a GC cycle completes early, then in theory the current pacer will
+simply adjust.
+From its perspective, scanning and marking objects was just faster than
+expected.
+
+The new proposed design must also account for them somehow.
+I propose including idle priority worker CPU utilization in both the measured
+utilization, ![`u_n`](44167/inl23.png), and the target utilization,
+![`u_t`](44167/inl9.png), in each GC cycle.
+In this way, the only difference between the two terms remains GC assist
+utilization, and while idle worker CPU utilization remains stable, the pacer may
+effectively account for it.
+
+Unfortunately this does mean idle-priority GC worker utilization becomes part of
+the definition of a GC steady-state, making it slightly more fragile.
+The good news is that that was already true.
+Due to other issues with idle-priority GC workers, it may be worth revisiting
+them as a concept, but they do appear to legitimately help certain applications,
+particularly those that spend a significant chunk of time blocked on I/O, yet
+spend some significant chunk of their time awake allocating memory.
+
 ### Smoothing out GC assists
 
 This discussion of GC assists brings us to the existing issues around pacing
@@ -503,8 +534,6 @@ though many are.
 Notable exclusions are:
 1. Mark assists are front-loaded in a GC cycle.
 1. The hard heap goal isn't actually hard in some circumstances.
-1. Dealing with idle GC workers.
-1. Donating goroutine assist credit/debt on exit.
 1. Existing trigger limits to prevent unbounded memory growth.
 
 (1) is difficult to resolve without special cases and arbitrary heuristics, and
@@ -521,27 +550,7 @@ progress, and how GC assists are a back-up mechanism.
 I believe that the fundamental problem there lies with the fact that fractional
 GC workers don't provide that sort of consistent progress.
 
-For (3) I believe we should remove idle GC workers entirely, which is why this
-document ignores them.
-Idle GC workers are extra mark workers that run if the application isn't
-utilizing all GOMAXPROCS worth of parallelism.
-The scheduler schedules "low priority" background workers on any additional CPU
-resources, and this ultimately skews utilization measurements in the GC, because
-as of today they're unaccounted for.
-Unfortunately, it's likely that idle GC workers have accidentally become
-necessary for the GC to make progress, so just pulling them out won't be quite
-so easy.
-I believe that needs a separate proposal given other large potential changes
-coming to the compiler and runtime in the near future, because there's
-unfortunately a fairly significant risk of bugs with doing so, though I do think
-it's ultimately an improvement.
-See [the related issue for more
-details](https://github.com/golang/go/issues/44163).
-
-(4) is easy and I don't believe needs any deliberation.
-That is a bug we should simply fix.
-
-For (5), I propose we retain the limits, translated to the current design.
+For (3), I propose we retain the limits, translated to the current design.
 For reference, these limits are ![`0.95 (\gamma - 1)`](44167/inl25.png) as the
 upper-bound on the trigger ratio, and ![`0.6 (\gamma - 1)`](44167/inl26.png) as
 the lower-bound.
