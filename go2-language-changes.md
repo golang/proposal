@@ -60,9 +60,8 @@ You do not have to answer every question but please do your best.
 - Does this affect error handling?
   - If so, how does this differ from [previous error handling proposals](https://github.com/golang/go/issues?utf8=%E2%9C%93&q=label%3Aerror-handling)?
 - Is this about generics?
-  - If so, how does this differ from the [the current design
-    draft](https://go.googlesource.com/proposal/+/master/design/go2draft-contracts.md)
-    and the [previous generics proposals](https://github.com/golang/go/issues?utf8=%E2%9C%93&q=label%3Agenerics)?
+  - If so, how does this relate to the [accepted design](https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md)
+    and [other generics proposals](https://github.com/golang/go/issues?utf8=%E2%9C%93&q=label%3Agenerics)?
 
 ## What to avoid
 
