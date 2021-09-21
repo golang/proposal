@@ -169,7 +169,7 @@ A new `Union` type is introduced to represent the type expression `T1 | T2 | ...
 
 The `Len` and `Term` methods may be used to access terms in the union. Unions represent their type expression syntactically: after type checking the union terms will correspond 1:1 to the term expressions in the source, though their order is not guaranteed to be the same. Unions should only appear as embedded elements in interfaces; this is the only place they will appear after type checking, and their behavior when used elsewhere is undefined.
 
-Unions are identical if they describe the same type set. For example `~int | string` is identical to both `string | int` and `int | string | ~int`.
+Unions are identical if they describe the same type set. For example `~int | string` is identical to both `string | ~int` and `int | string | ~int`.
 
 ### Instantiation
 
@@ -205,7 +205,7 @@ An `Environment` type is introduced to represent an opaque type checking environ
 type Info struct {
   // ...
 
-  Instances map[*ast.Ident]Instance`
+  Instances map[*ast.Ident]Instance
 }
 
 type Instance struct {
@@ -217,9 +217,9 @@ type Instance struct {
 Whenever a type or function is instantiated (via explicit instantiation or type inference), we record information about the instantiation in a new `Instances` map on the `Info` struct. This maps the identifier denoting the parameterized function or type in an instantiation expression to the type arguments used in instantiation and resulting instantiated `*Named` or `*Signature` type. For example:
 
 - In the explicit type instantiation `T[int, string]`, `Instances` maps the identifier for `T` to the type arguments `int, string` and resulting `*Named` type.
-- Given a parameterized function declaration `func F(P any) (P)` and a call expression `F(int(1))`, `Instances` would map the identifier for `F` in the call expression to the type argument `int`, and resulting `*Signature` type.
+- Given a parameterized function declaration `func F[P any](P)` and a call expression `F(int(1))`, `Instances` would map the identifier for `F` in the call expression to the type argument `int`, and resulting `*Signature` type.
 
-Notably, instantiating `Uses[id].Type()` with `Instances[id].TypeArgs` results in a type that is identical to `Instances[id].Type`.
+Notably, instantiating the type returned by `Uses[id].Type()` with the type arguments `Instances[id].TypeArgs` results in a type that is identical to the type `Instances[id].Type`.
 
 The `Instances` map serves several purposes:
 
