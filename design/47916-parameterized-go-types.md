@@ -176,10 +176,13 @@ Unions are identical if they describe the same type set. For example `~int | str
 ```go
 func Instantiate(env *Environment, orig Type, targs []Type, verify bool) (Type, error)
 
-type ArgumentError struct { /* ... */ }
+type ArgumentError struct {
+	Index int
+	Err error
+}
 
-func (ArgumentError) Error() string
-func (ArgumentError) Index() int
+func (*ArgumentError) Error() string
+func (*ArgumentError) Unwrap() error
 
 type Environment struct { /* ... */ }
 
@@ -193,7 +196,7 @@ type Config struct {
 
 A new `Instantiate` function is added to allow the creation of type and function instances. The `orig` argument supplies the parameterized `*Named` or `*Signature` type being instantiated, and the `targs` argument supplies the type arguments to be substituted for type parameters. It is an error to call `Instantiate` with anything other than a `*Named` or `*Signature` type for `orig`, or with a `targs` value that has length different from the number of type parameters on the parameterized type; doing so will result in a non-nil error being returned.
 
-If `verify` is true, `Instantiate` will verify that type arguments satisfy their corresponding type parameter constraint. If they do not, the returned error will be non-nil and may be of type dynamic type `ArgumentError`. `ArgumentError` is a new type used to represent an error associated with a specific argument index.
+If `verify` is true, `Instantiate` will verify that type arguments satisfy their corresponding type parameter constraint. If they do not, the returned error will be non-nil and may wrap an `*ArgumentError`. `ArgumentError` is a new type used to represent an error associated with a specific argument index.
 
 If `orig` is a `*Named` or `*Signature` type, the length of `targs` matches the number of type parameters, and `verify` is false, `Instantiate` will return a nil error.
 
