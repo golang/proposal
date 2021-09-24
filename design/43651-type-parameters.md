@@ -1893,8 +1893,6 @@ second string }`.
 
 Let's return now to type sets to cover some less important details
 that are still worth noting.
-These are not additional rules or concepts, but are consequences of
-how type sets work.
 
 #### Both elements and methods in constraints
 
@@ -1906,7 +1904,7 @@ elements and methods.
 // type that is both 1) defined as a signed integer type;
 // 2) has a String method.
 type StringableSignedInteger interface {
-	~int | ~int8 | ~int16 | ~int32| ~int64
+	~int | ~int8 | ~int16 | ~int32 | ~int64
 	String() string
 }
 ```
@@ -2853,7 +2851,7 @@ The ideas are presented in the form of a FAQ.
 
 An earlier draft design of generics implemented constraints using a
 new language construct called contracts.
-Type sets appeared only in contracts, rather than on interface types.
+Type sets appeared only in contracts, rather than in interface types.
 However, many people had a hard time understanding the difference
 between contracts and interface types.
 It also turned out that contracts could be represented as a set of
@@ -3779,7 +3777,7 @@ func (lst *List[T]) Push(v T) {
 		lst.head = &element[T]{val: v}
 		lst.tail = lst.head
 	} else {
-		lst.tail.next = &element[T]{val: v }
+		lst.tail.next = &element[T]{val: v}
 		lst.tail = lst.tail.next
 	}
 }
@@ -4210,7 +4208,7 @@ literals of generic types.
 
 ```
 type Pair[T any] struct { f1, f2 T }
-var V = Pair{1, 2} // inferred as Pair(int){1, 2}
+var V = Pair{1, 2} // inferred as Pair[int]{1, 2}
 ```
 
 It's not clear how often this will arise in real code.
