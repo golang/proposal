@@ -80,18 +80,18 @@ A `TypeParamList` type is added to represent lists of type parameters.  Similarl
 func (*Named) TypeParams() *TypeParamList
 func (*Named) SetTypeParams([]*TypeParam)
 func (*Named) TypeArgs() *TypeList
-func (*Named) Orig() *Named
+func (*Named) Origin() *Named
 ```
 
 The `TypeParams` and `SetTypeParams` methods are added to `*Named` to get and set type parameters. Once a type parameter has been passed to `SetTypeParams`, it is considered _bound_ and must not be used in any subsequent calls to `Named.SetTypeParams` or `Signature.SetTypeParams`; doing so will panic. For non-parameterized types, `TypeParams` returns nil.
 
-When a `*Named` type is instantiated (see [instantiation](#instantiation) below), the result is another `*Named` type which retains the original type parameters but gains type arguments. These type arguments are substituted in the underlying type of the original type to produce a new underlying type. Similarly, type arguments are substituted for the corresponding receiver type parameter in method declarations to produce a new method type.
+When a `*Named` type is instantiated (see [instantiation](#instantiation) below), the result is another `*Named` type which retains the original type parameters but gains type arguments. These type arguments are substituted in the underlying type of the origin type to produce a new underlying type. Similarly, type arguments are substituted for the corresponding receiver type parameter in method declarations to produce a new method type.
 
 These type arguments can be accessed via the `TypeArgs` method. For non-instantiated types, `TypeArgs` returns nil.
 
-For instantiated types, the `Orig` method returns the parameterized type that was used to create the instance. For non-instantiated types, `Orig` returns the receiver.
+For instantiated types, the `Origin` method returns the parameterized type that was used to create the instance. For non-instantiated types, `Origin` returns the receiver.
 
-For an instantiated type `t`, `t.Obj()` is equivalent to `t.Orig().Obj()`.
+For an instantiated type `t`, `t.Obj()` is equivalent to `t.Origin().Obj()`.
 
 As an example, consider the following code:
 
@@ -105,7 +105,7 @@ type _ = N[int]
 
 After type checking, the type `N[int]` is a `*Named` type with the same type parameters as `N`, but with type arguments of `{int}`. `Underlying()` of `N[int]` is `struct { t int }`, and `Method(0)` of `N[int]` is a new `*Func`: `func (N[int]) m()`.
 
-Parameterized named types continue to be considered identical (as reported by the `Identical` function) if they satisfy pointer equality. Instantiated named types are considered identical if their original types are identical and their type arguments are pairwise identical. Instantiating twice with the same original type and type arguments _may_ result in pointer-identical `*Named` instances, but this is not guaranteed. There is further discussion of this in the [instantiation](#instantiation) section below.
+Parameterized named types continue to be considered identical (as reported by the `Identical` function) if they satisfy pointer equality. Instantiated named types are considered identical if their origin types are identical and their type arguments are pairwise identical. Instantiating twice with the same origin type and type arguments _may_ result in pointer-identical `*Named` instances, but this is not guaranteed. There is further discussion of this in the [instantiation](#instantiation) section below.
 
 ### Changes to `types.Signature`
 
