@@ -83,7 +83,7 @@ func (*Named) TypeArgs() *TypeList
 func (*Named) Origin() *Named
 ```
 
-The `TypeParams` and `SetTypeParams` methods are added to `*Named` to get and set type parameters. Once a type parameter has been passed to `SetTypeParams`, it is considered _bound_ and must not be used in any subsequent calls to `Named.SetTypeParams` or `Signature.SetTypeParams`; doing so will panic. For non-parameterized types, `TypeParams` returns nil.
+The `TypeParams` and `SetTypeParams` methods are added to `*Named` to get and set type parameters. Once a type parameter has been passed to `SetTypeParams`, it is considered _bound_ and must not be used in any subsequent calls to `Named.SetTypeParams` or `Signature.SetTypeParams`; doing so will panic. For non-parameterized types, `TypeParams` returns nil. Note that `SetTypeParams` is necessary to break cycles in the case that type parameter constraints refer to the type being defined.
 
 When a `*Named` type is instantiated (see [instantiation](#instantiation) below), the result is another `*Named` type which retains the original type parameters but gains type arguments. These type arguments are substituted in the underlying type of the origin type to produce a new underlying type. Similarly, type arguments are substituted for the corresponding receiver type parameter in method declarations to produce a new method type.
 
@@ -110,16 +110,13 @@ Parameterized named types continue to be considered identical (as reported by th
 ### Changes to `types.Signature`
 
 ```go
-func (*Signature) TypeParams() *TypeParamList
-func (*Signature) SetTypeParams([]*TypeParam)
+func NewSignatureType(recv *Var, recvTypeParams, typeParams []*TypeParam, params, results *Tuple, variadic bool) *Signature
 
+func (*Signature) TypeParams() *TypeParamList
 func (*Signature) RecvTypeParams() *TypeParamList
-func (*Signature) SetRecvTypeParams([]*TypeParam)
 ```
 
-The `TypeParams` and `SetTypeParams` methods are added to `*Signature` to get and set type parameters. As described in the section on `*Named` types, passing a type parameter more than once to either `Named.SetTypeParams` or `Signature.SetTypeParams` will panic.
-
-The `RecvTypeParams` and `SetRecvTypeParams` methods allow getting and setting receiver type parameters. Signatures cannot have both type parameters and receiver type parameters. For a given receiver `t`, once `t.SetTypeParams` has been called with a non-empty slice, calling `t.SetRecvTypeParams` with a non-empty slice will panic, and vice-versa.
+A new constructor `NewSignatureType` is added to create `*Signature` types that use type parameters, deprecating the existing `NewSignature`. The `TypeParams` and method is added to `*Signature` to get type parameters. The `RecvTypeParams` method is added to get receiver type parameters. Signatures cannot have both type parameters and receiver type parameters, and passing both to `NewSignatureType` will panic. Just as with `*Named` types, type parameters can only be bound once: passing a type parameter more than once to either `Named.SetTypeParams` or `NewSignatureType` will panic.
 
 For `Signatures` to be identical (as reported by `Identical`), they must be identical ignoring type parameters, have the same number of type parameters, and have pairwise identical type parameter constraints.
 
@@ -127,13 +124,13 @@ For `Signatures` to be identical (as reported by `Identical`), they must be iden
 
 ```go
 func (*Interface) IsComparable() bool
-func (*Interface) IsConstraint() bool
+func (*Interface) IsMethodSet() bool
 ```
 
 The `*Interface` type gains two methods to answer questions about its type set:
 
 - `IsComparable` reports whether every element of its type set is comparable, which could be the case if the interface is explicitly restricted to comparable types, or if it embeds the special interface `comparable`.
-- `IsConstraint` reports whether the interface may only be used as a constraint; that is to say, whether it embeds any type restricting elements that are not just methods. `IsConstraint` returns false if the interface is defined entirely by its method set.
+- `IsMethodSet` reports whether the interface is fully described by its method set; that is to say, does not contain any type restricting embedded elements that are not just methods.
 
 To understand the specific type restrictions of an interface, users may access embedded elements via the existing `EmbeddedType` API, along with the new `Union` type below. Notably, this means that `EmbeddedType` may now return any kind of `Type`.
 
@@ -174,7 +171,7 @@ Unions are identical if they describe the same type set. For example `~int | str
 ### Instantiation
 
 ```go
-func Instantiate(env *Environment, orig Type, targs []Type, verify bool) (Type, error)
+func Instantiate(ctxt *Context, orig Type, targs []Type, verify bool) (Type, error)
 
 type ArgumentError struct {
 	Index int
@@ -184,13 +181,13 @@ type ArgumentError struct {
 func (*ArgumentError) Error() string
 func (*ArgumentError) Unwrap() error
 
-type Environment struct { /* ... */ }
+type Context struct { /* ... */ }
 
-func NewEnvironment() *Environment
+func NewContext() *Context
 
 type Config struct {
   // ...
-  Environment *Environment
+  Context *Context
 }
 ```
 
@@ -200,7 +197,7 @@ If `verify` is true, `Instantiate` will verify that type arguments satisfy their
 
 If `orig` is a `*Named` or `*Signature` type, the length of `targs` matches the number of type parameters, and `verify` is false, `Instantiate` will return a nil error.
 
-An `Environment` type is introduced to represent an opaque type checking environment. This environment may be passed as the first argument to `Instantiate`, or as a field on `Checker`. When a single non-nil `env` argument is used for subsequent calls to `Instantiate`, identical instantiations may re-use existing type instances. Similarly, passing a non-nil `Environment` to `Config` may result in type instances being re-used during the type checking pass. This is purely a memory optimization, and callers may not rely on pointer identity for instances: they must still use `Identical` when comparing instantiated types.
+A `Context` type is introduced to represent an opaque type checking context. This context may be passed as the first argument to `Instantiate`, or as a field on `Checker`. When a single non-nil `ctxt` argument is used for subsequent calls to `Instantiate`, identical instantiations may re-use existing type instances. Similarly, passing a non-nil `Context` to `Config` may result in type instances being re-used during the type checking pass. This is purely a memory optimization, and callers may not rely on pointer identity for instances: they must still use `Identical` when comparing instantiated types.
 
 ### Instance information
 
