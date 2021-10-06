@@ -250,10 +250,21 @@ follows John Ousterhout's advice in his post
 “[Open Decision-Making](https://web.stanford.edu/~ouster/cgi-bin/decisions.php),”
 in particular the “Reconsideration” section.
 
+#### Declined as Infeasible
+
+If a proposal directly contradicts the core design of the language or of a package,
+or if a proposal is impossible to implement efficiently or at all,
+the proposal review group may decline the proposal as infeasible
+without progressing through the Active or Likely Decline stages.
+
+If it seems like there is still general interest from others,
+or that discussion may lead to a feasible proposal,
+the proposal may also be kept open and the discussion continued.
+
 #### Declined as Retracted
 
 If a proposal is closed or retracted in a comment by the original author,
-the proposal review group may declined the proposal as retracted
+the proposal review group may decline the proposal as retracted
 without progressing through the Active or Likely Decline stages.
 
 If it seems like there is still general interest from others, the proposal
