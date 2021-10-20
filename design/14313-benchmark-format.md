@@ -56,31 +56,33 @@ For example, running compress/flate's benchmarks  produces this output:
 	BenchmarkEncodeDigitsCompress1e5-8	       1	  12301511 ns/op	   8.13 MB/s
 	BenchmarkEncodeDigitsCompress1e6-8	       1	 137962041 ns/op	   7.25 MB/s
 
-The testing package always reports ns/op, and each benchmark can request the addition of MB/s (throughput) and also B/op and allocs/op (allocation rates).
+The testing package always reports ns/op, and directly supports the
+addition of MB/s (throughput) and also B/op and allocs/op (allocation
+rates).
+Benchmarks can report additional metrics with any custom unit using
+[`B.ReportMetric`](https://pkg.go.dev/testing#B.ReportMetric).
 
 ### Benchmark processors
 
 Multiple tools have been written that process this format,
-most notably [benchcmp](https://godoc.org/golang.org/x/tools/cmd/benchcmp)
-and its more statistically valid successor [benchstat](https://godoc.org/rsc.io/benchstat).
-There is also [benchmany](https://godoc.org/github.com/aclements/go-misc/benchmany)'s plot subcommand
+most notably [benchcmp](https://pkg.go.dev/golang.org/x/tools/cmd/benchcmp)
+and its more statistically valid successor [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
+There is also [benchmany](https://pkg.go.dev/github.com/aclements/go-misc/benchmany)'s plot subcommand
 and likely more unpublished programs.
 
 ### Benchmark runners
 
 Multiple tools have also been written that generate this format.
 In addition to the standard Go testing package,
-[compilebench](https://godoc.org/rsc.io/compilebench)
+[compilebench](https://pkg.go.dev/golang.org/x/tools/cmd/compilebench)
 generates this data format based on runs of the Go compiler,
 and Austin's unpublished shellbench generates this data format
 after running an arbitrary shell command.
 
-The [golang.org/x/benchmarks/bench](https://golang.org/x/benchmarks/bench) benchmarks
-are notable for _not_ generating this format,
-which has made all analysis of those results
+The [golang.org/x/benchmarks](https://golang.org/x/benchmarks) benchmarks
+are notable for _not_ originally generating this format,
+which made all analysis of those results
 more complex than we believe it should be.
-We intend to update those benchmarks to generate the standard format,
-once a standard format is defined.
 Part of the motivation for the proposal is to avoid
 the need to process custom output formats in future benchmarks.
 
