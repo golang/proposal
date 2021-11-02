@@ -1443,7 +1443,7 @@ followed:
 * Apply function type inference using typed arguments.
 * Apply constraint type inference again.
 * Apply function type inference using the default types of any
-  remainint untyped arguments.
+  remaining untyped arguments.
 * Apply constraint type inference again.
 
 ##### Element constraint example
