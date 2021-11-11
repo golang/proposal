@@ -4,15 +4,10 @@ Author: Katie Hockman
 
 [golang.org/s/draft-fuzzing-design](https://golang.org/s/draft-fuzzing-design)
 
-This is a **Draft Design**, not a formal Go proposal, since it is a large
-change that is still flexible.
-The goal of circulating this draft design is to collect feedback to shape an
-intended eventual proposal.
+This is the original **Design Draft**, not the formal Go proposal. The contents
+of this page may be out-of-date.
 
-For this change, we will use [a Go Reddit
-thread](https://golang.org/s/draft-fuzzing-reddit) to manage Q&A, since Reddit's
-threading support can easily match questions with answers and keep separate
-lines of discussion separate.
+The accepted Go proposal is Issue [#44551](https://golang.org/issue/44551)
 
 ## Abstract
 
@@ -39,7 +34,7 @@ Since fuzzing can reach edge cases which humans often miss, fuzz testing is
 particularly valuable for finding security exploits and vulnerabilities.
 Fuzz tests have historically been authored primarily by security engineers, and
 hackers may use similar methods to find vulnerabilities maliciously.
-However, writing fuzz targets needn’t be constrained to developers with security
+However, writing fuzz tests needn’t be constrained to developers with security
 expertise.
 There is great value in fuzz testing all programs, including those
 which may be more subtly security-relevant, especially those working with
@@ -53,13 +48,13 @@ Internet Explorer, OpenSSH, Adobe Flash, and more.
 In Rust,
 [cargo-fuzz](https://fitzgeraldnick.com/2020/01/16/better-support-for-fuzzing-structured-inputs-in-rust.html)
 allows for fuzzing of structured data in addition to raw bytes, allowing for
-even more flexibility with authoring fuzz targets.
+even more flexibility with authoring fuzz tests.
 Existing tools in Go, such as go-fuzz, have many [success
 stories](https://github.com/dvyukov/go-fuzz#trophies), but there is no fully
 supported or canonical solution for Go.
 The goal is to make fuzzing a first-class experience, making it so easy that it
-becomes the norm for Go packages to have fuzz targets.
-Having fuzz targets available in a standard format makes it possible to use them
+becomes the norm for Go packages to have fuzz tests.
+Having fuzz tests available in a standard format makes it possible to use them
 automatically in CI, or even as the basis for experiments with different
 mutation engines.
 
@@ -104,18 +99,18 @@ These bug fixes matter for the stability and security of systems written in Go.
 
 The best solution for Go in the long-term is to have a feature-rich, fully
 supported, unified narrative for fuzzing.
-It should be just as easy to write fuzz targets as it is to write unit tests.
+It should be just as easy to write fuzz tests as it is to write unit tests.
 Developers should be able to use existing tools for which they are already
 familiar, with small variations to support fuzzing.
 Along with the language support, we must provide documentation, tutorials, and
 incentives for Go package owners to add fuzz tests to their packages.
-This is a measurable goal, and we can track the number of fuzz targets and
+This is a measurable goal, and we can track the number of fuzz tests and
 resulting bug fixes resulting from this design.
 
 Standardizing this also provides new opportunities for other tools to be built,
 and integration into existing infrastructure.
 For example, this proposal creates consistency for building and running fuzz
-targets, making it easier to build turnkey
+tests, making it easier to build turnkey
 [OSS-Fuzz](https://github.com/google/oss-fuzz) support.
 
 In the long term, this design could start to replace existing table tests,
@@ -156,28 +151,27 @@ Go team and members of the community as appropriate.
 
 ### Overview
 
-The **fuzz target** is a `FuzzX` function in a test file. Each fuzz target has
+The **fuzz test** is a `FuzzX` function in a test file. Each fuzz test has
 its own corpus of inputs.
 
-The **fuzz function** is the function that is executed for every seed or
+The **fuzz target** is the function that is executed for every seed or
 generated corpus entry.
 
-At the beginning of the [fuzz target](#fuzz-target), a developer provides a
+At the beginning of the [fuzz test](#fuzz-test), a developer provides a
 “[seed corpus](#seed-corpus)”.
 This is an interesting set of inputs that will be tested using <code>[go
 test](#go-command)</code> by default, and can provide a starting point for a
 [mutation engine](#fuzzing-engine-and-mutator) if fuzzing.
-The testing portion of the fuzz target is a function within an `f.Fuzz`
-invocation.
+The testing portion of the fuzz test happens in the fuzz target, which is the
+function passed to `f.Fuzz`.
 This function runs much like a standard unit test with `testing.T` for each
 input in the seed corpus.
-If the developer is fuzzing this target with the new `-fuzz` flag with `go
-test`, then a [generated corpus](#generated-corpus) will be managed by the
-fuzzing engine, and a mutator will generate new inputs to run against the
-testing function, attempting to discover interesting inputs or
-[crashers](#crashers).
+If the developer is fuzzing with the new `-fuzz` flag with `go test`, then a
+[generated corpus](#generated-corpus) will be managed by the fuzzing engine, and
+a mutator will generate new inputs to run against the testing function,
+attempting to discover interesting inputs or [crashers](#crashers).
 
-With the new support, a fuzz target could look like this:
+With the new support, a fuzz test could look like this:
 
 ```
 func FuzzMarshalFoo(f *testing.F) {
@@ -219,34 +213,34 @@ It will implement the `testing.TB` interface.
 Functions that are new and only apply to `testing.F` are listed below.
 
 ```
-// Add will add the arguments to the seed corpus for the fuzz target. This
-// cannot be invoked after or within the Fuzz function. The args must match
-// those in the Fuzz function.
+// Add will add the arguments to the seed corpus for the fuzz test. This
+// cannot be invoked after or within the fuzz target. The args must match
+// those in the fuzz target.
 func (f *F) Add(args ...interface{})
 
-// Fuzz runs the fuzz function, ff, for fuzz testing. While fuzzing with -fuzz,
-// the fuzz target and ff may be run in multiple worker processes that don't
+// Fuzz runs the fuzz target, ff, for fuzz testing. While fuzzing with -fuzz,
+// the fuzz test and ff may be run in multiple worker processes that don't
 // share global state within the process. Only one call to Fuzz is allowed per
-// fuzz target, and any subsequent calls will panic. If ff fails for a set of
+// fuzz test, and any subsequent calls will panic. If ff fails for a set of
 // arguments, those arguments will be added to the seed corpus.
 func (f *F) Fuzz(ff interface{})
 ```
 
-### Fuzz target
+### Fuzz test
 
-A fuzz target has two main components: 1) seeding the corpus and 2) the `f.Fuzz`
-function which is executed for items in the corpus.
+A fuzz test has two main components: 1) seeding the corpus and 2) the fuzz
+target which is executed for items in the corpus.
 
 1.  Defining the seed corpus and any necessary setup work is done before the
-    `f.Fuzz` function, to prepare for fuzzing.
-    These inputs, as well as those in `testdata/corpus/FuzzTarget`, are run by
+    fuzz target, to prepare for fuzzing.
+    These inputs, as well as those in `testdata/corpus/FuzzTest`, are run by
     default with `go test`.
-1.  The `f.Fuzz(...)` function is executed for each item in the seed corpus.
-    If this target is being fuzzed, then new inputs will be generated and
-    continously tested using the `f.Fuzz(...)` function.
+1.  The fuzz target is executed for each item in the seed corpus.
+    If this fuzz test is being fuzzed, then new inputs will be generated and
+    continously tested using the fuzz target.
 
-The arguments to `f.Add(...)` and the fuzzing arguments in the `f.Fuzz` function
-must be the same type within the target, and there must be at least one argument
+The arguments to `f.Add(...)` and the arguments of the fuzz target must be the
+same type within the fuzz test, and there must be at least one argument
 specified.
 This will be ensured by a vet check.
 
@@ -262,7 +256,7 @@ never be supported.
 
 ### Seed Corpus
 
-The **seed corpus** is the user-specified set of inputs to a fuzz target which
+The **seed corpus** is the user-specified set of inputs to a fuzz test which
 will be run by default with go test.
 These should be composed of meaningful inputs to test the behavior of the
 package, as well as a set of regression inputs for any newly discovered bugs
@@ -272,16 +266,16 @@ when mutating inputs to discover new code coverage.
 A good seed corpus can save the mutation engine a lot of work (for example
 adding a new key type to a key parsing function).
 
-Each fuzz target will always look in the package’s `testdata/corpus/FuzzTarget`
+Each fuzz test will always look in the package’s `testdata/corpus/FuzzTest`
 directory for an existing seed corpus to use, if one exists.
 New crashes will also be written to this directory.
 
 The seed corpus can be populated programmatically using `f.Add` within the fuzz
-target.
+test.
 
 _Examples:_
 
-1:  A fuzz target’s `f.Fuzz` function takes a single `[]byte`.
+1:  A fuzz target takes a single `[]byte`.
 
 ```
 f.Fuzz(func(t *testing.T, b []byte) {...})
@@ -290,7 +284,7 @@ f.Fuzz(func(t *testing.T, b []byte) {...})
 This is the typical “non-structured fuzzing” approach, and only the single
 []byte will be mutated while fuzzing.
 
-2: A fuzz target’s `f.Fuzz` function takes two arguments.
+2: A fuzz target takes two arguments.
 
 ```
 f.Fuzz(func(t *testing.T, a string, num *big.Int) {...})
@@ -350,9 +344,9 @@ understand coverage information, generating test arguments with a mutator, and
 maintaining the corpus.
 
 The **mutator** is responsible for working with a generator to mutate bytes to
-be used as input to the fuzz target.
+be used as input to the fuzz test.
 
-Take the following `f.Fuzz` arguments as an example.
+Take the following fuzz target arguments as an example.
 
 ```
     A string       // N bytes
@@ -370,8 +364,7 @@ fuzzing engine, making generation simpler.
 For variable-length types, the mutator is responsible for varying the number of
 bytes requested from the generator.
 
-These bytes then need to be converted to the types used by the `f.Fuzz`
-function.
+These bytes then need to be converted to the types used by the fuzz target.
 The string and other built-in types can be decoded directly.
 For other types, this can be done using either
 <code>[UnmarshalBinary](https://pkg.go.dev/encoding?tab=doc#BinaryUnmarshaler)</code>
@@ -390,15 +383,15 @@ This generated corpus will grow as the fuzzing engine discovers new coverage.
 The details of how the corpus is built and processed should be unimportant to
 users.
 This should be a technical detail that developers don’t need to understand in
-order to seed a corpus or write a fuzz target.
+order to seed a corpus or write a fuzz test.
 Any existing files that a developer wants to include in the fuzz test may be
 added to the seed corpus.
 
 ### Crashers
 
-A **crasher** is a panic or failure in `f.Fuzz(...)`, or a race condition, which
-was found while fuzzing.
-By default, the fuzz target will stop after the first crasher is found, and a
+A **crasher** is a panic or failure in the fuzz target, or a race condition,
+which was found while fuzzing.
+By default, the fuzz test will stop after the first crasher is found, and a
 crash report will be provided.
 Crash reports will include the inputs that caused the crash and the resulting
 error message or stack trace.
@@ -406,7 +399,7 @@ The crasher inputs will be written to the package's testdata/corpus directory as
 after being minified where possible.
 
 Since this crasher is added to testdata/corpus, which will then be run by
-default as part of the seed corpus for the fuzz target, this can act as a test
+default as part of the seed corpus for the fuzz test, this can act as a test
 for the new failure.
 A user experience may look something like this:
 
@@ -421,9 +414,9 @@ A user experience may look something like this:
 ### Go command
 
 Fuzz testing will only be supported in module mode, and if run in GOPATH mode,
-the fuzz targets will be ignored.
+the fuzz tests will be ignored.
 
-Fuzz targets will be in *_test.go files, and can be in the same file as Test and
+Fuzz tests will be in *_test.go files, and can be in the same file as Test and
 Benchmark targets.
 These test files can exist wherever *_test.go files can currently live, and do
 not need to be in any fuzz-specific directory or have a fuzz-specific file name
@@ -431,26 +424,27 @@ or build tag.
 
 The generated corpus will be in a new directory within `$GOCACHE`, in the form
 $GOCACHE/fuzz/$pkg/$test/$name, where $pkg is the package path containing the
-fuzz target, $test is the target name, and $name is the name of the file.
+fuzz test, $test is the name of the fuzz test, and $name is the name of the
+file.
 
-The default behavior of `go test` will be to build and run the fuzz targets
+The default behavior of `go test` will be to build and run the fuzz tests
 using the seed corpus only.
 No special instrumentation would be needed, the mutation engine would not run,
 and the test can be cached as usual.
-This default mode **will not** run the generated corpus against the fuzz target.
+This default mode **will not** run the generated corpus against the fuzz test.
 This is to allow for reproducibility and cacheability for `go test` executions
 by default.
 
-In order to run a fuzz target with the mutation engine, `-fuzz` will take a
-regexp which must match only one fuzz target.
-In this situtation, only the fuzz target will run (ignoring all other tests).
+In order to run a fuzz test with the mutation engine, `-fuzz` will take a
+regexp which must match only one fuzz test.
+In this situtation, only the fuzz test will run (ignoring all other tests).
 Only one package is allowed to be tested at a time in this mode.
 The following flags will be added or have modified meaning:
 
 ```
 -fuzz name
-    Run the fuzz target with the given regexp. Must match at most one fuzz
-    target.
+    Run the fuzz test with the given regexp. Must match at most one fuzz
+    test.
 -fuzztime
     Run enough iterations of the fuzz test to take t, specified as a
     time.Duration (for example, -fuzztime 1h30s).
@@ -458,22 +452,22 @@ The following flags will be added or have modified meaning:
     The special syntax Nx means to run the fuzz test N times
     (for example, -fuzztime 100x).
 -keepfuzzing
-    Keep running the target if a crasher is found. (default false)
+    Keep running the fuzz test if a crasher is found. (default false)
 -parallel
-    Allow parallel execution of f.Fuzz functions that call t.Parallel when
+    Allow parallel execution of a fuzz target that calls t.Parallel when
     running the seed corpus.
     While fuzzing with -fuzz, the value of this flag is the maximum number of
-    workers to run the fuzz function simultaneously; by default, it is set to
+    workers to run the fuzz target simultaneously; by default, it is set to
     the value of GOMAXPROCS.
     Note that -parallel only applies within a single test binary.
 -race
     Enable data race detection while fuzzing. (default false)
 -run
-    Run only those tests, examples, and fuzz targets matching the regular
+    Run only those tests, examples, and fuzz tests matching the regular
     expression.
-    For testing a single seed corpus entry for a target, the regular
-    expression can be in the form $target/$name, where $target is the name of
-    the fuzz target, and $name is the name of the file (ignoring file
+    For testing a single seed corpus entry for a fuzz test, the regular
+    expression can be in the form $test/$name, where $test is the name of
+    the fuzz test, and $name is the name of the file (ignoring file
     extensions) to run.
 ```
 
@@ -488,23 +482,24 @@ In order to remove the generated corpus files, one must run
 
 ## Open questions and future work
 
-### Fuzzing engine supports multiple targets at once
+### Fuzzing engine supports multiple fuzz tests at once
 
-The current design allows matching one and only one fuzz target with `-fuzz` per
+The current design allows matching one and only one fuzz test with `-fuzz` per
 package.
 This is to eliminate complexity in the early prototype, and move towards a
 working solution as quickly as possible.
-However, there are use cases for matching more than one fuzz target with
+However, there are use cases for matching more than one fuzz test with
 `-fuzz`.
 For example, in the cases where developers want to fuzz an entire package over a
 long period of time, it would be useful for the fuzzing engine to support
-cycling around multiple targets at once with a single `go test -fuzz` command.
+cycling around multiple fuzz tests at once with a single `go test -fuzz`
+command.
 This is likely to be considered in future iterations of the design.
 
 ### Options
 
 There are options that developers often need to fuzz effectively and safely.
-These options will likely make the most sense on a target-by-target basis,
+These options will likely make the most sense on a test-by-test basis,
 rather than as a `go test` flag.
 Which options to make available, and precisely how these will be defined still
 needs some investigation.
@@ -542,7 +537,7 @@ instead be focusing on coverage for some intended package.
 
 There are also questions about whether or not this is possible with the current
 compiler instrumentation available.
-By runtime, the fuzz target will have already been compiled, so recompiling to
+By runtime, the fuzz test will have already been compiled, so recompiling to
 leave out (or only include) certain packages may not be feasible.
 
 ### Custom Generators
@@ -552,7 +547,7 @@ mutator.
 The design can support this by using marshaling/unmarshaling to edit certain
 fields, but the work to do so is a bit cumbersome.
 For example, if a string should always have some prefix in order to work in the
-fuzz function, one could do the following.
+fuzz target, one could do the following.
 
 ```
 type myString struct {
