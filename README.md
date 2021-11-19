@@ -3,8 +3,11 @@
 ## Introduction
 
 The Go project's development process is design-driven.
-Significant changes to the language, libraries, or tools must be first
-discussed, and sometimes formally documented, before they can be implemented.
+Significant changes to the language, libraries, or tools
+(which includes API changes in the main repo and all golang.org/x repos,
+as well as command-line changes to the `go` command)
+must be first discussed, and sometimes formally documented,
+before they can be implemented.
 
 This document describes the process for proposing, documenting, and
 implementing changes to the Go project.
@@ -65,11 +68,23 @@ implementation work proceeds in the same way as any other contribution.
 
 The proposal process should be used for any notable change or addition to the
 language, libraries and tools.
+“Notable” includes API changes in the main repo and all golang.org/x repos,
+as well as command-line changes to the `go` command.
+It also includes visible behavior changes in existing functionality.
 Since proposals begin (and will often end) with the filing of an issue, even
 small changes can go through the proposal process if appropriate.
 Deciding what is appropriate is matter of judgment we will refine through
 experience.
 If in doubt, file a proposal.
+
+There is a short list of changes that are typically not in scope for the proposal process:
+
+- Making API changes in internal packages, since those APIs are not publicly visible.
+- Making API or command-line changes in golang.org/x/build, since that is code to run the Go project, not for users to import and depend on.
+- Adding new system call numbers or direct system call wrappers (`//sys` lines) in golang.org/x/sys.
+- Adding new C-equivalent data structures to support those system calls.
+
+Again, if in doubt, file a proposal.
 
 ### Compatibility
 
