@@ -2074,7 +2074,7 @@ There are no constraints on the second type parameter.
 // SliceConstraint is a type constraint that matches a slice of
 // the type parameter.
 type SliceConstraint[T any] interface {
-	[]T
+	~[]T
 }
 
 // Map takes a slice of some element type and a transformation function,
