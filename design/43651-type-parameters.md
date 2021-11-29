@@ -3875,6 +3875,9 @@ It is intended to show how the common part of algorithms can be
 factored into code that uses methods, where the exact definition of
 the methods can vary based on the kind of type being used.
 
+Note: the code used in this example will not work in Go 1.18.
+We hope to resolve this and make it work in future releases.
+
 ```
 // NumericAbs matches numeric types with an Abs method.
 type NumericAbs[T any] interface {
@@ -3887,7 +3890,7 @@ type NumericAbs[T any] interface {
 
 // AbsDifference computes the absolute value of the difference of
 // a and b, where the absolute value is determined by the Abs method.
-func AbsDifference[T NumericAbs](a, b T) T {
+func AbsDifference[T NumericAbs[T]](a, b T) T {
 	d := a - b
 	return d.Abs()
 }
