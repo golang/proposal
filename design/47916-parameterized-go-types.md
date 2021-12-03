@@ -8,7 +8,7 @@ Last updated: 2021-08-17
 
 This document proposes changes to `go/types` to expose the additional type information introduced by the type parameters proposal ([#43651](https://golang.org/issues/43651)), including the amendment for type sets ([#45346](https://golang.org/issues/45346)).
 
-The goal of these changes is to make it possible for authors to write tools that understand parameterized functions and types, while staying compatible and consistent with the existing `go/types` API.
+The goal of these changes is to make it possible for authors to write tools that understand generic code, while staying compatible and consistent with the existing `go/types` API.
 
 This proposal assumes familiarity with the existing `go/types` API.
 
@@ -21,8 +21,9 @@ The [type parameters proposal] has a nice synopsis of the proposed language chan
 - Non-method functions may be parameterized, meaning they can have one or more type parameters in their declaration: `func f[T any](...)`.
 - Each type parameter has a _type constraint_, which is an interface type: `type N[T interface{ m() }] ...`.
 - Interface types that are used only as constraints are permitted new embedded elements that restrict the set of types that may implement them: `type N[T interface{ ~int|string }] ...`.
+- The `interface{ ... }` wrapper may be elided for constraint interface literals containing a single embedded element. For example `type N[T ~int|string]` is equivalent to `type N[T interface{~int|string}]`.
 - A new predeclared interface type `comparable` is implemented by all types for which the `==`  and `!=` operators may be used.
-- A new predeclared interface type `any` may be used in constraint position, and is a type alias for `interface{}`.
+- A new predeclared interface type `any` is a type alias for `interface{}`.
 - A parameterized (defined) type may be _instantiated_ by providing type arguments: `type S N[int]; var x N[string]`.
 - A parameterized function may be instantiated by providing explicit type arguments, or via type inference.
 
@@ -38,6 +39,7 @@ func NewTypeParam(obj *TypeName, constraint Type) *TypeParam
 func (*TypeParam) Constraint() Type
 func (*TypeParam) SetConstraint(Type)
 func (*TypeParam) Obj() *TypeName
+func (*TypeParam) Index() int
 
 // Underlying and String implement Type.
 func (*TypeParam) Underlying() Type
@@ -46,9 +48,9 @@ func (*TypeParam) String() string
 
 Within type and function declarations, type parameters names denote type parameter types, represented by the new `TypeParam` type. It is a `Type` with two additional methods: `Constraint`, which returns its type constraint (which may be a `*Named` or `*Interface`), and `SetConstraint` which may be used to set its type constraint. The `SetConstraint` method is necessary to break cycles in situations where the constraint type references the type parameter itself.
 
-For a `*TypeParam`, `Underlying` is the identity method, and `String` returns its name.
+For a `*TypeParam`, `Underlying` returns the underlying type of its constraint, and `String` returns its name.
 
-Type parameter names are represented by a `*TypeName` with a `*TypeParam`-valued `Type()`. They are declared by type parameter lists, or by type parameters on method receivers. Type parameters are scoped to the type or function declaration on which they are defined. Notably, this introduces a new `*Scope` for parameterized type declarations (for parameterized function declarations the scope is the function scope). The `Obj()` method returns the `*TypeName` corresponding to the type parameter (its receiver).
+Type parameter names are represented by a `*TypeName` with a `*TypeParam`-valued `Type()`. They are declared by type parameter lists, or by type parameters on method receivers. Type parameters are scoped to the type or function declaration on which they are defined. Notably, this introduces a new `*Scope` for parameterized type declarations (for parameterized function declarations the scope is the function scope). The `Obj()` method returns the `*TypeName` corresponding to the type parameter (its receiver). The `Index()` method returns the index of the type parameter in its type parameter list, or `-1` if the type parameter has not yet been bound to a type.
 
 The `NewTypeParam` constructor creates a new type parameter with a given `*TypeName` and type constraint.
 
@@ -118,13 +120,15 @@ func (*Signature) RecvTypeParams() *TypeParamList
 
 A new constructor `NewSignatureType` is added to create `*Signature` types that use type parameters, deprecating the existing `NewSignature`. The `TypeParams` and method is added to `*Signature` to get type parameters. The `RecvTypeParams` method is added to get receiver type parameters. Signatures cannot have both type parameters and receiver type parameters, and passing both to `NewSignatureType` will panic. Just as with `*Named` types, type parameters can only be bound once: passing a type parameter more than once to either `Named.SetTypeParams` or `NewSignatureType` will panic.
 
-For `Signatures` to be identical (as reported by `Identical`), they must be identical ignoring type parameters, have the same number of type parameters, and have pairwise identical type parameter constraints.
+For generic `Signatures` to be identical (as reported by `Identical`), they must be identical but for renaming of type parameters.
 
 ### Changes to `types.Interface`
 
 ```go
 func (*Interface) IsComparable() bool
 func (*Interface) IsMethodSet() bool
+func (*Interface) IsImplicit() bool
+func (*Interface) MarkImplicit()
 ```
 
 The `*Interface` type gains two methods to answer questions about its type set:
@@ -135,6 +139,8 @@ The `*Interface` type gains two methods to answer questions about its type set:
 To understand the specific type restrictions of an interface, users may access embedded elements via the existing `EmbeddedType` API, along with the new `Union` type below. Notably, this means that `EmbeddedType` may now return any kind of `Type`.
 
 Interfaces are identical if their type sets are identical. See the [draft spec](https://golang.org/cl/294469) for details on type sets.
+
+To represent implicit interfaces in constraint position, `*Interface` gains an `IsImplicit` accessor. The `MarkImplicit` method may be used to mark interfaces as implicit during importing. `MarkImplicit` is idempotent.
 
 The existing `Interface.Empty` method returns true if the interface has no type restrictions and has an empty method set (alternatively: if its type set is the set of all types).
 
