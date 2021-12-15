@@ -163,7 +163,7 @@ The following is an example of a valid `go.work` file:
 ```
 go 1.17
 
-directory (
+use (
     ./baz // foo.org/bar/baz
     ./tools // golang.org/x/tools
 )
@@ -175,7 +175,7 @@ The `go.work` file will have a similar syntax as the `go.mod` file. Restrictions
 in [`go.mod` lexical elements](https://golang.org/ref/mod#go-mod-file-lexical)
 still apply to the `go.work` file
 
-The `go.work` file has three directives: the `go` directive, the `directory`
+The `go.work` file has three directives: the `go` directive, the `use`
 directive, and the `replace` directive.
 
 #### The `go` Directive
@@ -191,24 +191,24 @@ Example:
 go 1.17
 ```
 
-#### The `directory` directive
+#### The `use` directive
 
-The `directory` directive takes an absolute or relative path to a directory
+The `use` directive takes an absolute or relative path to a use
 containing a `go.mod` file as an argument. The syntax of the path is the same as
 directory replacements in `replace` directives. The path must be to a module
 directory containing a `go.mod` file. The `go.work` file must contain at least
-one `directory` directive. The `go` command may optionally edit the comments on
-the `directory` directive when doing any operation in workspace mode to add the
+one `use` directive. The `go` command may optionally edit the comments on
+the `use` directive when doing any operation in workspace mode to add the
 module path from the directory's `go.mod` file.
 
-Note that the `directory` directive has no restriction on where the directory
+Note that the `use` directive has no restriction on where the directory
 is located: module directories listed in `go.work` file can be located outside
 the directory the `go.work` file itself is in.
 
 Example:
 
 ```
-directory (
+use (
     ./tools // golang.org/x/tools
     ./mod   // golang.org/x/mod
 )
@@ -219,7 +219,7 @@ module: the module specified by the `go.mod` file in that directory. It does
 not refer to any other modules specified by `go.mod` files in subdirectories of
 that directory.
 
-The modules specified by `directory` directives in the `go.work` file are the
+The modules specified by `use` directives in the `go.work` file are the
 _workspace modules_. The workspace modules will collectively be the main modules
 when doing a build in workspace mode. These modules are always selected by MVS
 with the version `""`, and their `replace` and `exclude` directives are applied.
@@ -259,7 +259,7 @@ changes are made in following versions the following semantics apply:
 
 When doing a build operation under workspace mode the `go` command will try to
 find a `go.mod` file. If a `go.mod` file is found, its containing directory must
-be declared with a `directory` directive in the `go.work` file. Because the
+be declared with a `use` directive in the `go.work` file. Because the
 build list is determined by the workspace rather than a `go.mod` file, outside
 of a module, the `go` command will proceed as normal to build any non-relative
 package paths or patterns. Outside of a module, a package composed of `.go`
@@ -283,26 +283,41 @@ module when doing the deepening scan.
 Module vendor directories are ignored in workspace mode because of the
 requirement of `-mod=readonly`.
 
-### Creating and editing go.work files
+### Creating and editing `go.work` files
 
-Two new subcommands will be added to go mod: `go mod initwork` and `go mod
-editwork`.
+A new `go work` command will be added with the following subcommands
+`go work init`, `go work use`, and `go work edit`.
 
-`go mod initwork` will take as arguments a (potentially empty) list of
+`go work init` will take as arguments a (potentially empty) list of
 directories it will use to write out a `go.work` file in the working directory
-with a `go` statement and a `directory` statement listing each of the
-directories. `go mod initwork` will take an optional `-o` flag to specify a
+with a `go` statement and a `use` directive listing each of the
+directories. `go work init` will take an optional `-o` flag to specify a
 different output file path, which can be used to create workspace files for
 other configurations.
 
-`go mod editwork` will work similarly to `go mod edit` and take the following
+`go work use` will take as arguments a set of arguments to use in the go.work
+file. If the `-r` flag is added, recursive subdirectories of the listed directories
+will be also listed in use directives. Use directives with directories that don't
+exist, but that match the arguments to `go work use` will be removed from
+the `go.work` file.
+
+`go work edit` will work similarly to `go mod edit` and take the following
 flags:
 
 *   `-fmt` will reformat the `go.work` file
 *   `-go=version` will set the file's `go` directive to `version`
-*   `-directory=path` and `-dropdirectory=path` will add and drop a directory
+*   `-use=path` and `-dropuse=path` will add and drop a use
     directive for the given path
 *   `-replace` and `-dropreplace` will work exactly as they do for `go mod edit`
+
+### Syncing the workspace's buildlist back ot workspace modules
+
+`go work sync` pushes the module versions of dependency
+modules back into the go.mod files of the dependency modules. It does this
+by calculating the build list in the workspace, and then upgrading the dependencies
+of the workspace's modules to the versions in the workspace buildlist. Because
+of MVS the versions in the workspace must be at least the same as the versions
+in each component module.
 
 ## Rationale
 
@@ -349,7 +364,7 @@ which will produce this file:
 ```
 go 1.17
 
-directory (
+use (
     ./mod // golang.org/x/mod
     ./tools // golang.org/x/tools
 )
@@ -420,7 +435,7 @@ both modules in the directory above the checkout of the `golang.org/x/tools`
 // golang.org/x/tools/go.work
 go 1.17
 
-directory (
+use (
     ./tools
     ./tools/gopls
 )
@@ -443,7 +458,7 @@ alternative versions of the dependencies with replaces, it's easy to switch
 between the three configurations.
 
 Users who want to test using a subset of the workspace modules can also easily
-comment out some of the directory directives in their workspace file instead of
+comment out some of the use directives in their workspace file instead of
 making separate workspace files with the appropriate subset of workspace
 modules, if that works better for their workflows.
 
@@ -531,7 +546,7 @@ required to be listed explicitly instead of allowing for patterns that match
 all modules under a directory because those entries would require slow directory
 walks each time the `go` command would need to load a workspace. Because
 a module's path is not always clear from its directory name, we will allow the
-go command add comments on the `directory` directive with the module path.
+go command add comments on the `use` directive with the module path.
 
 Requiring the directories listed in the `go.work` file to have `go.mod` files
 means that projects without `go.mod` files can't be added to a workspace even
@@ -541,12 +556,13 @@ directories with `go.mod` files. But these projects are already getting more
 rare and the missing `go.mod` can be worked around by adding a temporary
 `go.mod` file to the project's directory.
 
-The naming of the `go` and `replace` directives is straightforward: they are the
-same as in `go.mod`. The `directory` directive is called `directory` because
-that is its argument. Using `module` to list the module directories could be
-confusing because there is already a module directive in `go.mod` that has a
-different meaning. On the other hand, names like `modvers` and `moddir` are
-awkward.
+The naming of the `go` and `replace` directives is straightforward:
+they are the same as in `go.mod`. The `use` directive is called `use`
+because it causes the go.work file to use a directory as a main
+module. Using `module` to list the module directories could be
+confusing because there is already a module directive in `go.mod` that
+has a different meaning. On the other hand, names like `modvers` and
+`moddir` are awkward.
 
 `go.work` files should not be checked into version control repos containing
 modules so that the `go.work` file in a module does not end up overriding
@@ -619,11 +635,17 @@ necessary sums:
 
 ### Creating and editing `go.work` files
 
-The `go mod initwork` and `go mod editwork` subcommands are being added for the
+The `go work init` and `go work edit` subcommands are being added for the
 same reasons that the go `go mod init` and `go mod edit` commands exist: they
 make it more convenient to create and edit `go.work` files. The names are
 awkward, but it's not clear that it would be worth making the commands named `go
 work init` and `go work edit` if `go work` would only have two subcommands.
+
+### Syncing requirements in workspace back to `go.mod` files
+
+`go work sync` allows users to eliminate divergence between the build list used
+when developing and the build lists users will see when working within
+the individual modules separately.
 
 ## Compatibility
 
@@ -715,12 +737,6 @@ modules.
 
 ## Open issues
 
-### The name of the `directory` directive
-
-The name `directory` could lead people to believe that all modules under the
-directory are included rather than just one. It might be better to use another
-name. One alternative that has been suggested is `include`.
-
 ### Clearing `replace`s
 
 We might want to add a mechanism to ignore all replaces of a module or module
@@ -771,16 +787,6 @@ versioning and releasing modules so that new versions of dependent modules
 depend on new versions of the dependency modules. A tool built in the future can
 use the current workspace as well as the set of dependencies in the module graph
 to automate this work.
-
-### Pushing down dependencies from the build list back to the workspace modules
-
-Even though it's out of scope to update the dependencies between workspace
-modules because that requires a release, it might be useful to make dependency
-versions consistent. One idea could be to push the module versions of dependency
-modules back into the go.mod files of the dependency modules. But this could
-lead to confusion because while the dependency versions will be consistent, the
-dependencies between the workspace modules will still need to be updated
-separately.
 
 ### Listing the module versions in the workspace
 
