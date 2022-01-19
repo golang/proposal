@@ -1459,7 +1459,7 @@ requirement.
 
 ```
 // Double returns a new slice that contains all the elements of s, doubled.
-func Double[E constraints.Number](s []E) []E {
+func Double[E constraints.Integer](s []E) []E {
 	r := make([]E, len(s))
 	for i, v := range s {
 		r[i] = v + v
@@ -1491,7 +1491,7 @@ type SC[E any] interface {
 
 // DoubleDefined returns a new slice that contains the elements of s,
 // doubled, and also has the same type as s.
-func DoubleDefined[S SC[E], E constraints.Number](s S) S {
+func DoubleDefined[S SC[E], E constraints.Integer](s S) S {
 	// Note that here we pass S to make, where above we passed []E.
 	r := make(S, len(s))
 	for i, v := range s {
