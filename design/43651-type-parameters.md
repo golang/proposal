@@ -1484,14 +1484,9 @@ var V1 = Double(MySlice{1})
 We can do what we want by introducing a new type parameter.
 
 ```
-// SC constraints a type to be a slice of some type E.
-type SC[E any] interface {
-	[]E // non-interface type constraint element
-}
-
 // DoubleDefined returns a new slice that contains the elements of s,
 // doubled, and also has the same type as s.
-func DoubleDefined[S SC[E], E constraints.Integer](s S) S {
+func DoubleDefined[S ~[]E, E constraints.Integer](s S) S {
 	// Note that here we pass S to make, where above we passed []E.
 	r := make(S, len(s))
 	for i, v := range s {
@@ -1536,8 +1531,8 @@ We create a mapping of known type arguments:
 
 We then unify each type parameter with a structural constraint with
 the single type in that constraint's type set.
-In this case the structural constraint is `SC[E]` which has the single
-type `[]E`, so we unify `S` with `[]E`.
+In this case the structural constraint is `~[]E` which has the
+structural type `[]E`, so we unify `S` with `[]E`.
 Since we already have a mapping for `S`, we then unify `[]E` with
 `MySlice`.
 As `MySlice` is defined as `[]int`, that associates `E` with `int`.
@@ -1756,7 +1751,7 @@ type Unsettable int
 
 func F4() {
 	// This call is INVALID.
-	nums := FromString2[Unsettable]([]string{"1", "2"})
+	nums := FromStrings2[Unsettable]([]string{"1", "2"})
 	...
 }
 ```
