@@ -3784,7 +3784,7 @@ type Iterator[T any] struct {
 
 // Range returns an Iterator starting at the head of the list.
 func (lst *List[T]) Range() *Iterator[T] {
-	return Iterator[T]{next: &lst.head}
+	return &Iterator[T]{next: &lst.head}
 }
 
 // Next advances the iterator.
