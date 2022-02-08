@@ -38,6 +38,9 @@ And package doc comments (and others) can be rewritten to link to specific symbo
 <tr><td><img src="51082/doclink.png" width="366" height="383">
 </table>
 
+(Gerrit's Markdown viewer does not render the images.
+See [the GitHub rendering](https://github.com/golang/proposal/blob/master/design/51082-godocfmt.md) instead.)
+
 ## Background
 
 Go's doc comments today support plain text and preformatted (HTML \<pre>) blocks,
