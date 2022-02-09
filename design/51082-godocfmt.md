@@ -232,6 +232,8 @@ Here are some examples of variations that do not satisfy the rule and are theref
 	In the middle of a span of non-blank lines,
 	# this is not a heading either.
 
+	 # This is not a heading, because it is indented.
+
 The old heading rule will remain valid, which is acceptable since it mainly
 has false negatives, not false positives. This will keep existing doc comments
 rendering as they do today.
