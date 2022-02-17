@@ -388,7 +388,7 @@ renders exactly as before but uses standard layout. Specifically:
  - All numbered list items use the “N.” form (“N)” is converted).
  - The ASCII double-single-quote forms that have always been
    defined to render as “ and ” are replaced with those.
- - Link URL definitionss are moved to the bottom of the doc comment,
+ - Link URL definitions are moved to the bottom of the doc comment,
    in two different blank-line-separated groups:
    definitions used by the doc comment
    and definitions not used.
