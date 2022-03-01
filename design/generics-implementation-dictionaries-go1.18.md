@@ -3,7 +3,7 @@
 
 This document describes the implementation of generics via dictionaries and
 gcshape stenciling in Go 1.18.  It provides more concrete and up-to-date
-information than described in the [Gcshape design document](https://github.com/golang/proposal/blob/master/design/generics-implementation-gcshape.md)
+information than described in the [Gcshape design document](https://github.com/golang/proposal/blob/master/design/generics-implementation-gcshape.md).
 
 The compiler implementation of generics (after typechecking) focuses mainly on creating instantiations of generic functions and methods that will execute with arguments that have concrete types. In order to avoid creating a different function instantiation for each invocation of a generic function/method with distinct type arguments (which would be pure stenciling), we pass a **dictionary** along with every call to a generic function/method. The [dictionary](https://go.googlesource.com/proposal/+/refs/heads/master/design/generics-implementation-dictionaries.md) provides relevant information about the type arguments that allows a single function instantiation to run correctly for many distinct type arguments.
 
