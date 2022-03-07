@@ -3,7 +3,7 @@
 This document describes a method to implement the [Go generics proposal](https://go.googlesource.com/proposal/+/refs/heads/master/design/go2draft-type-parameters.md) by stenciling the code for each different *GC shape* of the instantiated types, and using a *dictionary* to handle differing behaviors of types that have the same shape. 
 
 A more detailed and up-to-date description of the actual implementation released
-in Go 1.18 is given in [this document](https://github.com/golang/proposal/blob/master/design/generics-implementation-dictionaries-go1.18.md
+in Go 1.18 is given in [this document](https://github.com/golang/proposal/blob/master/design/generics-implementation-dictionaries-go1.18.md).
 
 This proposal is middle ground between the [Generics Implementation - Stenciling](https://go.googlesource.com/proposal/+/refs/heads/master/design/generics-implementation-stenciling.md) and [Generics Implementation - Dictionaries](https://go.googlesource.com/proposal/+/refs/heads/master/design/generics-implementation-dictionaries.md) proposals.
 
