@@ -375,7 +375,7 @@ usage in `golang.org/x/tools/internal/lsp` and when run from any directory in
 the workspace the `go` command would present a consistent build list. When they
 were satisfied with their change, they could release a new version of
 `golang.org/x/mod`, update `golang.org/x/tools`'s `go.mod` to require the new
-vesion of `golang.org/x/mod`, and then turn off workspace mode with
+version of `golang.org/x/mod`, and then turn off workspace mode with
 `-workfile=off` to make sure the change behaves as expected.
 
 #### Multiple modules in the same repository that depend on each other
