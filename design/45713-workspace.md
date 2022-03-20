@@ -54,7 +54,7 @@ interface in another module. Normally, the `go` command recognizes a single
 the module cache. The `replace` directive is the exception: it allows users to
 replace the resolved version of a module with a working version on disk. But
 working with the replace directive can often be awkward: each module developer
-might have working versions at different location on disk, so having the
+might have working versions at different locations on disk, so having the
 directive in a file that needs to be distributed with the module isn't a good
 fit for all use cases.
 
@@ -142,7 +142,7 @@ directories), and disabled otherwise. If `-workfile` names a path to an existing
 file that ends in `.work`, workspace mode will be enabled. Any other value is an
 error.
 
-If workspace mode is on, `-mod=readonly` must be specified either implictly or
+If workspace mode is on, `-mod=readonly` must be specified either implicitly or
 explicitly. Otherwise, the `go` command will return an error. If `-mod` is not
 explicitly set and `go.work` file is found, `-mod=readonly` is set. (That is, it
 takes precedence over the existence of a vendor/module.txt which would normally
@@ -183,7 +183,7 @@ directive, and the `replace` directive.
 The `go.work` file requires a `go` directive. The `go` directive accepts a
 version just as it does in a `go.mod` file. The `go` directive is used to allow
 adding new semantics to the `go.work` files without breaking previous users. It
-does not override go versions in invididual modules.
+does not override go versions in individual modules.
 
 Example:
 
@@ -297,7 +297,7 @@ other configurations.
 
 `go work use` will take as arguments a set of arguments to use in the go.work
 file. If the `-r` flag is added, recursive subdirectories of the listed directories
-will be also listed in use directives. Use directives with directories that don't
+will also be listed in use directives. Use directives with directories that don't
 exist, but that match the arguments to `go work use` will be removed from
 the `go.work` file.
 
@@ -310,7 +310,7 @@ flags:
     directive for the given path
 *   `-replace` and `-dropreplace` will work exactly as they do for `go mod edit`
 
-### Syncing the workspace's buildlist back ot workspace modules
+### Syncing the workspace's buildlist back to workspace modules
 
 `go work sync` pushes the module versions of dependency
 modules back into the go.mod files of the dependency modules. It does this
@@ -411,7 +411,7 @@ that repository.
 
 As a simple example the `gopls` binary is in the module
 `golang.org/x/tools/gopls` which depends on other packages in the
-`golang.org/x/tools` module. Currently, building and testing the top level
+`golang.org/x/tools` module. Currently, building and testing the top-level
 `gopls` code is done by entering the directory of the `golang.org/x/tools/gopls`
 module which replaces its usage of the `golang.org/tools/module`:
 
@@ -532,7 +532,7 @@ still use the workspace build list. This makes it easy for users to have a
 directory linking their modules together.
 
 Like the `go.mod` file, we want the format of the configuration for multi-module
-workspaces to be machine writable and human readable. Though there are other
+workspaces to be machine writable and human-readable. Though there are other
 popular configuration formats such as yaml and json, they can often be confusing
 or annoying to write. The format used by the `go.mod` file is already familar to
 Go programmers, and is easy for both humans and computers to read and write.
@@ -579,7 +579,7 @@ moving between files.
 
 `replace` directives are respected when building the build list because many
 modules already have many `replace`s in them that are necessary to properly
-build them. Not respecting them would break users unnessesarily. `replace`
+build them. Not respecting them would break users unnecessarily. `replace`
 directives exist in the workspace file to allow for resolving conflicts between
 `replace`s in workspace modules. Because all workspace modules exist as
 co-equals in the workspace, there is no clear and intuitive way to resolve
