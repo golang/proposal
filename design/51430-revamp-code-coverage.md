@@ -119,8 +119,7 @@ For larger applications, it would make sense to create reports with a more
 hierarchical structure: first a summary by module, then package within module,
 then source file within package, and so on.
 
-Finally, there are a number of long-standing problems that arise due to the use
-of source-to-source rewriting used by cmd/cover and the go command, including
+Finally, there are a number of long-standing problems that arise due to the use of source-to-source rewriting used by cmd/cover and the go command, including
 
   [#23883](https://github.com/golang/go/issues/23883)
   "cmd/go: -coverpkg=all gives different coverage value when run on a
@@ -134,23 +133,16 @@ of source-to-source rewriting used by cmd/cover and the go command, including
   "cmd/go: test coverpkg panics when defining the same flag in
       multiple packages"
 
-Most of these problems arise because of the introduction of additional imports
-in the `_testmain.go` shim created by the Go command when carrying out a coverage
-test run in combination with the "-coverpkg" option.
+Most of these problems arise because of the introduction of additional imports in the `_testmain.go` shim created by the Go command when carrying out a coverage test run (in combination with the "-coverpkg" option).
 
 ## Proposed changes
 
 ### Building for coverage
 
-While the existing "go test" based coverage workflow will continue to be
-supported, the proposal is to add coverage as a new build mode for "go build".
-In the same way that users can build a race-detector instrumented executable
-using "go build -race", it will be possible to build a coverage-instrumented
-executable using "go build -cover".
+While the existing "go test" based coverage workflow will continue to be supported, the proposal is to add coverage as a new build mode for "go build".
+In the same way that users can build a race-detector instrumented executable using "go build -race", it will be possible to build a coverage-instrumented executable using "go build -cover".
 
-To support this goal, the plan will be to migrate the support for coverage
-instrumentation into the compiler, moving away from the source-to-source
-translation approach.
+To support this goal, the plan will be to migrate a portion of the support for coverage instrumentation into the compiler, while still retaining the existing source-to-source rewriting strategy (a so-called "hybrid" approach).
 
 ### Running instrumented applications
 
@@ -298,21 +290,9 @@ statistics.
 
 ### Merging coverage data output files
 
-As part of this work the proposal to enhance the "go tool cover" command to
-provide a profile merging facility, so that collection of coverage data files
-(emitted from multiple runs of an instrumented executable) can be merged into a
-single summary output file. Example usage:
+As part of this work, the proposal is to provide "go tool" utilities for merging coverage data files, so that collection of coverage data files (emitted from multiple runs of an instrumented executable) can be merged into a single summary output file. 
 
-```
-  $ go tool cover -merge -coveragedir=/tmp/mycovdata -o finalprofile.out
-  $
-```
-
-The merge tool will be capable of writing files in the existing (legacy)
-coverage output file format, if requested by the user.
-
-In addition to a "merge" facility, it may also be interesting to support other
-operations such as intersect and subtract (more on this later).
+More details are provided below in the section 'Coverage data file tooling'.
 
 ### Differential coverage
 
@@ -338,11 +318,92 @@ are covering new code in the way that the developer intended.
 This section digs into more of the technical details of the changes needed in
 the compiler, runtime, and other parts of the toolchain.
 
-### Compiler changes
+### Package selection when building instrumented applications
 
-For "go build -coverage" builds, the proposal is to have the compiler insert
-coverage instrumentation directly, as opposed to using source-to-source
-rewriting (as with the existing implementation).
+In the existing "go test" based coverage design, the default is to instrument only those packages that are specifically selected for testing. Example:
+
+```
+  $ go test -cover p1 p2/...
+  ...
+  $
+```
+
+In the invocation above, the Go tool reports coverage for package 'p1' and for all packages under 'p2', but not for any other packages (for example, any of the various packages imported by 'p1'). 
+
+When building applications for coverage, the default will be to instrument all packages in the main module for the application being built.
+Here is an example using the "delve" debugger (a Go application):
+
+```
+$ git clone -b v1.3.2 https://github.com/go-delve/delve
+...
+$ cd delve
+$ go list ./...
+github.com/go-delve/delve/cmd/dlv
+github.com/go-delve/delve/cmd/dlv/cmds
+...
+github.com/go-delve/delve/service/rpccommon
+github.com/go-delve/delve/service/test
+$ fgrep spf13 go.mod
+github.com/spf13/cobra v0.0.0-20170417170307-b6cb39589372
+github.com/spf13/pflag v0.0.0-20170417173400-9e4c21054fa1 // indirect
+$ go build -cover -o dlv.inst.exe ./cmd/dlv
+$
+```
+
+When the resulting program (`dlv.inst.exe`) is run, it will capture coverage information for just the subset of dependent packages shown in the `go list` command above.
+In particular, not coverage will be collected/reported for packages such as `github.com/spf13/cobra` or for packages in the Go standard library (ex: `fmt`).
+
+Users can override this default by passing the `-coverpkg` option to `go build`.
+Some additional examples:
+
+```
+  // Collects coverage for _only_ the github.com/spf13/cobra package
+  $ go build -cover -coverpkg=github.com/spf13/cobra ./cmd/dlv
+  // Collects coverage for all packages in the main module and 
+  // all packages listed as dependencies in go.mod
+  $ go build -cover -coverpkg=mod.deps ./cmd/dlv
+  // Collects coverage for all packages (including the Go std library)
+  $ go build -cover -coverpkg=all ./cmd/dlv
+  $
+```
+
+### Coverage instrumentation: compiler or tool?
+
+Performing code coverage instrumentation in the compiler (as opposed to prior to compilation via tooling) has some distinct advantages.
+
+Compiler-based instrumentation is potentially much faster than the tool-based approach, for a start.
+In addition, the compiler can apply special treatment to the coverage meta-data variables generated during instrumentation (marking it read-only), and/or provide special treatment for coverage counter variables (ensuring that they are aggregated).
+
+Compiler-based instrumentation also has disadvantages, however. 
+The "front end" (lexical analysis and parsing) portions of most compilers are typically designed to capture a minimum amount of source position information, just enough to support accurate error reporting, but no more.
+For example, in this code:
+
+```Go
+L11:  func ABC(x int) {
+L12:    if x < 0 {
+L13:      bar()
+L14:    }
+L15:  }
+```
+
+Consider the `{` and '}' tokens on lines 12 and 14. While the compiler will accept these tokens, it will not necessarily create explicit representations for them (with detailed line/column source positions) in its IR, because once parsing is complete (and no syntax errors are reported), there isn't any need to keep this information around (it would just be a waste of memory). 
+
+This is a problem for code coverage meta-data generation, since we'd like to record these sorts of source positions for reporting purposes later on (for example, during HTML generation).
+
+This poses a problem: if we change the compiler to capture and hold onto more of this source position info, we risk slowing down compilation overall (even if coverage instrumentation is turned off).
+
+### Hybrid instrumentation
+
+To ensure that coverage instrumentation has all of the source position information it needs, and that we gain some of the benefits of using the compiler, the proposal is to use a hybrid approach: employ source-to-source rewriting for the actual counter annotation/insertion, but then pass information about the counter data structures to the compiler (via a config file) so that the compiler can also play a part.
+
+The `cmd/cover` tool will be modified to operate at the package level and not at the level of an individual source file; the output from the instrumentation process will be a series of modified source files, plus summary file containing things like the the names of generated variables create during instrumentation. 
+This generated file will be passed to the compiler when the instrumented package is compiled.
+
+The new style of instrumentation will segregate coverage meta-data and coverage counters, so as to allow the compiler to place emta-data into the read-only data section of the instrumented binary.
+
+This segregation will continue when the instrumented program writes out coverage data files at program termination: meta-data and counter data will be written to distinct output files. 
+
+### New instrumentation strategy
 
 Consider the following source fragment:
 
@@ -366,17 +427,15 @@ Consider the following source fragment:
   L18:  }
 ```
 
-For each function, the compiler will analyze the function to divide it into
-"coverable units", where each coverable unit corresponds roughly to a [basic
-block](https://en.wikipedia.org/wiki/Basic_block).
-The compiler will create:
+For each function, the coverage instrumentater will analyze the function to divide it into "coverable units", where each coverable unit corresponds roughly to a [basic block](https://en.wikipedia.org/wiki/Basic_block).
+
+The instrumenter will create:
 
   1. a chunk of read-only meta-data that stores details on the coverable units
      for the function, and
   2. an array of counters, one for each coverable unit
 
-Finally, the compiler will add instrumentation code to the IR associated with
-each unit to increment or set the appropriate counter when the unit executes.
+Finally, the instrumenter will insert code into each coverable unit to increment or set the appropriate counter when the unit executes.
 
 #### Function meta-data
 
@@ -406,9 +465,10 @@ More details on the package meta-data format can be found below.
 The counter array for each function will be a distinct BSS (uninitialized data)
 symbol. These anonymous symbols will be separate entities to ensure that if a
 function is dead-coded by the linker, the corresponding counter array is also
-removed. Counter arrays will be tagged by the compiler with an attribute to
-indentify them to the Go linker, which will aggregate all counter symbols into a
-single section in the output binary.
+removed. 
+Counter arrays will be tagged by the compiler with an attribute to indentify
+them to the Go linker, which will aggregate all counter symbols into a single
+section in the output binary.
 
 Although the counter symbol is managed by the compiler as an array, it can be
 viewed as a struct of the following form:
@@ -435,31 +495,6 @@ When a coverage-instrumented binary terminates execution and we need to write
 out coverage data, the runtime can make a sweep through the counter section for
 the binary, and can easily skip over sub-sections corresponding to functions
 that were never executed.
-
-### Phase ordering
-
-One aspect of the compiler design is the decision on where in the compiler
-pipeline to perform the instrumentation.
-A key consideration is that coverage analysis (generation of meta-data) has to
-take place before any dead code removal.
-For example, considerd the code below:
-
-```Go
-   const x = 1
-   ...
-   if x == 2 {
-      ctxt = nil
-      ...
-   }
-```
-
-Here the compiler can (with a small amount of extra work) prove that the 
-`"x == 2"` guard is never true, and can therefore remove the "ctxt" assignment and the
-code that follows it.
-For the purposes of computing code coverage, however, it is important to include
-the "ctxt" assignment in the total count.
-The takeaway here is that the phase or pass inside the compiler that computes
-function meta-data has to happen before any dead-code optimization takes place.
 
 ### Details on package meta-data symbol format
 
@@ -608,7 +643,7 @@ block, and an execution count (or 1/0 boolean value indicating "hit" or "not
 hit").
 
 This format is simple and straightforward to digest for reporting tools, but is
-also fairly space-inefficient.
+also somewhat space-inefficient.
 
 The proposal is to switch to a binary data file format, but provide tools for
 easily converting a binary file to the existing legacy format.
@@ -616,10 +651,12 @@ easily converting a binary file to the existing legacy format.
 Exact details of the new format are still TBD, but very roughly: it should be
 possible to just have a file header with information on the
 execution/invocation, then a series of package meta-data blobs (drawn directly
-from the corresponding rodata symbols in the binary) and then a series of
-counter blocks (generated based on the live function list).
+from the corresponding rodata symbols in the binary).
 
-File header information could include items such as:
+Counter data will be written to a separate file composed of a header followed by a series of counter blocks, one per function.
+Each counter data file will store the hash of the meta-data file that it is assocated with. 
+
+Counter file header information will include items such as:
 
 * binary name
 * module name
@@ -627,13 +664,62 @@ File header information could include items such as:
 * process ID
 * nanotime at point where data is emitted
 
-It is worth noting that the meta-data portion of the output file will be
-invariant from run to run of a given instrumented executable, hence the runtime
-will actually emit two files: an invariant meta-data output file, and a variant
-portion (live counter data only, plus a reference to the invariant portion)
-The filename for the invariant portion will include a meta-data hash, and names
-of the file or files corresponding to the variant portion will also refer to
-this hash.
+Since the meta-data portion of the coverage output will be invariant from run to run of a given instrumented executable, at the point where an instrumented program terminates, if it sees that a meta-data file with the proper hash and length already exists, then it can avoid the meta-data writing step and only emit a counter data file.
+
+
+### Coverage data file tooling
+
+A new tool, `covdata`, will be provided for manipulating coverage data files generated from runs of instrumented executables.
+The covdata tool will support merging, dumping, conversion, substraction, intersection, and other operations. 
+
+#### Merge
+
+The covdata `merge` subcommands reads data files from a series of input directories and merges them together into a single output directory. 
+
+Example usage:
+
+```
+  // Run an instrumented program twice.
+  $ mkdir /tmp/dir1 /tmp/dir2
+  $ GOCOVERDIR=/tmp/dir1 ./prog.exe <first set of inputs>
+  $ GOCOVERDIR=/tmp/dir2 ./prog.exe <second set of inputs>
+  $ ls /tmp/dir1
+  covcounters.7927fd1274379ed93b11f6bf5324859a.592186.1651766123343357257
+  covmeta.7927fd1274379ed93b11f6bf5324859a
+  $ ls /tmp/dir2
+  covcounters.7927fd1274379ed93b11f6bf5324859a.592295.1651766170608372775
+  covmeta.7927fd1274379ed93b11f6bf5324859a
+  
+  // Merge the both directories into a single output dir.
+  $ mkdir final
+  $ go tool covdata merge -i=/tmp/dir1,/tmp/dir1 -o final
+
+```
+
+#### Conversion to legacy text format
+
+The `textfmt` subcommand reads coverage data files in the new format and emits a an equivalent file in the existing text format supported by `cmd/cover`. The resulting text files can then be used for reporting using the existing workflows.
+
+Example usage (continuing from above):
+
+```
+  // Convert coverage data from directory 'final' into text format.
+  $ go tool covdata textfmt -i=final -o=covdata.txt 
+  $ head covdata.txt
+  mode: set
+  cov-example/p/p.go:7.22,8.2 0 0
+  cov-example/p/p.go:10.31,11.2 1 0
+  cov-example/p/p.go:11.3,13.3 0 0
+  cov-example/p/p.go:14.3,16.3 0 0
+  cov-example/p/p.go:19.33,21.2 1 1
+  cov-example/p/p.go:23.22,25.2 1 0
+  ...
+  $ go tool cover -func=covdata.txt | head
+  cov-example/main/main.go:12:	main			90.0%
+  cov-example/p/p.go:7:		emptyFn			0.0%
+  ...
+  $
+```
 
 ## Possible Extensions, Future Work, Limitations
 
