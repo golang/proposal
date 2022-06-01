@@ -213,38 +213,66 @@ Austin for this idea).
 
 To handle server programs (which in many cases run forever and may not call
 exit), APIs will be provided for writing out a coverage profile under user
-control, e.g. something along the lines of
+control. The first API variants will support writing coverage data to a specific
+directory path:
 
 ```Go
-  import "<someOfficialPath>/cover"
+  import "runtime/coverage"
 
   var *coverageoutdir flag.String(...)
 
   func server() {
     ...
     if *coverageoutdir != "" {
-        f, err := cover.OpenCoverageOutputFile(...)
-        if err != nil {
-            log.Fatal("...")
-	   }
+      // Meta-data is already available on program startup; write it now.
+      // NB: we're assuming here that the specified dir already exists
+      if err := coverage.EmitMetaDataToDir(*coverageoutdir); err != nil {
+        log.Fatalf("writing coverage meta-data: %v")
+      }
     }
     for {
       ...
-      if <received signal to emit coverage data> {
-        err := f.Emit()
-        if err != nil {
-            log.Fatalf("error %v emitting ...", err)
+      if *coverageoutdir != "" && <received signal to emit coverage data> {
+        if err := coverage.EmitCounterDataToDir(*coverageoutdir); err != nil {
+          log.Fatalf("writing coverage counter-data: %v")
         }
       }
     }
-
+  }
 ```
- 
-In addition to OpenCoverageOutputFile() and Emit() as above, an Emit() function
-will be provided that accepts an io.Writer (to allow coverage profiles to be
-written to a network connection or pipe, in case writing to a file is not
-possible).
 
+The second API variants will support writing coverage meta-data and counter data to a user-specified io.Writer (where the io.Writer is presumably backed by a pipe or network connection of some sort):
+
+```Go
+  import "runtime/coverage"
+
+  var *codecoverageflag flag.Bool(...)
+
+  func server() {
+    ...
+    var w io.Writer
+    if *codecoverageflag {
+      // Meta-data is already available on program startup; write it now.
+      w = <obtain destination io.Writer somehow>
+      if err := coverage.EmitMetaDataToWriter(w); err != nil {
+        log.Fatalf("writing coverage meta-data: %v")
+      }
+    }
+    for {
+      ...
+      if *codecoverageflag && <received signal to emit coverage data> {
+        if err := coverage.EmitCounterDataToWriter(w); err != nil {
+          log.Fatalf("writing coverage counter-data: %v")
+        }
+      }
+    }
+  }
+```
+
+These APIs will return an error if invoked from within an application not built
+with the "-cover" flag.
+
+ 
 ### Coverage and modules
 
 Most modern Go programs make extensive use of dependent third-party packages;
