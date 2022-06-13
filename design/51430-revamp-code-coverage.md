@@ -16,7 +16,7 @@ for code coverage testing.
 ### Current support for coverage testing
 
 The Go toolchain currently includes support for collecting and reporting
-coverage data for Golang unit tests; this facility is made available via the "go
+coverage data for Go unit tests; this facility is made available via the "go
 test -cover" and "go tool cover" commands.
 
 The current workflow for collecting coverage data is baked into "go test"
@@ -356,7 +356,7 @@ In the existing "go test" based coverage design, the default is to instrument on
   $
 ```
 
-In the invocation above, the Go tool reports coverage for package 'p1' and for all packages under 'p2', but not for any other packages (for example, any of the various packages imported by 'p1'). 
+In the invocation above, the Go tool reports coverage for package `p1` and for all packages under `p2`, but not for any other packages (for example, any of the various packages imported by `p1`). 
 
 When building applications for coverage, the default will be to instrument all packages in the main module for the application being built.
 Here is an example using the "delve" debugger (a Go application):
@@ -414,7 +414,7 @@ L14:    }
 L15:  }
 ```
 
-Consider the `{` and '}' tokens on lines 12 and 14. While the compiler will accept these tokens, it will not necessarily create explicit representations for them (with detailed line/column source positions) in its IR, because once parsing is complete (and no syntax errors are reported), there isn't any need to keep this information around (it would just be a waste of memory). 
+Consider the `{` and `}` tokens on lines 12 and 14. While the compiler will accept these tokens, it will not necessarily create explicit representations for them (with detailed line/column source positions) in its IR, because once parsing is complete (and no syntax errors are reported), there isn't any need to keep this information around (it would just be a waste of memory). 
 
 This is a problem for code coverage meta-data generation, since we'd like to record these sorts of source positions for reporting purposes later on (for example, during HTML generation).
 
@@ -427,7 +427,7 @@ To ensure that coverage instrumentation has all of the source position informati
 The `cmd/cover` tool will be modified to operate at the package level and not at the level of an individual source file; the output from the instrumentation process will be a series of modified source files, plus summary file containing things like the the names of generated variables create during instrumentation. 
 This generated file will be passed to the compiler when the instrumented package is compiled.
 
-The new style of instrumentation will segregate coverage meta-data and coverage counters, so as to allow the compiler to place emta-data into the read-only data section of the instrumented binary.
+The new style of instrumentation will segregate coverage meta-data and coverage counters, so as to allow the compiler to place meta-data into the read-only data section of the instrumented binary.
 
 This segregation will continue when the instrumented program writes out coverage data files at program termination: meta-data and counter data will be written to distinct output files. 
 
@@ -667,8 +667,8 @@ above, the output data might look like this:
 ```
 
 Each line is a package path, source position info (file/line/col) for a basic
-block, and an execution count (or 1/0 boolean value indicating "hit" or "not
-hit").
+block, statement count, and an execution count (or 1/0 boolean value indicating
+"hit" or "not hit").
 
 This format is simple and straightforward to digest for reporting tools, but is
 also somewhat space-inefficient.
