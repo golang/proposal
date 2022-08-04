@@ -107,7 +107,7 @@ It's outside of the scope of the Go runtime to solve this problem for everyone,
 but I believe the Go runtime has an important role to play in supporting these
 worthwhile efforts.
 
-2. Eliminate out-of-memory errors in 100% of cases.
+1. Eliminate out-of-memory errors in 100% of cases.
 
 Whatever policy this API adheres to is going to fail for some use-case, and
 that's OK.
@@ -207,28 +207,20 @@ To compute the heap limit `$\hat{L}$` from the soft memory limit `$L$`, I
 propose the following calculation:
 
 ```render-latex
-\hat{L} = L - (O_M + O_I)
+\hat{L} = L - (T - F - A)
 ```
 
-Where `$O_M$` is (per `runtime/metrics` memory names)
+`$T$` is the total amount of memory mapped by the Go runtime.
+`$F$` is the amount of free and unscavenged memory the Go runtime is holding.
+`$A$` is the number of bytes in allocated heap objects at the time `$\hat{L}$`
+is computed.
 
-```
-/memory/classes/metadata/mcache/free:bytes +
-/memory/classes/metadata/mcache/inuse:bytes +
-/memory/classes/metadata/mspan/free:bytes +
-/memory/classes/metadata/mspan/inuse:bytes +
-/memory/classes/metadata/other:bytes +
-/memory/classes/os-stacks:bytes +
-/memory/classes/other:bytes +
-/memory/classes/profiling/buckets:bytes
-```
-
-and `$O_I$` is the maximum of `/memory/classes/heap/unused:bytes +
-/memory/classes/heap/free:bytes` over the last GC cycle.
-
-These terms (called `$O$`, for "overheads") account for all memory that is not
-accounted for by the GC pacer (from the [new pacer
-proposal](https://github.com/golang/proposal/blob/329650d4723a558c2b76b81b4995fc5c267e6bc1/design/44167-gc-pacer-redesign.md#heap-goal)).
+The second term, `$(T - F - A)$`, represents the sum of non-heap overheads.
+Free and unscavenged memory is specifically excluded because this is memory that
+the runtime might use in the near future, and the scavenger is specifically
+instructed to leave the memory up to the heap goal unscavenged.
+Failing to exclude free and unscavenged memory could lead to a very poor
+accounting of non-heap overheads.
 
 With `$\hat{L}$` fully defined, our heap goal for cycle `$n$` (`$N_n$`) is a
 straightforward extension of the existing one.
@@ -245,31 +237,19 @@ then
 N_n = min(\hat{L}, \gamma(M_{n-1})+S_n+G_n)
 ```
 
-Over the course of a GC cycle `$O_M$` remains stable because it increases
-monotonically.
-There's only one situation where `$O_M$` can grow tremendously (relative to
-active heap objects) in a short period of time (< 1 GC cycle), and that's when
-`GOMAXPROCS` increases.
-So, I also propose recomputing this value at that time.
+Over the course of a GC cycle, non-heap overheads remain stable because the
+mostly increase monotonically.
+However, the GC needs to be responsive to any change in non-heap overheads.
+Therefore, I propose a more heavy-weight recomputation of the heap goal every
+time its needed, as opposed to computing it only once per cycle.
+This also means the GC trigger point needs to be dynamically recomputable.
+This check will create additional overheads, but they're likely to be low, as
+the GC's internal statistics are updated only on slow paths.
 
-Meanwhile `$O_I$` stays relatively stable (and doesn't have a sawtooth pattern,
-as one might expect from a sum of idle heap memory) because object sweeping
-occurs incrementally, specifically proportionally to how fast the application is
-allocating.
-Furthermore, this value is guaranteed to stay relatively stable across a single
-GC cycle, because the total size of the heap for one GC cycle is bounded by the
-heap goal.
-Taking the highwater mark of this value places a conservative upper bound on the
-total impact of this memory, so the heap goal stays safe from major changes.
-
-One concern with the above definition of `$\hat{L}$` is that it is fragile to
-changes to the Go GC.
-In the past, seemingly unrelated changes to the Go runtime have impacted the
-GC's pacer, usually due to an unforeseen influence on the accounting that the
-pacer relies on.
-To minimize the impact of these accidents on the conversion function, I propose
-centralizing and categorizing all the variables used in accounting, and writing
-tests to ensure that expected properties of the account remain in-tact.
+The nice thing about this definition of `$\hat{L}$` is that it's fairly robust
+to changes to the Go GC, since total mapped memory, free and unscavenged memory,
+and bytes allocated in objects, are fairly fundamental properties (especially to
+any tracing GC design).
 
 #### Death spirals
 
@@ -320,7 +300,7 @@ large enough to accommodate worst-case pause times but not too large such that a
 more than about a second.
 1 CPU-second per `GOMAXPROCS` seems like a reasonable place to start.
 
-Unfortunately, 50% is not a reasonable choice for small values of `GOGC`.
+Unfortunately, 50% is not always a reasonable choice for small values of `GOGC`.
 Consider an application running with `GOGC=10`: an overall 50% GC CPU
 utilization limit for `GOGC=10` is likely going to be always active, leading to
 significant overshoot.
@@ -357,22 +337,13 @@ use approaches the limit.
 I propose it does so using a proportional-integral controller whose input is the
 difference between the memory limit and the memory used by Go, and whose output
 is the CPU utilization target of the background scavenger.
-The output will be clamped at a minimum of 1% and a maximum of 10% overall CPU
-utilization.
-Note that the 10% is chosen arbitrarily; in general, returning memory to the
-platform is nowhere near as costly as the GC, but the number must be chosen such
-that the mutator still has plenty of room to make progress (thus, I assert that
-40% of CPU time is enough).
-In order to make the scavenger scale to overall CPU utilization effectively, it
-requires some improvements to avoid the aforementioned locking issues it deals
-with today.
+This will make the background scavenger more reliable.
 
-Any CPU time spent in the scavenger should also be accounted for in the leaky
-bucket algorithm described in the [Death spirals](#death-spirals) section as GC
-time, however I don't think it should be throttled in the same way.
-The intuition behind that is that returning memory to the platform is generally
-going to be more immediately fruitful than spending more time in garbage
-collection.
+However, the background scavenger likely won't return memory to the OS promptly
+enough for the memory limit, so in addition, I propose having span allocations
+eagerly return memory to the OS to stay under the limit.
+The time a goroutine spends in this will also count toward the 50% GC CPU limit
+described in the [Death spirals](#death-spirals) section.
 
 #### Alternative approaches considered
 
@@ -416,38 +387,13 @@ go beyond the spans already in-use.
 
 ##### Returning memory to the platform
 
-A potential issue with the proposed design is that because the scavenger is
-running in the background, it may not react readily to spikes in memory use that
-exceed the limit.
-
-In contrast, [TCMalloc](#tcmalloc) searches for memory to return eagerly, if an
-allocation were to exceed the limit.
-In the Go 1.13 cycle, I attempted a similar policy when first implementing the
-scavenger, and found that it could cause unacceptable tail latency increases in
-some applications.
-While that policy certainly tried to return memory back to the platform
-significantly more often than it would be in this case, it still has a couple of
-downsides:
-1. It introduces latency.
-   The background scavenger can be more efficiently time-sliced in between other
-   work, so it generally should only impact throughput.
-1. It's much more complicated to bound the total amount of time spent searching
-   for and returning memory to the platform during an allocation.
-
-The key insight as to why this policy works just fine for TCMalloc and won't
-work for Go comes from a fundamental difference in design.
-Manual memory allocators are typically designed to have a LIFO-style memory
-reuse pattern.
-Once an allocation is freed, it is immediately available for reallocation.
-In contrast, most efficient tracing garbage collection algorithms require a
-FIFO-style memory reuse pattern, since allocations are freed in bulk.
-The result is that the page allocator in a garbage-collected memory allocator is
-accessed far more frequently than in manual memory allocator, so this path will
-be hit a lot harder.
-
-For the purposes of this design, I don't believe the benefits of eager return
-outweigh the costs, and I do believe that the proposed design is good enough for
-most cases.
+If returning memory to the OS eagerly becomes a significant performance issue, a
+reasonable alternative could be to crank up the background scavenger's CPU usage
+in response to growing memory pressure.
+This needs more thought, but given that it would now be controlled by a
+controller, its CPU usage will be more reliable, and this is an option we can
+keep in mind.
+One benefit of this option is that it may impact latency less prominently.
 
 ### Documentation
 
@@ -510,6 +456,11 @@ Generally speaking, Java runtimes often only return memory to the OS when it
 decides to shrink the heap space used; more recent implementations (e.g. G1) do
 so more rarely, except when [the application is
 idle](https://openjdk.java.net/jeps/346).
+
+Some JVMs are "container aware" and read the memory limits of their containers
+to stay under the limit.
+This behavior is closer to what is proposed in this document, but I do not
+believe the memory limit is directly configurable, like the one proposed here.
 
 ### SetMaxHeap
 
