@@ -47,7 +47,7 @@ In order to extract maximum performance,  these optimizations are typically perf
 
 ### Standard Compilation flow in Go
 
-![](55025/image1.png)
+![](55022/image1.png)
 
 **Figure 1.** Go compiler.
 
@@ -82,7 +82,7 @@ This limitation has led us to enable the basic-block layout optimization at SSA-
 
 ### New compilation flow proposed in Go for PGO
 
-![](55025/image2.png)
+![](55022/image2.png)
 
 **Figure 2.** New PGO-enabled Go compiler.
 
