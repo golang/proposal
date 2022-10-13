@@ -23,8 +23,7 @@ More specifically, I propose:
 
 1. Including all non-heap sources of GC work (stacks, globals) in pacing
    decisions.
-1. Reframing the pacing problem as a search problem, solved by a
-   proportional-integral controller,
+1. Reframing the pacing problem as a search problem,
 1. Extending the hard heap goal to the worst-case heap goal of the next GC,
 
 (1) will resolve long-standing issues with small heap sizes, allowing the Go
@@ -356,6 +355,10 @@ But I fear that using it directly has the potential to introduce a significant
 amount of noise, so smoothing over transient changes to this value is desirable.
 To do so, I propose using this measurement as the set-point for a
 proportional-integral (PI) controller.
+This means that the PI controller is always chasing whatever value was measured
+for each GC cycle.
+In a steady-state with only small changes, this means the PI controller acts as
+a smoothing function.
 
 The advantage of a PI controller over a proportional controller is that it
 guarantees that steady-state error will be driven to zero.
@@ -372,12 +375,13 @@ It's worth noting that PI (more generally, PID controllers) have a lot of years
 of research and use behind them, and this design lets us take advantage of that
 and tune the pacer further if need be.
 
-Why a PI controller and not a PID controller? The PI controllers are simpler to
-reason about, and the derivative term in a PID controller tends to be sensitive
-to high-frequency noise.
-The advantage of the derivative term is a shorter rise time, but simulations
-show that the rise time is roughly 1 GC cycle, so I don't think there's much
-reason to include it just yet.
+Why a PI controller and not a PID controller?
+Firstly, PI controllers are simpler to reason about.
+Secondly, the derivative term in a PID controller tends to be sensitive to
+high-frequency noise, and the entire point here is to smooth over noise.
+Furthermore, the advantage of the derivative term is a shorter rise time, but
+simulations show that the rise time is roughly 1 GC cycle, so I don't think
+there's much reason to include it.
 Adding the derivative term though is trivial once the rest of the design is in
 place, so the door is always open.
 
