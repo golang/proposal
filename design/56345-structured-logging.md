@@ -4,7 +4,7 @@ Author: Jonathan Amsterdam
 
 Date: 2022-10-19
 
-Issue: https://go.dev/issue/NNNNN
+Issue: https://go.dev/issue/56345
 
 Discussion: https://github.com/golang/go/discussions/54763
 
