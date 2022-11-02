@@ -579,6 +579,10 @@ These methods first call `Handler.Enabled` to see if they should proceed.
 Each of these methods has a corresponding top-level function that uses the
 default logger.
 
+We will provide a vet check for the methods that take a list of `any` arguments
+to catch problems with missing keys or values.
+
+
 ```
 func (l Logger) Log(level Level, msg string, args ...any)
     Log emits a log record with the current time and the given level and
