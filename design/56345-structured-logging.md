@@ -224,11 +224,11 @@ type Handler interface {
 	// A Handler should treat WithGroup as starting a Group of Attrs that ends
 	// at the end of the log event. That is,
 	//
-	//     logger.WithGroup("s").LogAttrs(slog.Int("a", 1), slog.Int("b", 2))
+	//     logger.WithGroup("s").LogAttrs(level, msg, slog.Int("a", 1), slog.Int("b", 2))
 	//
 	// should behave like
 	//
-	//     logger.LogAttrs(slog.Group("s", slog.Int("a", 1), slog.Int("b", 2)))
+	//     logger.LogAttrs(level, msg, slog.Group("s", slog.Int("a", 1), slog.Int("b", 2)))
 	WithGroup(name string) Handler
 }
 ```
@@ -539,10 +539,10 @@ section below](#context-support)). Use `New` to create `Logger` with a
 `Handler`, and the `Handler` method to retrieve it.
 
 ```
-func New(h Handler) Logger
+func New(h Handler) *Logger
     New creates a new Logger with the given Handler.
 
-func (l Logger) Handler() Handler
+func (l *Logger) Handler() Handler
     Handler returns l's Handler.
 ```
 
@@ -551,12 +551,12 @@ It can be set and retrieved with the `SetDefault` and
 `Default` functions.
 
 ```
-func SetDefault(l Logger)
+func SetDefault(l *Logger)
     SetDefault makes l the default Logger. After this call, output from the
     log package's default Logger (as with log.Print, etc.) will be logged at
     InfoLevel using l's Handler.
 
-func Default() Logger
+func Default() *Logger
     Default returns the default Logger.
 ```
 
@@ -584,7 +584,7 @@ to catch problems with missing keys or values.
 
 
 ```
-func (l Logger) Log(level Level, msg string, args ...any)
+func (l *Logger) Log(level Level, msg string, args ...any)
     Log emits a log record with the current time and the given level and
     message. The Record's Attrs consist of the Logger's attributes followed by
     the Attrs specified by args.
@@ -596,19 +596,19 @@ func (l Logger) Log(level Level, msg string, args ...any)
         an Attr.
       - Otherwise, the argument is treated as a value with key "!BADKEY".
 
-func (l Logger) LogAttrs(level Level, msg string, attrs ...Attr)
+func (l *Logger) LogAttrs(level Level, msg string, attrs ...Attr)
     LogAttrs is a more efficient version of Logger.Log that accepts only Attrs.
 
-func (l Logger) Debug(msg string, args ...any)
+func (l *Logger) Debug(msg string, args ...any)
     Debug logs at DebugLevel.
 
-func (l Logger) Info(msg string, args ...any)
+func (l *Logger) Info(msg string, args ...any)
     Info logs at InfoLevel.
 
-func (l Logger) Warn(msg string, args ...any)
+func (l *Logger) Warn(msg string, args ...any)
     Warn logs at WarnLevel.
 
-func (l Logger) Error(msg string, err error, args ...any)
+func (l *Logger) Error(msg string, err error, args ...any)
     Error logs at ErrorLevel. If err is non-nil, Error appends Any("err",
     err) to the list of attributes.
 ```
@@ -617,12 +617,12 @@ The `Log` and `LogAttrs` methods have variants that take a call depth, so other
 functions can wrap them and adjust the source line information.
 
 ```
-func (l Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
+func (l *Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
     LogDepth is like Logger.Log, but accepts a call depth to adjust the file
     and line number in the log record. 0 refers to the caller of LogDepth;
     1 refers to the caller's caller; and so on.
 
-func (l Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...Attr)
+func (l *Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...Attr)
     LogAttrsDepth is like Logger.LogAttrs, but accepts a call depth argument
     which it interprets like Logger.LogDepth.
 ```
@@ -630,7 +630,7 @@ func (l Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...A
 Loggers can have attributes as well, added by the `With` method.
 
 ```
-func (l Logger) With(args ...any) Logger
+func (l *Logger) With(args ...any) *Logger
     With returns a new Logger that includes the given arguments, converted to
     Attrs as in Logger.Log. The Attrs will be added to each output from the
     Logger.
@@ -713,7 +713,7 @@ different group.
 
 
 ```
-func (l Logger) WithGroup(name string) Logger
+func (l *Logger) WithGroup(name string) *Logger
     WithGroup returns a new Logger that starts a group. The keys of all
     attributes added to the Logger will be qualified by the given name.
 ```
@@ -728,7 +728,7 @@ include dynamically scoped information in log messages.
 The `slog` package has two functions to support this pattern.
 
 ```
-func FromContext(ctx context.Context) Logger
+func FromContext(ctx context.Context) *Logger
     FromContext returns the Logger stored in ctx by NewContext, or the default
     Logger if there is none.
 
@@ -780,14 +780,14 @@ A `Logger`'s context is available to a `Handler.Handle` method in the
 We also provide a convenient shorthand, `slog.Ctx`.
 
 ```
-func (l Logger) WithContext(ctx context.Context) Logger
+func (l *Logger) WithContext(ctx context.Context) *Logger
     WithContext returns a new Logger with the same handler as the receiver and
     the given context.
 
-func (l Logger) Context() context.Context
+func (l *Logger) Context() context.Context
     Context returns l's context.
 
-func Ctx(ctx context.Context) Logger
+func Ctx(ctx context.Context) *Logger
     Ctx retrieves a Logger from the given context using FromContext. Then it
     adds the given context to the Logger using WithContext and returns the
     result.
@@ -1004,11 +1004,11 @@ func Log(level Level, msg string, args ...any)
 func LogAttrs(level Level, msg string, attrs ...Attr)
     LogAttrs calls Logger.LogAttrs on the default logger.
 
-func NewContext(ctx context.Context, l Logger) context.Context
+func NewContext(ctx context.Context, l *Logger) context.Context
     NewContext returns a context that contains the given Logger. Use FromContext
     to retrieve the Logger.
 
-func SetDefault(l Logger)
+func SetDefault(l *Logger)
     SetDefault makes l the default Logger. After this call, output from the
     log package's default Logger (as with log.Print, etc.) will be logged at
     InfoLevel using l's Handler.
@@ -1096,11 +1096,11 @@ type Handler interface {
 	// A Handler should treat WithGroup as starting a Group of Attrs that ends
 	// at the end of the log event. That is,
 	//
-	//     logger.WithGroup("s").LogAttrs(slog.Int("a", 1), slog.Int("b", 2))
+	//     logger.WithGroup("s").LogAttrs(level, msg, slog.Int("a", 1), slog.Int("b", 2))
 	//
 	// should behave like
 	//
-	//     logger.LogAttrs(slog.Group("s", slog.Int("a", 1), slog.Int("b", 2)))
+	//     logger.LogAttrs(level, msg, slog.Group("s", slog.Int("a", 1), slog.Int("b", 2)))
 	WithGroup(name string) Handler
 }
     A Handler handles log records produced by a Logger..
@@ -1223,16 +1223,11 @@ const (
 	WarnLevel  Level = 4
 	ErrorLevel Level = 8
 )
-    The level numbers below don't really matter too much. Any system can map
-    them to another numbering scheme if it wishes. We picked them to satisfy
-    three constraints.
-
-    First, we wanted the default level to be Info, Since Levels are ints,
-    Info is the default value for int, zero.
-
-    Second, we wanted to make it easy to work with verbosities instead of
-    levels. Verbosities start at 0 corresponding to Info, and larger values are
-    less severe Negating a verbosity converts it into a Level.
+    Second, we wanted to make it easy to use levels to specify logger verbosity.
+    Since a larger level means a more severe event, a logger that accepts events
+    with smaller (or more negative) level means a more verbose logger. Logger
+    verbosity is thus the negation of event severity, and the default verbosity
+    of 0 accepts all events at least as severe as INFO.
 
     Third, we wanted some room between levels to accommodate schemes with
     named levels between ours. For example, Google Cloud Logging defines a
@@ -1302,44 +1297,44 @@ type Logger struct {
 
     To create a new Logger, call New or a Logger method that begins "With".
 
-func Ctx(ctx context.Context) Logger
+func Ctx(ctx context.Context) *Logger
     Ctx retrieves a Logger from the given context using FromContext. Then it
     adds the given context to the Logger using WithContext and returns the
     result.
 
-func Default() Logger
+func Default() *Logger
     Default returns the default Logger.
 
-func FromContext(ctx context.Context) Logger
+func FromContext(ctx context.Context) *Logger
     FromContext returns the Logger stored in ctx by NewContext, or the default
     Logger if there is none.
 
-func New(h Handler) Logger
+func New(h Handler) *Logger
     New creates a new Logger with the given Handler.
 
-func With(args ...any) Logger
+func With(args ...any) *Logger
     With calls Logger.With on the default logger.
 
-func (l Logger) Context() context.Context
+func (l *Logger) Context() context.Context
     Context returns l's context.
 
-func (l Logger) Debug(msg string, args ...any)
+func (l *Logger) Debug(msg string, args ...any)
     Debug logs at DebugLevel.
 
-func (l Logger) Enabled(level Level) bool
+func (l *Logger) Enabled(level Level) bool
     Enabled reports whether l emits log records at the given level.
 
-func (l Logger) Error(msg string, err error, args ...any)
+func (l *Logger) Error(msg string, err error, args ...any)
     Error logs at ErrorLevel. If err is non-nil, Error appends Any("err",
     err) to the list of attributes.
 
-func (l Logger) Handler() Handler
+func (l *Logger) Handler() Handler
     Handler returns l's Handler.
 
-func (l Logger) Info(msg string, args ...any)
+func (l *Logger) Info(msg string, args ...any)
     Info logs at InfoLevel.
 
-func (l Logger) Log(level Level, msg string, args ...any)
+func (l *Logger) Log(level Level, msg string, args ...any)
     Log emits a log record with the current time and the given level and
     message. The Record's Attrs consist of the Logger's attributes followed by
     the Attrs specified by args.
@@ -1351,22 +1346,22 @@ func (l Logger) Log(level Level, msg string, args ...any)
         an Attr.
       - Otherwise, the argument is treated as a value with key "!BADKEY".
 
-func (l Logger) LogAttrs(level Level, msg string, attrs ...Attr)
+func (l *Logger) LogAttrs(level Level, msg string, attrs ...Attr)
     LogAttrs is a more efficient version of Logger.Log that accepts only Attrs.
 
-func (l Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...Attr)
+func (l *Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...Attr)
     LogAttrsDepth is like Logger.LogAttrs, but accepts a call depth argument
     which it interprets like Logger.LogDepth.
 
-func (l Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
+func (l *Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
     LogDepth is like Logger.Log, but accepts a call depth to adjust the file
     and line number in the log record. 0 refers to the caller of LogDepth;
     1 refers to the caller's caller; and so on.
 
-func (l Logger) Warn(msg string, args ...any)
+func (l *Logger) Warn(msg string, args ...any)
     Warn logs at WarnLevel.
 
-func (l Logger) With(args ...any) Logger
+func (l *Logger) With(args ...any) *Logger
     With returns a new Logger that includes the given arguments, converted to
     Attrs as in Logger.Log. The Attrs will be added to each output from the
     Logger.
@@ -1374,11 +1369,11 @@ func (l Logger) With(args ...any) Logger
     The new Logger's handler is the result of calling WithAttrs on the
     receiver's handler.
 
-func (l Logger) WithContext(ctx context.Context) Logger
+func (l *Logger) WithContext(ctx context.Context) *Logger
     WithContext returns a new Logger with the same handler as the receiver and
     the given context.
 
-func (l Logger) WithGroup(name string) Logger
+func (l *Logger) WithGroup(name string) *Logger
     WithGroup returns a new Logger that starts a group. The keys of all
     attributes added to the Logger will be qualified by the given name.
 
@@ -1575,4 +1570,5 @@ func (v Value) Time() time.Time
 func (v Value) Uint64() uint64
     Uint64 returns v's value as a uint64. It panics if v is not an unsigned
     integer.
+
 ```
