@@ -5,7 +5,7 @@ December 2022
 
 Earlier discussion at https://go.dev/issue/55090.
 
-Proposal at https://golang.org/issue/NNNNN.
+Proposal at https://go.dev/issue/56986.
 
 ## Abstract
 
