@@ -180,7 +180,11 @@ Specifically, I propose that we:
    reporting the combination of the go.mod-based defaults and the source code overrides,
    as well as adding to `Package` new fields `Directives`, `TestDirectives,` and `XTestDirectives`, all of type `[]string`.
 
-8. Document these commitments as well as how to use GODEBUG in
+8. Add a new `DefaultGODEBUG` setting to `debug.BuildInfo.Settings`,
+   to be reported by `go version -m` and other tools
+   that inspect build details.
+
+9. Document these commitments as well as how to use GODEBUG in
    the [compatibility guidelines](https://golang.org/doc/go1compat).
 
 ## Rationale
@@ -242,10 +246,13 @@ in the previous section.
    and find the new `//go:debug` lines.
 
 7. This provides an easy way for developers to understand which default GODEBUG
-   their programs are compiled with. It will be particularly useful when switching
+   their programs will be compiled with. It will be particularly useful when switching
    from one `go` line to another.
 
-8. The compatibility documentation should explain all this so developers know about it.
+8. This provides an easy way for developers to understand which default GODEBUG
+   their existing programs have been compiled with.
+
+9. The compatibility documentation should explain all this so developers know about it.
 
 ## Compatibility
 
