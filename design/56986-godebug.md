@@ -161,7 +161,6 @@ Specifically, I propose that we:
    would continue to override both these lines
    and the default inferred from the go.mod `go` line.
    An unrecognized //go:debug setting is a build error.
-   It is also an error
 
 6. Adjust the `go/build` API to report these new `//go:debug` lines. Specifically, add this type:
 
@@ -252,6 +251,35 @@ in the previous section.
 
 This entire proposal is about compatibility.
 It does not violate any existing compatibility requirements.
+
+It is worth pointing out that the GODEBUG mechanism is appropriate for security deprecations,
+such as the SHA1 retirement, but not security fixes, like changing the version of LookPath
+used by tools in the Go distribution. Security fixes need to always apply when building with
+a new toolchain, not just when the `go` line has been moved forward.
+
+One of the hard rules of point releases is it really must not break anyone,
+because we never want someone to be unable to add an urgent security fix
+due to some breakage in that same point release or an earlier one in the sequence.
+That applies to the security fixes themselves too.
+This means it is up to the authors of the security fix to find a fix
+that does not require a GODEBUG.
+
+LookPath is a good example.
+There was a reported bug affecting go toolchain programs,
+and we fixed the bug by making the LookPath change
+in a forked copy of os/exec specifically for those programs.
+We left the toolchain-wide fix for a major Go release precisely
+because of the compatibility issue.
+
+The same is true of net.ParseIP.
+We decided it was an important security-hardening fix but on balance
+inappropriate for a point release because of the potential for breakage.
+
+It's hard for me to think of a security problem that would be so critical
+that it must be fixed in a point release and simultaneously so broad
+that the fix fundamentally must break unaffected user programs as collateral damage.
+To date I believe we've always found a way to avoid such a fix,
+and I think the onus is on those of us preparing security releases to continue to do that.
 
 ## Implementation
 
