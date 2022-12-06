@@ -288,6 +288,34 @@ that the fix fundamentally must break unaffected user programs as collateral dam
 To date I believe we've always found a way to avoid such a fix,
 and I think the onus is on those of us preparing security releases to continue to do that.
 
+If this change is made in Go 1.N, then only GODEBUG settings introduced in Go 1.N
+will be the first ones that are defaulted differently for earlier go.mod go lines.
+Settings introduced in earlier Go versions will be accessible using `//go:debug`
+but will not change their defaults based on the go.mod line.
+The reason for this is compatibility: we want Go 1.N to behave as close as possible to Go 1.(N-1),
+which did not change defaults based on the go.mod line.
+To make this concrete, consider the GODEBUG `randautoseed=0`, which is supported in Go 1.20
+to simulate Go 1.19 behavior.
+When Go 1.20 builds a module that says `go 1.19`, it gets `randautoseed=1` behavior,
+because Go 1.20 does not implement this GODEBUG proposal.
+It would be strange for Go 1.21 to build the same code and turn on `randautoseed=1` behavior.
+Updating from Go 1.19 to Go 1.20 has already incurred the behavior change
+and potential breakage.
+Updating from Go 1.20 to Go 1.21 should not revert the behavior change
+and cause more potential breakage.
+
+Continuing the concrete examples, Go 1.20 introduces a new GODEBUG
+zipinsecurepath, which defaults to 1 in Go 1.20 to preserve old behavior
+and allow insecure paths (for example absolute paths or paths starting with `../`).
+Go 1.21 may change the default to 0, to start rejecting insecure paths in archive/zip.
+If so, and if Go 1.21 also implements this GODEBUG proposal,
+then modules with `go 1.20` lines compiled with Go 1.21 would keep allowing insecure paths.
+Only when those modules update to `go 1.21` would they start rejecting insecure paths.
+Of course, they could stay on Go 1.20 and add `//go:debug zipinsecurepath=0` to main
+to get just the new behavior early,
+and they could also update to Go 1.21 and add `//go:debug zipinsecurepath=1` to main
+to opt out of the new behavior.
+
 ## Implementation
 
 Overall the implementation is fairly short and straightforward.
