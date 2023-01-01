@@ -171,7 +171,7 @@ interested in which proposals are under active consideration
 can follow that issue.
 
 Proposal issues are tracked in the
-[Proposals project](https://github.com/golang/go/projects/1) on the Go issue tracker.
+[Proposals project](https://github.com/orgs/golang/projects/17) on the Go issue tracker.
 The current state of the proposal is captured by the columns in that project,
 as described below.
 
