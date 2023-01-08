@@ -134,7 +134,7 @@ func main() {
     slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr)))
     slog.Info("hello", "name", "Al")
     slog.Error("oops", net.ErrClosed, "status", 500)
-    slog.LogAttrs(slog.ErrorLevel, "oops",
+    slog.LogAttrs(slog.LevelError, "oops",
         slog.Int("status", 500), slog.Any("err", net.ErrClosed))
 }
 ```
@@ -554,7 +554,7 @@ It can be set and retrieved with the `SetDefault` and
 func SetDefault(l *Logger)
     SetDefault makes l the default Logger. After this call, output from the
     log package's default Logger (as with log.Print, etc.) will be logged at
-    InfoLevel using l's Handler.
+    LevelInfo using l's Handler.
 
 func Default() *Logger
     Default returns the default Logger.
@@ -600,16 +600,16 @@ func (l *Logger) LogAttrs(level Level, msg string, attrs ...Attr)
     LogAttrs is a more efficient version of Logger.Log that accepts only Attrs.
 
 func (l *Logger) Debug(msg string, args ...any)
-    Debug logs at DebugLevel.
+    Debug logs at LevelDebug.
 
 func (l *Logger) Info(msg string, args ...any)
-    Info logs at InfoLevel.
+    Info logs at LevelInfo.
 
 func (l *Logger) Warn(msg string, args ...any)
-    Warn logs at WarnLevel.
+    Warn logs at LevelWarn.
 
 func (l *Logger) Error(msg string, err error, args ...any)
-    Error logs at ErrorLevel. If err is non-nil, Error appends Any("err",
+    Error logs at LevelError. If err is non-nil, Error appends Any("err",
     err) to the list of attributes.
 ```
 
@@ -831,10 +831,10 @@ represented as slog Levels by using the appropriate integers.
 
 ```
 const (
-	DebugLevel Level = -4
-	InfoLevel  Level = 0
-	WarnLevel  Level = 4
-	ErrorLevel Level = 8
+	LevelDebug Level = -4
+	LevelInfo  Level = 0
+	LevelWarn  Level = 4
+	LevelError Level = 8
 )
 ```
 
@@ -861,7 +861,7 @@ type LevelVar struct {
 }
     A LevelVar is a Level variable, to allow a Handler level to change
     dynamically. It implements Leveler as well as a Set method, and it is safe
-    for use by multiple goroutines. The zero LevelVar corresponds to InfoLevel.
+    for use by multiple goroutines. The zero LevelVar corresponds to LevelInfo.
 
 func (v *LevelVar) Level() Level
     Level returns v's level.
@@ -890,23 +890,37 @@ type HandlerOptions struct {
 
 	// Level reports the minimum record level that will be logged.
 	// The handler discards records with lower levels.
-	// If Level is nil, the handler assumes InfoLevel.
+	// If Level is nil, the handler assumes LevelInfo.
 	// The handler calls Level.Level for each record processed;
 	// to adjust the minimum level dynamically, use a LevelVar.
 	Level Leveler
 
-	// ReplaceAttr is called to rewrite each attribute before it is logged.
+	// ReplaceAttr is called to rewrite each non-group attribute before it is logged.
+	// The attribute's value has been resolved (see [Value.Resolve]).
 	// If ReplaceAttr returns an Attr with Key == "", the attribute is discarded.
 	//
 	// The built-in attributes with keys "time", "level", "source", and "msg"
-	// are passed to this function first, except that time and level are omitted
+	// are passed to this function, except that time and level are omitted
 	// if zero, and source is omitted if AddSourceLine is false.
+	//
+	// The first argument is a list of currently open groups that contain the
+	// Attr. It must not be retained or modified. ReplaceAttr is never called
+	// for Group attributes, only their contents. For example, the attribute
+	// list
+	//
+	//     Int("a", 1), Group("g", Int("b", 2)), Int("c", 3)
+	//
+	// results in consecutive calls to ReplaceAttr with the following arguments:
+	//
+	//     nil, Int("a", 1)
+	//     []string{"g"}, Int("b", 2)
+	//     nil, Int("c", 3)
 	//
 	// ReplaceAttr can be used to change the default keys of the built-in
 	// attributes, convert types (for example, to replace a `time.Time` with the
 	// integer seconds since the Unix epoch), sanitize personal information, or
 	// remove attributes from the output.
-	ReplaceAttr func(a Attr) Attr
+	ReplaceAttr func(groups []string, a Attr) Attr
 }
 ```
 
@@ -983,6 +997,9 @@ const (
 	// SourceKey is the key used by the built-in handlers for the source file
 	// and line of the log call. The associated value is a string.
 	SourceKey = "source"
+	// ErrorKey is the key used for errors by Logger.Error.
+	// The associated value is an [error].
+	ErrorKey = "err"
 )
     Keys for "built-in" attributes.
 
@@ -1011,7 +1028,7 @@ func NewContext(ctx context.Context, l *Logger) context.Context
 func SetDefault(l *Logger)
     SetDefault makes l the default Logger. After this call, output from the
     log package's default Logger (as with log.Print, etc.) will be logged at
-    InfoLevel using l's Handler.
+    LevelInfo using l's Handler.
 
 func Warn(msg string, args ...any)
     Warn calls Logger.Warn on the default logger.
@@ -1122,23 +1139,37 @@ type HandlerOptions struct {
 
 	// Level reports the minimum record level that will be logged.
 	// The handler discards records with lower levels.
-	// If Level is nil, the handler assumes InfoLevel.
+	// If Level is nil, the handler assumes LevelInfo.
 	// The handler calls Level.Level for each record processed;
 	// to adjust the minimum level dynamically, use a LevelVar.
 	Level Leveler
 
-	// ReplaceAttr is called to rewrite each attribute before it is logged.
+	// ReplaceAttr is called to rewrite each non-group attribute before it is logged.
+	// The attribute's value has been resolved (see [Value.Resolve]).
 	// If ReplaceAttr returns an Attr with Key == "", the attribute is discarded.
 	//
 	// The built-in attributes with keys "time", "level", "source", and "msg"
-	// are passed to this function first, except that time and level are omitted
+	// are passed to this function, except that time and level are omitted
 	// if zero, and source is omitted if AddSourceLine is false.
+	//
+	// The first argument is a list of currently open groups that contain the
+	// Attr. It must not be retained or modified. ReplaceAttr is never called
+	// for Group attributes, only their contents. For example, the attribute
+	// list
+	//
+	//     Int("a", 1), Group("g", Int("b", 2)), Int("c", 3)
+	//
+	// results in consecutive calls to ReplaceAttr with the following arguments:
+	//
+	//     nil, Int("a", 1)
+	//     []string{"g"}, Int("b", 2)
+	//     nil, Int("c", 3)
 	//
 	// ReplaceAttr can be used to change the default keys of the built-in
 	// attributes, convert types (for example, to replace a `time.Time` with the
 	// integer seconds since the Unix epoch), sanitize personal information, or
 	// remove attributes from the output.
-	ReplaceAttr func(a Attr) Attr
+	ReplaceAttr func(groups []string, a Attr) Attr
 }
     HandlerOptions are options for a TextHandler or JSONHandler. A zero
     HandlerOptions consists entirely of default values.
@@ -1218,10 +1249,10 @@ type Level int
     the more important or severe the event.
 
 const (
-	DebugLevel Level = -4
-	InfoLevel  Level = 0
-	WarnLevel  Level = 4
-	ErrorLevel Level = 8
+	LevelDebug Level = -4
+	LevelInfo  Level = 0
+	LevelWarn  Level = 4
+	LevelError Level = 8
 )
     Second, we wanted to make it easy to use levels to specify logger verbosity.
     Since a larger level means a more severe event, a logger that accepts events
@@ -1251,15 +1282,15 @@ func (l Level) String() string
     name in uppercase is returned. If the level is between named values, then an
     integer is appended to the uppercased name. Examples:
 
-        WarnLevel.String() => "WARN"
-        (WarnLevel-2).String() => "WARN-2"
+        LevelWarn.String() => "WARN"
+        (LevelInfo+2).String() => "INFO+2"
 
 type LevelVar struct {
 	// Has unexported fields.
 }
     A LevelVar is a Level variable, to allow a Handler level to change
     dynamically. It implements Leveler as well as a Set method, and it is safe
-    for use by multiple goroutines. The zero LevelVar corresponds to InfoLevel.
+    for use by multiple goroutines. The zero LevelVar corresponds to LevelInfo.
 
 func (v *LevelVar) Level() Level
     Level returns v's level.
@@ -1310,29 +1341,29 @@ func FromContext(ctx context.Context) *Logger
     Logger if there is none.
 
 func New(h Handler) *Logger
-    New creates a new Logger with the given Handler.
+    New creates a new Logger with the given non-nil Handler and a nil context.
 
 func With(args ...any) *Logger
     With calls Logger.With on the default logger.
 
 func (l *Logger) Context() context.Context
-    Context returns l's context.
+    Context returns l's context, which may be nil.
 
 func (l *Logger) Debug(msg string, args ...any)
-    Debug logs at DebugLevel.
+    Debug logs at LevelDebug.
 
 func (l *Logger) Enabled(level Level) bool
     Enabled reports whether l emits log records at the given level.
 
 func (l *Logger) Error(msg string, err error, args ...any)
-    Error logs at ErrorLevel. If err is non-nil, Error appends Any("err",
+    Error logs at LevelError. If err is non-nil, Error appends Any(ErrorKey,
     err) to the list of attributes.
 
 func (l *Logger) Handler() Handler
     Handler returns l's Handler.
 
 func (l *Logger) Info(msg string, args ...any)
-    Info logs at InfoLevel.
+    Info logs at LevelInfo.
 
 func (l *Logger) Log(level Level, msg string, args ...any)
     Log emits a log record with the current time and the given level and
@@ -1355,27 +1386,31 @@ func (l *Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...
 
 func (l *Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
     LogDepth is like Logger.Log, but accepts a call depth to adjust the file
-    and line number in the log record. 0 refers to the caller of LogDepth;
-    1 refers to the caller's caller; and so on.
+    and line number in the log record. 1 refers to the caller of LogDepth;
+    2 refers to the caller's caller; and so on.
 
 func (l *Logger) Warn(msg string, args ...any)
-    Warn logs at WarnLevel.
+    Warn logs at LevelWarn.
 
 func (l *Logger) With(args ...any) *Logger
     With returns a new Logger that includes the given arguments, converted to
     Attrs as in Logger.Log. The Attrs will be added to each output from the
-    Logger.
+    Logger. The new Logger shares the old Logger's context.
 
     The new Logger's handler is the result of calling WithAttrs on the
     receiver's handler.
 
 func (l *Logger) WithContext(ctx context.Context) *Logger
     WithContext returns a new Logger with the same handler as the receiver and
-    the given context.
+    the given context. It uses the same handler as the original.
 
 func (l *Logger) WithGroup(name string) *Logger
     WithGroup returns a new Logger that starts a group. The keys of all
-    attributes added to the Logger will be qualified by the given name.
+    attributes added to the Logger will be qualified by the given name. The new
+    Logger shares the old Logger's context.
+
+    The new Logger's handler is the result of calling WithGroup on the
+    receiver's handler.
 
 type Record struct {
 	// The time at which the output method (Log, Info, etc.) was called.
@@ -1485,6 +1520,8 @@ type Value struct {
 func AnyValue(v any) Value
     AnyValue returns a Value for the supplied value.
 
+    If the supplied value is of type Value, it is returned unmodified.
+
     Given a value of one of Go's predeclared string, bool, or (non-complex)
     numeric types, AnyValue returns a Value of kind String, Bool, Uint64, Int64,
     or Float64. The width of the original numeric type is not preserved.
@@ -1570,5 +1607,4 @@ func (v Value) Time() time.Time
 func (v Value) Uint64() uint64
     Uint64 returns v's value as a uint64. It panics if v is not an unsigned
     integer.
-
 ```
