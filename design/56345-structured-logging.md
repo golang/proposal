@@ -718,45 +718,9 @@ func (l *Logger) WithGroup(name string) *Logger
     attributes added to the Logger will be qualified by the given name.
 ```
 
-### Context Support
+### Contexts in Loggers
 
-#### Loggers in contexts
-
-Passing a logger in a `context.Context` is a common practice and one way to
-include dynamically scoped information in log messages.
-
-The `slog` package has two functions to support this pattern.
-
-```
-func FromContext(ctx context.Context) *Logger
-    FromContext returns the Logger stored in ctx by NewContext, or the default
-    Logger if there is none.
-
-func NewContext(ctx context.Context, l Logger) context.Context
-    NewContext returns a context that contains the given Logger. Use FromContext
-    to retrieve the Logger.
-```
-
-As an example, an HTTP server might want to create a new `Logger` for each
-request. The logger would contain request-wide attributes and be stored in the
-context for the request.
-
-```
-func handle(w http.ResponseWriter, r *http.Request) {
-    rlogger := slog.FromContext(r.Context()).With(
-        "method", r.Method,
-        "url", r.URL,
-        "traceID", getTraceID(r),
-    )
-    ctx := slog.NewContext(r.Context(), rlogger)
-    // ... use slog.FromContext(ctx) ...
-}
-```
-
-#### Contexts in Loggers
-
-Putting a new `Logger` into a context each time a value is added to the context
-complicates the code, and is easy to forget to do.
+Handlers sometimes need to retrieve values from a context.
 Tracing spans are a prime example.
 In tracing packages like the one provided by [Open
 Telemetry](https://opentelemetry.io), spans can be created at any point in the
@@ -766,18 +730,12 @@ code with
 ctx, span := tracer.Start(ctx, name, opts)
 ```
 
-It is too much to require programmers to then write
-```
-ctx = slog.NewContext(slog.FromContext(ctx))
-```
-so that subsequent logging has access to the span ID.
-So we provide the `Logger.WithContext` method to convey a context to a
+We provide the `Logger.WithContext` method to convey a context to a
 `Handler`.
 The method returns a new `Logger` that can be stored, or immediately
 used to produce log output.
 A `Logger`'s context is available to a `Handler.Handle` method in the
 `Record.Context` field.
-We also provide a convenient shorthand, `slog.Ctx`.
 
 ```
 func (l *Logger) WithContext(ctx context.Context) *Logger
@@ -786,11 +744,6 @@ func (l *Logger) WithContext(ctx context.Context) *Logger
 
 func (l *Logger) Context() context.Context
     Context returns l's context.
-
-func Ctx(ctx context.Context) *Logger
-    Ctx retrieves a Logger from the given context using FromContext. Then it
-    adds the given context to the Logger using WithContext and returns the
-    result.
 ```
 
 ### Levels
@@ -1020,10 +973,6 @@ func Log(level Level, msg string, args ...any)
 
 func LogAttrs(level Level, msg string, attrs ...Attr)
     LogAttrs calls Logger.LogAttrs on the default logger.
-
-func NewContext(ctx context.Context, l *Logger) context.Context
-    NewContext returns a context that contains the given Logger. Use FromContext
-    to retrieve the Logger.
 
 func SetDefault(l *Logger)
     SetDefault makes l the default Logger. After this call, output from the
@@ -1328,17 +1277,8 @@ type Logger struct {
 
     To create a new Logger, call New or a Logger method that begins "With".
 
-func Ctx(ctx context.Context) *Logger
-    Ctx retrieves a Logger from the given context using FromContext. Then it
-    adds the given context to the Logger using WithContext and returns the
-    result.
-
 func Default() *Logger
     Default returns the default Logger.
-
-func FromContext(ctx context.Context) *Logger
-    FromContext returns the Logger stored in ctx by NewContext, or the default
-    Logger if there is none.
 
 func New(h Handler) *Logger
     New creates a new Logger with the given non-nil Handler and a nil context.
