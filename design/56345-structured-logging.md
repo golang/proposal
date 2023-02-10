@@ -196,15 +196,21 @@ pass them on to another handler.
 type Handler interface {
 	// Enabled reports whether the handler handles records at the given level.
 	// The handler ignores records whose level is lower.
-	// Enabled is called early, before any arguments are processed,
+	// It is called early, before any arguments are processed,
 	// to save effort if the log event should be discarded.
-	Enabled(Level) bool
+	// The Logger's context is passed so Enabled can use its values
+	// to make a decision. The context may be nil.
+	Enabled(context.Context, Level) bool
 
 	// Handle handles the Record.
 	// It will only be called if Enabled returns true.
 	// Handle methods that produce output should observe the following rules:
 	//   - If r.Time is the zero time, ignore the time.
-	//   - If an Attr's key is the empty string, ignore the Attr.
+	//   - If an Attr's key is the empty string and the value is not a group,
+	//     ignore the Attr.
+	//   - If a group's key is empty, inline the group's Attrs.
+	//   - If a group has no Attrs (even if it has a non-empty key),
+	//     ignore it.
 	Handle(r Record) error
 
 	// WithAttrs returns a new Handler whose attributes consist of
@@ -229,6 +235,8 @@ type Handler interface {
 	// should behave like
 	//
 	//     logger.LogAttrs(level, msg, slog.Group("s", slog.Int("a", 1), slog.Int("b", 2)))
+	//
+	// If the name is empty, WithGroup returns the receiver.
 	WithGroup(name string) Handler
 }
 ```
@@ -256,13 +264,16 @@ type Record struct {
 	// Canceling the context should not affect record processing.
 	Context context.Context
 
+	// The program counter at the time the record was constructed, as determined
+	// by runtime.Callers. If zero, no program counter is available.
+	//
+	// The only valid use for this value is as an argument to
+	// [runtime.CallersFrames]. In particular, it must not be passed to
+	// [runtime.FuncForPC].
+	PC uintptr
+
 	// Has unexported fields.
 }
-
-func (r Record) SourceLine() (file string, line int)
-    SourceLine returns the file and line of the log event. If the Record
-    was created without the necessary information, or if the location is
-    unavailable, it returns ("", 0).
 ```
 
 Records have two methods for accessing the sequence of `Attr`s. This API allows
@@ -281,17 +292,16 @@ So that other logging backends can wrap `Handler`s, it is possible to construct
 a `Record` directly and add attributes to it:
 
 ```
-func NewRecord(t time.Time, level Level, msg string, calldepth int, ctx context.Context) Record
-    NewRecord creates a Record from the given arguments. Use Record.AddAttrs
-    to add attributes to the Record. If calldepth is greater than zero,
-    Record.SourceLine will return the file and line number at that depth,
-    where 1 means the caller of NewRecord.
+func NewRecord(t time.Time, level Level, msg string, pc uintptr, ctx context.Context) Record
+    NewRecord creates a Record from the given arguments. Use Record.AddAttrs to
+    add attributes to the Record.
 
     NewRecord is intended for logging APIs that want to support a Handler as a
     backend.
 
 func (r *Record) AddAttrs(attrs ...Attr)
-    AddAttrs appends the given attrs to the Record's list of Attrs.
+    AddAttrs appends the given Attrs to the Record's list of Attrs. It resolves
+    the Attrs before doing so.
 ```
 
 Copies of a `Record` share state. A `Record` should not be modified after
@@ -501,9 +511,8 @@ type LogValuer interface {
 }
 ```
 
-If the Go value in a `Value` implements `LogValuer`,
-then a `Handler` should use the result of calling `LogValue`.
-It can use `Value.Resolve` to do so.
+
+`Value.Resolve` can be used to call the `LogValue` method.
 
 ```
 func (v Value) Resolve() Value
@@ -513,7 +522,12 @@ func (v Value) Resolve() Value
     not to be of Kind LogValuerKind.
 ```
 
-As an example, a type could obscure its value in log output like so:
+The Attrs passed to a `Handler.WithAttrs`, and the Attrs obtained
+via `Record.Attrs`, have already been resolved, that is, replaced
+with a call to `Resolve`.
+
+As an example of `LogValuer`, a type could obscure its value in log output like
+so:
 
 ```
 type Password string
@@ -609,8 +623,8 @@ func (l *Logger) Warn(msg string, args ...any)
     Warn logs at LevelWarn.
 
 func (l *Logger) Error(msg string, err error, args ...any)
-    Error logs at LevelError. If err is non-nil, Error appends Any("err",
-    err) to the list of attributes.
+    Error logs at LevelError. If err is non-nil, Error adds Any("err",
+    err) before the list of attributes.
 ```
 
 The `Log` and `LogAttrs` methods have variants that take a call depth, so other
@@ -853,8 +867,8 @@ type HandlerOptions struct {
 	// If ReplaceAttr returns an Attr with Key == "", the attribute is discarded.
 	//
 	// The built-in attributes with keys "time", "level", "source", and "msg"
-	// are passed to this function, except that time and level are omitted
-	// if zero, and source is omitted if AddSourceLine is false.
+	// are passed to this function, except that time is omitted
+	// if zero, and source is omitted if AddSource is false.
 	//
 	// The first argument is a list of currently open groups that contain the
 	// Attr. It must not be retained or modified. ReplaceAttr is never called
@@ -974,6 +988,11 @@ func Log(level Level, msg string, args ...any)
 func LogAttrs(level Level, msg string, attrs ...Attr)
     LogAttrs calls Logger.LogAttrs on the default logger.
 
+func NewLogLogger(h Handler, level Level) *log.Logger
+    NewLogLogger returns a new log.Logger such that each call to its Output
+    method dispatches a Record to the specified handler. The logger acts as a
+    bridge from the older log API to newer structured logging handlers.
+
 func SetDefault(l *Logger)
     SetDefault makes l the default Logger. After this call, output from the
     log package's default Logger (as with log.Print, etc.) will be logged at
@@ -1034,15 +1053,21 @@ func (a Attr) String() string
 type Handler interface {
 	// Enabled reports whether the handler handles records at the given level.
 	// The handler ignores records whose level is lower.
-	// Enabled is called early, before any arguments are processed,
+	// It is called early, before any arguments are processed,
 	// to save effort if the log event should be discarded.
-	Enabled(Level) bool
+	// The Logger's context is passed so Enabled can use its values
+	// to make a decision. The context may be nil.
+	Enabled(context.Context, Level) bool
 
 	// Handle handles the Record.
 	// It will only be called if Enabled returns true.
 	// Handle methods that produce output should observe the following rules:
 	//   - If r.Time is the zero time, ignore the time.
-	//   - If an Attr's key is the empty string, ignore the Attr.
+	//   - If an Attr's key is the empty string and the value is not a group,
+	//     ignore the Attr.
+	//   - If a group's key is empty, inline the group's Attrs.
+	//   - If a group has no Attrs (even if it has a non-empty key),
+	//     ignore it.
 	Handle(r Record) error
 
 	// WithAttrs returns a new Handler whose attributes consist of
@@ -1067,6 +1092,8 @@ type Handler interface {
 	// should behave like
 	//
 	//     logger.LogAttrs(level, msg, slog.Group("s", slog.Int("a", 1), slog.Int("b", 2)))
+	//
+	// If the name is empty, WithGroup returns the receiver.
 	WithGroup(name string) Handler
 }
     A Handler handles log records produced by a Logger..
@@ -1098,8 +1125,8 @@ type HandlerOptions struct {
 	// If ReplaceAttr returns an Attr with Key == "", the attribute is discarded.
 	//
 	// The built-in attributes with keys "time", "level", "source", and "msg"
-	// are passed to this function, except that time and level are omitted
-	// if zero, and source is omitted if AddSourceLine is false.
+	// are passed to this function, except that time is omitted
+	// if zero, and source is omitted if AddSource is false.
 	//
 	// The first argument is a list of currently open groups that contain the
 	// Attr. It must not be retained or modified. ReplaceAttr is never called
@@ -1141,7 +1168,7 @@ func NewJSONHandler(w io.Writer) *JSONHandler
     NewJSONHandler creates a JSONHandler that writes to w, using the default
     options.
 
-func (h *JSONHandler) Enabled(level Level) bool
+func (h *JSONHandler) Enabled(_ context.Context, level Level) bool
     Enabled reports whether the handler handles records at the given level.
     The handler ignores records whose level is lower.
 
@@ -1167,12 +1194,13 @@ func (h *JSONHandler) Handle(r Record) error
       - Floating-point NaNs and infinities are formatted as one of the strings
         "NaN", "+Inf" or "-Inf".
       - Levels are formatted as with Level.String.
+      - HTML characters are not escaped.
 
     Each call to Handle results in a single serialized call to io.Writer.Write.
 
 func (h *JSONHandler) WithAttrs(attrs []Attr) Handler
-    With returns a new JSONHandler whose attributes consists of h's attributes
-    followed by attrs.
+    WithAttrs returns a new JSONHandler whose attributes consists of h's
+    attributes followed by attrs.
 
 func (h *JSONHandler) WithGroup(name string) Handler
 
@@ -1180,16 +1208,16 @@ type Kind int
     Kind is the kind of a Value.
 
 const (
-	AnyKind Kind = iota
-	BoolKind
-	DurationKind
-	Float64Kind
-	Int64Kind
-	StringKind
-	TimeKind
-	Uint64Kind
-	GroupKind
-	LogValuerKind
+	KindAny Kind = iota
+	KindBool
+	KindDuration
+	KindFloat64
+	KindInt64
+	KindString
+	KindTime
+	KindUint64
+	KindGroup
+	KindLogValuer
 )
 func (k Kind) String() string
 
@@ -1225,6 +1253,11 @@ func (l Level) Level() Level
     Level returns the receiver. It implements Leveler.
 
 func (l Level) MarshalJSON() ([]byte, error)
+    MarshalJSON implements encoding/json.Marshaler by quoting the output of
+    Level.String.
+
+func (l Level) MarshalText() ([]byte, error)
+    MarshalText implements encoding.TextMarshaler by calling Level.String.
 
 func (l Level) String() string
     String returns a name for the level. If the level has a name, then that
@@ -1233,6 +1266,18 @@ func (l Level) String() string
 
         LevelWarn.String() => "WARN"
         (LevelInfo+2).String() => "INFO+2"
+
+func (l *Level) UnmarshalJSON(data []byte) error
+    UnmarshalJSON implements encoding/json.Unmarshaler It accepts any string
+    produced by Level.MarshalJSON, ignoring case. It also accepts numeric
+    offsets that would result in a different string on output. For example,
+    "Error-8" would marshal as "INFO".
+
+func (l *Level) UnmarshalText(data []byte) error
+    UnmarshalText implements encoding.TextUnmarshaler. It accepts any string
+    produced by Level.MarshalText, ignoring case. It also accepts numeric
+    offsets that would result in a different string on output. For example,
+    "Error-8" would marshal as "INFO".
 
 type LevelVar struct {
 	// Has unexported fields.
@@ -1244,10 +1289,17 @@ type LevelVar struct {
 func (v *LevelVar) Level() Level
     Level returns v's level.
 
+func (v *LevelVar) MarshalText() ([]byte, error)
+    MarshalText implements encoding.TextMarshaler by calling Level.MarshalText.
+
 func (v *LevelVar) Set(l Level)
     Set sets v's level to l.
 
 func (v *LevelVar) String() string
+
+func (v *LevelVar) UnmarshalText(data []byte) error
+    UnmarshalText implements encoding.TextUnmarshaler by calling
+    Level.UnmarshalText.
 
 type Leveler interface {
 	Level() Level
@@ -1296,8 +1348,8 @@ func (l *Logger) Enabled(level Level) bool
     Enabled reports whether l emits log records at the given level.
 
 func (l *Logger) Error(msg string, err error, args ...any)
-    Error logs at LevelError. If err is non-nil, Error appends Any(ErrorKey,
-    err) to the list of attributes.
+    Error logs at LevelError. If err is non-nil, Error adds Any(ErrorKey,
+    err) before the list of attributes.
 
 func (l *Logger) Handler() Handler
     Handler returns l's Handler.
@@ -1333,12 +1385,11 @@ func (l *Logger) Warn(msg string, args ...any)
     Warn logs at LevelWarn.
 
 func (l *Logger) With(args ...any) *Logger
-    With returns a new Logger that includes the given arguments, converted to
-    Attrs as in Logger.Log. The Attrs will be added to each output from the
-    Logger. The new Logger shares the old Logger's context.
-
-    The new Logger's handler is the result of calling WithAttrs on the
-    receiver's handler.
+    With returns a new Logger that includes the given arguments, converted
+    to Attrs as in Logger.Log and resolved. The Attrs will be added to each
+    output from the Logger. The new Logger shares the old Logger's context. The
+    new Logger's handler is the result of calling WithAttrs on the receiver's
+    handler.
 
 func (l *Logger) WithContext(ctx context.Context) *Logger
     WithContext returns a new Logger with the same handler as the receiver and
@@ -1367,26 +1418,33 @@ type Record struct {
 	// Canceling the context should not affect record processing.
 	Context context.Context
 
+	// The program counter at the time the record was constructed, as determined
+	// by runtime.Callers. If zero, no program counter is available.
+	//
+	// The only valid use for this value is as an argument to
+	// [runtime.CallersFrames]. In particular, it must not be passed to
+	// [runtime.FuncForPC].
+	PC uintptr
+
 	// Has unexported fields.
 }
     A Record holds information about a log event. Copies of a Record share
     state. Do not modify a Record after handing out a copy to it. Use
     Record.Clone to create a copy with no shared state.
 
-func NewRecord(t time.Time, level Level, msg string, calldepth int, ctx context.Context) Record
-    NewRecord creates a Record from the given arguments. Use Record.AddAttrs
-    to add attributes to the Record. If calldepth is greater than zero,
-    Record.SourceLine will return the file and line number at that depth,
-    where 1 means the caller of NewRecord.
+func NewRecord(t time.Time, level Level, msg string, pc uintptr, ctx context.Context) Record
+    NewRecord creates a Record from the given arguments. Use Record.AddAttrs to
+    add attributes to the Record.
 
     NewRecord is intended for logging APIs that want to support a Handler as a
     backend.
 
 func (r *Record) AddAttrs(attrs ...Attr)
-    AddAttrs appends the given attrs to the Record's list of Attrs.
+    AddAttrs appends the given Attrs to the Record's list of Attrs. It resolves
+    the Attrs before doing so.
 
 func (r Record) Attrs(f func(Attr))
-    Attrs calls f on each Attr in the Record.
+    Attrs calls f on each Attr in the Record. The Attrs are already resolved.
 
 func (r Record) Clone() Record
     Clone returns a copy of the record with no shared state. The original record
@@ -1394,11 +1452,6 @@ func (r Record) Clone() Record
 
 func (r Record) NumAttrs() int
     NumAttrs returns the number of attributes in the Record.
-
-func (r Record) SourceLine() (file string, line int)
-    SourceLine returns the file and line of the log event. If the Record
-    was created without the necessary information, or if the location is
-    unavailable, it returns ("", 0).
 
 type TextHandler struct {
 	// Has unexported fields.
@@ -1410,7 +1463,7 @@ func NewTextHandler(w io.Writer) *TextHandler
     NewTextHandler creates a TextHandler that writes to w, using the default
     options.
 
-func (h *TextHandler) Enabled(level Level) bool
+func (h *TextHandler) Enabled(_ context.Context, level Level) bool
     Enabled reports whether the handler handles records at the given level.
     The handler ignores records whose level is lower.
 
@@ -1446,8 +1499,8 @@ func (h *TextHandler) Handle(r Record) error
     Each call to Handle results in a single serialized call to io.Writer.Write.
 
 func (h *TextHandler) WithAttrs(attrs []Attr) Handler
-    With returns a new TextHandler whose attributes consists of h's attributes
-    followed by attrs.
+    WithAttrs returns a new TextHandler whose attributes consists of h's
+    attributes followed by attrs.
 
 func (h *TextHandler) WithGroup(name string) Handler
 
@@ -1467,10 +1520,10 @@ func AnyValue(v any) Value
     or Float64. The width of the original numeric type is not preserved.
 
     Given a time.Time or time.Duration value, AnyValue returns a Value of kind
-    TimeKind or DurationKind. The monotonic time is not preserved.
+    KindTime or KindDuration. The monotonic time is not preserved.
 
     For nil, or values of all other types, including named types whose
-    underlying type is numeric, AnyValue returns a value of kind AnyKind.
+    underlying type is numeric, AnyValue returns a value of kind KindAny.
 
 func BoolValue(v bool) Value
     BoolValue returns a Value for a bool.
@@ -1492,7 +1545,7 @@ func IntValue(v int) Value
     IntValue returns a Value for an int.
 
 func StringValue(value string) Value
-    String returns a new Value for a string.
+    StringValue returns a new Value for a string.
 
 func TimeValue(v time.Time) Value
     TimeValue returns a Value for a time.Time. It discards the monotonic
@@ -1518,7 +1571,7 @@ func (v Value) Float64() float64
     Float64 returns v's value as a float64. It panics if v is not a float64.
 
 func (v Value) Group() []Attr
-    Group returns v's value as a []Attr. It panics if v's Kind is not GroupKind.
+    Group returns v's value as a []Attr. It panics if v's Kind is not KindGroup.
 
 func (v Value) Int64() int64
     Int64 returns v's value as an int64. It panics if v is not a signed integer.
@@ -1532,9 +1585,10 @@ func (v Value) LogValuer() LogValuer
 
 func (v Value) Resolve() Value
     Resolve repeatedly calls LogValue on v while it implements LogValuer, and
-    returns the result. If the number of LogValue calls exceeds a threshold, a
+    returns the result. If v resolves to a group, the group's attributes' values
+    are also resolved. If the number of LogValue calls exceeds a threshold, a
     Value containing an error is returned. Resolve's return value is guaranteed
-    not to be of Kind LogValuerKind.
+    not to be of Kind KindLogValuer.
 
 func (v Value) String() string
     String returns Value's value as a string, formatted like fmt.Sprint.
