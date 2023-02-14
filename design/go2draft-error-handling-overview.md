@@ -42,8 +42,8 @@ including C++, C#, Java, and Python—represents implicit checking of implicit r
 
 The subtleties of implicit checking are covered well in
 Raymond Chen’s pair of blog posts,
-"[Cleaner, more elegant, and wrong](https://blogs.msdn.microsoft.com/oldnewthing/20040422-00/?p=39683)" (2004),
-and "[Cleaner, more elegant, and harder to recognize](https://blogs.msdn.microsoft.com/oldnewthing/20050114-00/?p=36693)" (2005).
+"[Cleaner, more elegant, and wrong](https://devblogs.microsoft.com/oldnewthing/20040422-00/?p=39683)" (2004),
+and "[Cleaner, more elegant, and harder to recognize](https://devblogs.microsoft.com/oldnewthing/20050114-00/?p=36693)" (2005).
 In essence, because you can’t see implicit checks at all,
 it is very hard to verify by inspection that the error handling code
 correctly recovers from the state of the program at the time the check fails.
