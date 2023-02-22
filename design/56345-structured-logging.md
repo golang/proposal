@@ -204,6 +204,14 @@ type Handler interface {
 
 	// Handle handles the Record.
 	// It will only be called if Enabled returns true.
+	//
+	// The first argument is the context of the Logger that created the Record,
+	// which may be nil.
+	// It is present solely to provide Handlers access to the context's values.
+	// Canceling the context should not affect record processing.
+	// (Among other things, log messages may be necessary to debug a
+	// cancellation-related problem.)
+	//
 	// Handle methods that produce output should observe the following rules:
 	//   - If r.Time is the zero time, ignore the time.
 	//   - If an Attr's key is the empty string and the value is not a group,
@@ -211,7 +219,7 @@ type Handler interface {
 	//   - If a group's key is empty, inline the group's Attrs.
 	//   - If a group has no Attrs (even if it has a non-empty key),
 	//     ignore it.
-	Handle(r Record) error
+	Handle(ctx context.Context, r Record) error
 
 	// WithAttrs returns a new Handler whose attributes consist of
 	// both the receiver's attributes and the arguments.
@@ -259,11 +267,6 @@ type Record struct {
 	// The level of the event.
 	Level Level
 
-	// The context of the Logger that created the Record. Present
-	// solely to provide Handlers access to the context's values.
-	// Canceling the context should not affect record processing.
-	Context context.Context
-
 	// The program counter at the time the record was constructed, as determined
 	// by runtime.Callers. If zero, no program counter is available.
 	//
@@ -292,7 +295,7 @@ So that other logging backends can wrap `Handler`s, it is possible to construct
 a `Record` directly and add attributes to it:
 
 ```
-func NewRecord(t time.Time, level Level, msg string, pc uintptr, ctx context.Context) Record
+func NewRecord(t time.Time, level Level, msg string, pc uintptr) Record
     NewRecord creates a Record from the given arguments. Use Record.AddAttrs to
     add attributes to the Record.
 
@@ -302,6 +305,10 @@ func NewRecord(t time.Time, level Level, msg string, pc uintptr, ctx context.Con
 func (r *Record) AddAttrs(attrs ...Attr)
     AddAttrs appends the given Attrs to the Record's list of Attrs. It resolves
     the Attrs before doing so.
+
+func (r *Record) Add(args ...any)
+    Add converts the args to Attrs as described in Logger.Log, then appends the
+    Attrs to the Record's list of Attrs. It resolves the Attrs before doing so.
 ```
 
 Copies of a `Record` share state. A `Record` should not be modified after
@@ -548,8 +555,7 @@ type Logger struct {
 }
 ```
 
-A `Logger` consists of a `Handler` and a context (about which see [the Context
-section below](#context-support)). Use `New` to create `Logger` with a
+A `Logger` consists of a `Handler`. Use `New` to create `Logger` with a
 `Handler`, and the `Handler` method to retrieve it.
 
 ```
@@ -584,21 +590,25 @@ Once a handler is set with `SetDefault`, as in the example above, the default
 
 `Logger`'s output methods produce log output by constructing a `Record` and
 passing it to the `Logger`'s handler.
-There is an output method for each of four most common levels, a `Log` method
+There are two output methods for each of four most common levels, one which
+takes a context and one which doesn't. There is also a `Log` method
 that takes any level, and a `LogAttrs` method that accepts only `Attr`s as an
-optimization.
+optimization, both of which take a context.
 
 These methods first call `Handler.Enabled` to see if they should proceed.
 
 Each of these methods has a corresponding top-level function that uses the
 default logger.
 
+The context is passed to Handler.Enabled and Handler.Handle. Handlers sometimes
+need to retrieve values from a context, tracing spans being a prime example.
+
 We will provide a vet check for the methods that take a list of `any` arguments
 to catch problems with missing keys or values.
 
 
 ```
-func (l *Logger) Log(level Level, msg string, args ...any)
+func (l *Logger) Log(ctx context.Context, level Level, msg string, args ...any)
     Log emits a log record with the current time and the given level and
     message. The Record's Attrs consist of the Logger's attributes followed by
     the Attrs specified by args.
@@ -610,7 +620,7 @@ func (l *Logger) Log(level Level, msg string, args ...any)
         an Attr.
       - Otherwise, the argument is treated as a value with key "!BADKEY".
 
-func (l *Logger) LogAttrs(level Level, msg string, attrs ...Attr)
+func (l *Logger) LogAttrs(ctx context.Context, level Level, msg string, attrs ...Attr)
     LogAttrs is a more efficient version of Logger.Log that accepts only Attrs.
 
 func (l *Logger) Debug(msg string, args ...any)
@@ -625,20 +635,18 @@ func (l *Logger) Warn(msg string, args ...any)
 func (l *Logger) Error(msg string, err error, args ...any)
     Error logs at LevelError. If err is non-nil, Error adds Any("err",
     err) before the list of attributes.
-```
 
-The `Log` and `LogAttrs` methods have variants that take a call depth, so other
-functions can wrap them and adjust the source line information.
+func (l *Logger) DebugCtx(ctx context.Context, msg string, args ...any)
+    DebugCtx logs at LevelDebug with the given context.
 
-```
-func (l *Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
-    LogDepth is like Logger.Log, but accepts a call depth to adjust the file
-    and line number in the log record. 0 refers to the caller of LogDepth;
-    1 refers to the caller's caller; and so on.
+func (l *Logger) InfoCtx(ctx context.Context, msg string, args ...any)
+    InfoCtx logs at LevelInfo with the given context.
 
-func (l *Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...Attr)
-    LogAttrsDepth is like Logger.LogAttrs, but accepts a call depth argument
-    which it interprets like Logger.LogDepth.
+func (l *Logger) WarnCtx(ctx context.Context, msg string, args ...any)
+    WarnCtx logs at LevelWarn with the given context.
+
+func ErrorCtx(ctx context.Context, msg string, err error, args ...any)
+    ErrorCtx calls Logger.ErrorCtx on the default logger.
 ```
 
 Loggers can have attributes as well, added by the `With` method.
@@ -730,34 +738,6 @@ different group.
 func (l *Logger) WithGroup(name string) *Logger
     WithGroup returns a new Logger that starts a group. The keys of all
     attributes added to the Logger will be qualified by the given name.
-```
-
-### Contexts in Loggers
-
-Handlers sometimes need to retrieve values from a context.
-Tracing spans are a prime example.
-In tracing packages like the one provided by [Open
-Telemetry](https://opentelemetry.io), spans can be created at any point in the
-code with
-
-```
-ctx, span := tracer.Start(ctx, name, opts)
-```
-
-We provide the `Logger.WithContext` method to convey a context to a
-`Handler`.
-The method returns a new `Logger` that can be stored, or immediately
-used to produce log output.
-A `Logger`'s context is available to a `Handler.Handle` method in the
-`Record.Context` field.
-
-```
-func (l *Logger) WithContext(ctx context.Context) *Logger
-    WithContext returns a new Logger with the same handler as the receiver and
-    the given context.
-
-func (l *Logger) Context() context.Context
-    Context returns l's context.
 ```
 
 ### Levels
@@ -900,7 +880,8 @@ One way that could happen is for another package's frontend to send
 `slog.Record`s to a `slog.Handler`.
 For instance, a `logr.LogSink` implementation could construct a `Record` from a
 message and list of keys and values, and pass it to a `Handler`.
-That is facilitated by `NewRecord` and `Record.AddAttrs`, described above.
+That is facilitated by `NewRecord`, `Record.Add` and `Record.AddAttrs`,
+described above.
 
 Another way for two log packages to work together is for the other package to
 wrap its backend as a `slog.Handler`, so users could write code with the `slog`
@@ -908,6 +889,29 @@ package's API but connect the results to an existing `logr.LogSink`, for
 example.
 This involves writing a `slog.Handler` that wraps the other logger's backend.
 Doing so doesn't seem to require any additional support from this package.
+
+## Testing Package
+
+To verify that a Handler's behavior matches the specification, we propose
+a package testing/slogtest with one exported function:
+
+```
+// TestHandler tests a [slog.Handler].
+// If TestHandler finds any misbehaviors, it returns an error for each,
+// combined into a single error with errors.Join.
+//
+// TestHandler installs the given Handler in a [slog.Logger] and
+// makes several calls to the Logger's output methods.
+//
+// The results function is invoked after all such calls.
+// It should return a slice of map[string]any, one for each call to a Logger output method.
+// The keys and values of the map should correspond to the keys and values of the Handler's
+// output. Each group in the output should be represented as its own nested map[string]any.
+//
+// If the Handler outputs JSON, then calling [encoding/json.Unmarshal] with a `map[string]any`
+// will create the right data structure.
+func TestHandler(h slog.Handler, results func() []map[string]any) error
+```
 
 ## Acknowledgements
 
@@ -948,6 +952,301 @@ overlooked (and have since added).
 ```
 package slog
 
+Package slog provides structured logging, in which log records include a
+message, a severity level, and various other attributes expressed as key-value
+pairs.
+
+It defines a type, Logger, which provides several methods (such as Logger.Info
+and Logger.Error) for reporting events of interest.
+
+Each Logger is associated with a Handler. A Logger output method creates a
+Record from the method arguments and passes it to the Handler, which decides how
+to handle it. There is a default Logger accessible through top-level functions
+(such as Info and Error) that call the corresponding Logger methods.
+
+A log record consists of a time, a level, a message, and a set of key-value
+pairs, where the keys are strings and the values may be of any type. As an
+example,
+
+    slog.Info("hello", "count", 3)
+
+creates a record containing the time of the call, a level of Info, the message
+"hello", and a single pair with key "count" and value 3.
+
+The Info top-level function calls the Logger.Info method on the default Logger.
+In addition to Logger.Info, there are methods for Debug, Warn and Error levels.
+Besides these convenience methods for common levels, there is also a Logger.Log
+method which takes the level as an argument. Each of these methods has a
+corresponding top-level function that uses the default logger.
+
+The default handler formats the log record's message, time, level, and
+attributes as a string and passes it to the log package.
+
+    2022/11/08 15:28:26 INFO hello count=3
+
+For more control over the output format, create a logger with a different
+handler. This statement uses New to create a new logger with a TextHandler that
+writes structured records in text form to standard error:
+
+    logger := slog.New(slog.NewTextHandler(os.Stderr))
+
+TextHandler output is a sequence of key=value pairs, easily and unambiguously
+parsed by machine. This statement:
+
+    logger.Info("hello", "count", 3)
+
+produces this output:
+
+    time=2022-11-08T15:28:26.000-05:00 level=INFO msg=hello count=3
+
+The package also provides JSONHandler, whose output is line-delimited JSON:
+
+    logger := slog.New(slog.NewJSONHandler(os.Stdout))
+    logger.Info("hello", "count", 3)
+
+produces this output:
+
+    {"time":"2022-11-08T15:28:26.000000000-05:00","level":"INFO","msg":"hello","count":3}
+
+Both TextHandler and JSONHandler can be configured with a HandlerOptions.
+There are options for setting the minimum level (see Levels, below), displaying
+the source file and line of the log call, and modifying attributes before they
+are logged.
+
+Setting a logger as the default with
+
+    slog.SetDefault(logger)
+
+will cause the top-level functions like Info to use it. SetDefault also updates
+the default logger used by the log package, so that existing applications that
+use log.Printf and related functions will send log records to the logger's
+handler without needing to be rewritten.
+
+# Attrs and Values
+
+An Attr is a key-value pair. The Logger output methods accept Attrs as well as
+alternating keys and values. The statement
+
+    slog.Info("hello", slog.Int("count", 3))
+
+behaves the same as
+
+    slog.Info("hello", "count", 3)
+
+There are convenience constructors for Attr such as Int, String, and Bool for
+common types, as well as the function Any for constructing Attrs of any type.
+
+The value part of an Attr is a type called Value. Like an [any], a Value can
+hold any Go value, but it can represent typical values, including all numbers
+and strings, without an allocation.
+
+For the most efficient log output, use Logger.LogAttrs. It is similar to
+Logger.Log but accepts only Attrs, not alternating keys and values; this allows
+it, too, to avoid allocation.
+
+The call
+
+    logger.LogAttrs(nil, slog.LevelInfo, "hello", slog.Int("count", 3))
+
+is the most efficient way to achieve the same output as
+
+    slog.Info("hello", "count", 3)
+
+Some attributes are common to many log calls. For example, you may wish to
+include the URL or trace identifier of a server request with all log events
+arising from the request. Rather than repeat the attribute with every log call,
+you can use Logger.With to construct a new Logger containing the attributes:
+
+    logger2 := logger.With("url", r.URL)
+
+The arguments to With are the same key-value pairs used in Logger.Info.
+The result is a new Logger with the same handler as the original, but additional
+attributes that will appear in the output of every call.
+
+# Levels
+
+A Level is an integer representing the importance or severity of a log event.
+The higher the level, the more severe the event. This package defines constants
+for the most common levels, but any int can be used as a level.
+
+In an application, you may wish to log messages only at a certain level or
+greater. One common configuration is to log messages at Info or higher levels,
+suppressing debug logging until it is needed. The built-in handlers can be
+configured with the minimum level to output by setting [HandlerOptions.Level].
+The program's `main` function typically does this. The default value is
+LevelInfo.
+
+Setting the [HandlerOptions.Level] field to a Level value fixes the handler's
+minimum level throughout its lifetime. Setting it to a LevelVar allows the level
+to be varied dynamically. A LevelVar holds a Level and is safe to read or write
+from multiple goroutines. To vary the level dynamically for an entire program,
+first initialize a global LevelVar:
+
+    var programLevel = new(slog.LevelVar) // Info by default
+
+Then use the LevelVar to construct a handler, and make it the default:
+
+    h := slog.HandlerOptions{Level: programLevel}.NewJSONHandler(os.Stderr)
+    slog.SetDefault(slog.New(h))
+
+Now the program can change its logging level with a single statement:
+
+    programLevel.Set(slog.LevelDebug)
+
+# Groups
+
+Attributes can be collected into groups. A group has a name that is used to
+qualify the names of its attributes. How this qualification is displayed depends
+on the handler. TextHandler separates the group and attribute names with a dot.
+JSONHandler treats each group as a separate JSON object, with the group name as
+the key.
+
+Use Group to create a Group Attr from a name and a list of Attrs:
+
+    slog.Group("request",
+        slog.String("method", r.Method),
+        slog.Any("url", r.URL))
+
+TextHandler would display this group as
+
+    request.method=GET request.url=http://example.com
+
+JSONHandler would display it as
+
+    "request":{"method":"GET","url":"http://example.com"}
+
+Use Logger.WithGroup to qualify all of a Logger's output with a group name.
+Calling WithGroup on a Logger results in a new Logger with the same Handler as
+the original, but with all its attributes qualified by the group name.
+
+This can help prevent duplicate attribute keys in large systems, where
+subsystems might use the same keys. Pass each subsystem a different Logger with
+its own group name so that potential duplicates are qualified:
+
+    logger := slog.Default().With("id", systemID)
+    parserLogger := logger.WithGroup("parser")
+    parseInput(input, parserLogger)
+
+When parseInput logs with parserLogger, its keys will be qualified with
+"parser", so even if it uses the common key "id", the log line will have
+distinct keys.
+
+# Contexts
+
+Some handlers may wish to include information from the [current.Context] that
+is available at the call site. One example of such data is the identifier for a
+telemetry trace.
+
+The Logger.Log and Logger.LogAttrs methods take a context as a first argument,
+as do their corresponding top-level functions.
+
+Although the convenience methods on Logger (Info and so on) and the
+corresponding top-level functions do not take a context, the alternatives ending
+in "Ctx" do. For example,
+
+    slog.InfoCtx(ctx, "message")
+
+It is recommended to pass a context to an output method if one is available.
+
+# Advanced topics
+
+## Customizing a type's logging behavior
+
+If a type implements the LogValuer interface, the Value returned from its
+LogValue method is used for logging. You can use this to control how values
+of the type appear in logs. For example, you can redact secret information
+like passwords, or gather a struct's fields in a Group. See the examples under
+LogValuer for details.
+
+A LogValue method may return a Value that itself implements LogValuer. The
+Value.Resolve method handles these cases carefully, avoiding infinite loops and
+unbounded recursion. Handler authors and others may wish to use Value.Resolve
+instead of calling LogValue directly.
+
+## Wrapping output methods
+
+The logger functions use reflection over the call stack to find the file name
+and line number of the logging call within the application. This can produce
+incorrect source information for functions that wrap slog. For instance,
+if you define this function in file mylog.go:
+
+    func Infof(format string, args ...any) {
+        slog.Default().Info(fmt.Sprintf(format, args...))
+    }
+
+and you call it like this in main.go:
+
+    Infof(slog.Default(), "hello, %s", "world")
+
+then slog will use source file mylog.go, not main.go.
+
+A correct implementation of Infof will obtain the source location (pc) and
+pass it to NewRecord. The Infof function in the package-level example called
+"wrapping" demonstrates how to do this.
+
+## Working with Records
+
+Sometimes a Handler will need to modify a Record before passing it on to another
+Handler or backend. A Record contains a mixture of simple public fields (e.g.
+Time, Level, Message) and hidden fields that refer to state (such as attributes)
+indirectly. This means that modifying a simple copy of a Record (e.g. by calling
+Record.Add or Record.AddAttrs to add attributes) may have unexpected effects
+on the original. Before modifying a Record, use [Clone] to create a copy that
+shares no state with the original, or create a new Record with NewRecord and
+build up its Attrs by traversing the old ones with Record.Attrs.
+
+## Performance considerations
+
+If profiling your application demonstrates that logging is taking significant
+time, the following suggestions may help.
+
+If many log lines have a common attribute, use Logger.With to create a Logger
+with that attribute. The built-in handlers will format that attribute only once,
+at the call to Logger.With. The Handler interface is designed to allow that
+optimization, and a well-written Handler should take advantage of it.
+
+The arguments to a log call are always evaluated, even if the log event is
+discarded. If possible, defer computation so that it happens only if the value
+is actually logged. For example, consider the call
+
+    slog.Info("starting request", "url", r.URL.String())  // may compute String unnecessarily
+
+The URL.String method will be called even if the logger discards Info-level
+events. Instead, pass the URL directly:
+
+    slog.Info("starting request", "url", &r.URL) // calls URL.String only if needed
+
+The built-in TextHandler will call its String method, but only if the log event
+is enabled. Avoiding the call to String also preserves the structure of the
+underlying value. For example JSONHandler emits the components of the parsed
+URL as a JSON object. If you want to avoid eagerly paying the cost of the String
+call without causing the handler to potentially inspect the structure of the
+value, wrap the value in a fmt.Stringer implementation that hides its Marshal
+methods.
+
+You can also use the LogValuer interface to avoid unnecessary work in disabled
+log calls. Say you need to log some expensive value:
+
+    slog.Debug("frobbing", "value", computeExpensiveValue(arg))
+
+Even if this line is disabled, computeExpensiveValue will be called. To avoid
+that, define a type implementing LogValuer:
+
+    type expensive struct { arg int }
+
+    func (e expensive) LogValue() slog.Value {
+        return slog.AnyValue(computeExpensiveValue(e.arg))
+    }
+
+Then use a value of that type in log calls:
+
+    slog.Debug("frobbing", "value", expensive{arg})
+
+Now computeExpensiveValue will only be called when the line is enabled.
+
+The built-in handlers acquire a lock before calling io.Writer.Write to ensure
+that each record is written in one piece. User-defined handlers are responsible
+for their own locking.
 
 CONSTANTS
 
@@ -976,16 +1275,25 @@ FUNCTIONS
 func Debug(msg string, args ...any)
     Debug calls Logger.Debug on the default logger.
 
+func DebugCtx(ctx context.Context, msg string, args ...any)
+    DebugCtx calls Logger.DebugCtx on the default logger.
+
 func Error(msg string, err error, args ...any)
     Error calls Logger.Error on the default logger.
+
+func ErrorCtx(ctx context.Context, msg string, err error, args ...any)
+    ErrorCtx calls Logger.ErrorCtx on the default logger.
 
 func Info(msg string, args ...any)
     Info calls Logger.Info on the default logger.
 
-func Log(level Level, msg string, args ...any)
+func InfoCtx(ctx context.Context, msg string, args ...any)
+    InfoCtx calls Logger.InfoCtx on the default logger.
+
+func Log(ctx context.Context, level Level, msg string, args ...any)
     Log calls Logger.Log on the default logger.
 
-func LogAttrs(level Level, msg string, attrs ...Attr)
+func LogAttrs(ctx context.Context, level Level, msg string, attrs ...Attr)
     LogAttrs calls Logger.LogAttrs on the default logger.
 
 func NewLogLogger(h Handler, level Level) *log.Logger
@@ -1000,6 +1308,9 @@ func SetDefault(l *Logger)
 
 func Warn(msg string, args ...any)
     Warn calls Logger.Warn on the default logger.
+
+func WarnCtx(ctx context.Context, msg string, args ...any)
+    WarnCtx calls Logger.WarnCtx on the default logger.
 
 
 TYPES
@@ -1061,6 +1372,14 @@ type Handler interface {
 
 	// Handle handles the Record.
 	// It will only be called if Enabled returns true.
+	//
+	// The first argument is the context of the Logger that created the Record,
+	// which may be nil.
+	// It is present solely to provide Handlers access to the context's values.
+	// Canceling the context should not affect record processing.
+	// (Among other things, log messages may be necessary to debug a
+	// cancellation-related problem.)
+	//
 	// Handle methods that produce output should observe the following rules:
 	//   - If r.Time is the zero time, ignore the time.
 	//   - If an Attr's key is the empty string and the value is not a group,
@@ -1068,7 +1387,7 @@ type Handler interface {
 	//   - If a group's key is empty, inline the group's Attrs.
 	//   - If a group has no Attrs (even if it has a non-empty key),
 	//     ignore it.
-	Handle(r Record) error
+	Handle(context.Context, Record) error
 
 	// WithAttrs returns a new Handler whose attributes consist of
 	// both the receiver's attributes and the arguments.
@@ -1172,7 +1491,7 @@ func (h *JSONHandler) Enabled(_ context.Context, level Level) bool
     Enabled reports whether the handler handles records at the given level.
     The handler ignores records whose level is lower.
 
-func (h *JSONHandler) Handle(r Record) error
+func (h *JSONHandler) Handle(_ context.Context, r Record) error
     Handle formats its argument Record as a JSON object on a single line.
 
     If the Record's time is zero, the time is omitted. Otherwise, the key is
@@ -1338,18 +1657,22 @@ func New(h Handler) *Logger
 func With(args ...any) *Logger
     With calls Logger.With on the default logger.
 
-func (l *Logger) Context() context.Context
-    Context returns l's context, which may be nil.
-
 func (l *Logger) Debug(msg string, args ...any)
     Debug logs at LevelDebug.
 
-func (l *Logger) Enabled(level Level) bool
-    Enabled reports whether l emits log records at the given level.
+func (l *Logger) DebugCtx(ctx context.Context, msg string, args ...any)
+    DebugCtx logs at LevelDebug with the given context.
+
+func (l *Logger) Enabled(ctx context.Context, level Level) bool
+    Enabled reports whether l emits log records at the given context and level.
 
 func (l *Logger) Error(msg string, err error, args ...any)
     Error logs at LevelError. If err is non-nil, Error adds Any(ErrorKey,
     err) before the list of attributes.
+
+func (l *Logger) ErrorCtx(ctx context.Context, msg string, err error, args ...any)
+    ErrorCtx logs at LevelError with the given context. If err is non-nil,
+    it adds Any(ErrorKey, err) before the list of attributes.
 
 func (l *Logger) Handler() Handler
     Handler returns l's Handler.
@@ -1357,7 +1680,10 @@ func (l *Logger) Handler() Handler
 func (l *Logger) Info(msg string, args ...any)
     Info logs at LevelInfo.
 
-func (l *Logger) Log(level Level, msg string, args ...any)
+func (l *Logger) InfoCtx(ctx context.Context, msg string, args ...any)
+    InfoCtx logs at LevelInfo with the given context.
+
+func (l *Logger) Log(ctx context.Context, level Level, msg string, args ...any)
     Log emits a log record with the current time and the given level and
     message. The Record's Attrs consist of the Logger's attributes followed by
     the Attrs specified by args.
@@ -1369,20 +1695,14 @@ func (l *Logger) Log(level Level, msg string, args ...any)
         an Attr.
       - Otherwise, the argument is treated as a value with key "!BADKEY".
 
-func (l *Logger) LogAttrs(level Level, msg string, attrs ...Attr)
+func (l *Logger) LogAttrs(ctx context.Context, level Level, msg string, attrs ...Attr)
     LogAttrs is a more efficient version of Logger.Log that accepts only Attrs.
-
-func (l *Logger) LogAttrsDepth(calldepth int, level Level, msg string, attrs ...Attr)
-    LogAttrsDepth is like Logger.LogAttrs, but accepts a call depth argument
-    which it interprets like Logger.LogDepth.
-
-func (l *Logger) LogDepth(calldepth int, level Level, msg string, args ...any)
-    LogDepth is like Logger.Log, but accepts a call depth to adjust the file
-    and line number in the log record. 1 refers to the caller of LogDepth;
-    2 refers to the caller's caller; and so on.
 
 func (l *Logger) Warn(msg string, args ...any)
     Warn logs at LevelWarn.
+
+func (l *Logger) WarnCtx(ctx context.Context, msg string, args ...any)
+    WarnCtx logs at LevelWarn with the given context.
 
 func (l *Logger) With(args ...any) *Logger
     With returns a new Logger that includes the given arguments, converted
@@ -1390,10 +1710,6 @@ func (l *Logger) With(args ...any) *Logger
     output from the Logger. The new Logger shares the old Logger's context. The
     new Logger's handler is the result of calling WithAttrs on the receiver's
     handler.
-
-func (l *Logger) WithContext(ctx context.Context) *Logger
-    WithContext returns a new Logger with the same handler as the receiver and
-    the given context. It uses the same handler as the original.
 
 func (l *Logger) WithGroup(name string) *Logger
     WithGroup returns a new Logger that starts a group. The keys of all
@@ -1413,11 +1729,6 @@ type Record struct {
 	// The level of the event.
 	Level Level
 
-	// The context of the Logger that created the Record. Present
-	// solely to provide Handlers access to the context's values.
-	// Canceling the context should not affect record processing.
-	Context context.Context
-
 	// The program counter at the time the record was constructed, as determined
 	// by runtime.Callers. If zero, no program counter is available.
 	//
@@ -1432,12 +1743,16 @@ type Record struct {
     state. Do not modify a Record after handing out a copy to it. Use
     Record.Clone to create a copy with no shared state.
 
-func NewRecord(t time.Time, level Level, msg string, pc uintptr, ctx context.Context) Record
+func NewRecord(t time.Time, level Level, msg string, pc uintptr) Record
     NewRecord creates a Record from the given arguments. Use Record.AddAttrs to
     add attributes to the Record.
 
     NewRecord is intended for logging APIs that want to support a Handler as a
     backend.
+
+func (r *Record) Add(args ...any)
+    Add converts the args to Attrs as described in Logger.Log, then appends the
+    Attrs to the Record's list of Attrs. It resolves the Attrs before doing so.
 
 func (r *Record) AddAttrs(attrs ...Attr)
     AddAttrs appends the given Attrs to the Record's list of Attrs. It resolves
@@ -1467,7 +1782,7 @@ func (h *TextHandler) Enabled(_ context.Context, level Level) bool
     Enabled reports whether the handler handles records at the given level.
     The handler ignores records whose level is lower.
 
-func (h *TextHandler) Handle(r Record) error
+func (h *TextHandler) Handle(_ context.Context, r Record) error
     Handle formats its argument Record as a single line of space-separated
     key=value items.
 
@@ -1601,4 +1916,25 @@ func (v Value) Time() time.Time
 func (v Value) Uint64() uint64
     Uint64 returns v's value as a uint64. It panics if v is not an unsigned
     integer.
+
+
+package slogtest
+
+FUNCTIONS
+
+func TestHandler(h slog.Handler, results func() []map[string]any) error
+    TestHandler tests a slog.Handler. If TestHandler finds any misbehaviors,
+    it returns an error for each, combined into a single error with errors.Join.
+
+    TestHandler installs the given Handler in a slog.Logger and makes several
+    calls to the Logger's output methods.
+
+    The results function is invoked after all such calls. It should return
+    a slice of map[string]any, one for each call to a Logger output method.
+    The keys and values of the map should correspond to the keys and values of
+    the Handler's output. Each group in the output should be represented as its
+    own nested map[string]any.
+
+    If the Handler outputs JSON, then calling encoding/json.Unmarshal with a
+    `map[string]any` will create the right data structure.
 ```
