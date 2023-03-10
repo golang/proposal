@@ -133,9 +133,9 @@ import "log/slog"
 func main() {
     slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr)))
     slog.Info("hello", "name", "Al")
-    slog.Error("oops", net.ErrClosed, "status", 500)
+    slog.Error("oops", "err", net.ErrClosed, "status", 500)
     slog.LogAttrs(slog.LevelError, "oops",
-        slog.Int("status", 500), slog.Any("err", net.ErrClosed))
+        slog.Any("err", net.ErrClosed), slog.Int("status", 500))
 }
 ```
 
@@ -143,8 +143,8 @@ This program generates the following output on standard error:
 
 ```
 time=2022-10-24T16:05:48.054-04:00 level=INFO msg=hello name=Al
-time=2022-10-24T16:05:48.054-04:00 level=ERROR msg=oops status=500 err="use of closed network connection"
-time=2022-10-24T16:05:48.054-04:00 level=ERROR msg=oops status=500 err="use of closed network connection"
+time=2022-10-24T16:05:48.054-04:00 level=ERROR err="use of closed network connection" msg=oops status=500
+time=2022-10-24T16:05:48.054-04:00 level=ERROR err="use of closed network connection" msg=oops status=500
 ```
 
 It begins by setting the default logger to one that writes log records in an
@@ -157,14 +157,14 @@ producing mostly structured output:
 
 ```
 2022/10/24 16:07:00 INFO hello name=Al
-2022/10/24 16:07:00 ERROR oops status=500 err="use of closed network connection"
-2022/10/24 16:07:00 ERROR oops status=500 err="use of closed network connection"
+2022/10/24 16:07:00 ERROR oops err="use of closed network connection" status=500
+2022/10/24 16:07:00 ERROR oops  err="use of closed network connection" status=500
 ```
 
 The program outputs three log messages augmented with key-value pairs.
 The first logs at the Info level, passing a single key-value pair along with the
 message.
-The second logs at the Error level, passing an `error` and a key-value pair.
+The second logs at the Error level, passing two key-value pairs.
 
 The third produces the same output as the second, but more efficiently.
 Functions like `Any` and `Int` construct `slog.Attr` values, which are key-value
@@ -632,9 +632,8 @@ func (l *Logger) Info(msg string, args ...any)
 func (l *Logger) Warn(msg string, args ...any)
     Warn logs at LevelWarn.
 
-func (l *Logger) Error(msg string, err error, args ...any)
-    Error logs at LevelError. If err is non-nil, Error adds Any("err",
-    err) before the list of attributes.
+func (l *Logger) Error(msg string, args ...any)
+    Error logs at LevelError.
 
 func (l *Logger) DebugCtx(ctx context.Context, msg string, args ...any)
     DebugCtx logs at LevelDebug with the given context.
@@ -645,8 +644,8 @@ func (l *Logger) InfoCtx(ctx context.Context, msg string, args ...any)
 func (l *Logger) WarnCtx(ctx context.Context, msg string, args ...any)
     WarnCtx logs at LevelWarn with the given context.
 
-func ErrorCtx(ctx context.Context, msg string, err error, args ...any)
-    ErrorCtx calls Logger.ErrorCtx on the default logger.
+func (l *Logger) ErrorCtx(ctx context.Context, msg string, args ...any)
+    ErrorCtx logs at LevelError with the given context.
 ```
 
 Loggers can have attributes as well, added by the `With` method.
@@ -1133,9 +1132,9 @@ distinct keys.
 
 # Contexts
 
-Some handlers may wish to include information from the [current.Context] that
-is available at the call site. One example of such data is the identifier for a
-telemetry trace.
+Some handlers may wish to include information from the context.Context that is
+available at the call site. One example of such information is the identifier
+for the current span when tracing is is enabled.
 
 The Logger.Log and Logger.LogAttrs methods take a context as a first argument,
 as do their corresponding top-level functions.
@@ -1178,7 +1177,7 @@ and you call it like this in main.go:
 
     Infof(slog.Default(), "hello, %s", "world")
 
-then slog will use source file mylog.go, not main.go.
+then slog will report the source file as mylog.go, not main.go.
 
 A correct implementation of Infof will obtain the source location (pc) and
 pass it to NewRecord. The Infof function in the package-level example called
@@ -1263,9 +1262,6 @@ const (
 	// SourceKey is the key used by the built-in handlers for the source file
 	// and line of the log call. The associated value is a string.
 	SourceKey = "source"
-	// ErrorKey is the key used for errors by Logger.Error.
-	// The associated value is an [error].
-	ErrorKey = "err"
 )
     Keys for "built-in" attributes.
 
@@ -1278,10 +1274,10 @@ func Debug(msg string, args ...any)
 func DebugCtx(ctx context.Context, msg string, args ...any)
     DebugCtx calls Logger.DebugCtx on the default logger.
 
-func Error(msg string, err error, args ...any)
+func Error(msg string, args ...any)
     Error calls Logger.Error on the default logger.
 
-func ErrorCtx(ctx context.Context, msg string, err error, args ...any)
+func ErrorCtx(ctx context.Context, msg string, args ...any)
     ErrorCtx calls Logger.ErrorCtx on the default logger.
 
 func Info(msg string, args ...any)
@@ -1366,15 +1362,16 @@ type Handler interface {
 	// The handler ignores records whose level is lower.
 	// It is called early, before any arguments are processed,
 	// to save effort if the log event should be discarded.
-	// The Logger's context is passed so Enabled can use its values
-	// to make a decision. The context may be nil.
+	// If called from a Logger method, the first argument is the context
+	// passed to that method, or context.Background() if nil was passed
+	// or the method does not take a context.
+	// The context is passed so Enabled can use its values
+	// to make a decision.
 	Enabled(context.Context, Level) bool
 
 	// Handle handles the Record.
-	// It will only be called if Enabled returns true.
-	//
-	// The first argument is the context of the Logger that created the Record,
-	// which may be nil.
+	// It will only be called Enabled returns true.
+	// The Context argument is as for Enabled.
 	// It is present solely to provide Handlers access to the context's values.
 	// Canceling the context should not affect record processing.
 	// (Among other things, log messages may be necessary to debug a
@@ -1382,6 +1379,7 @@ type Handler interface {
 	//
 	// Handle methods that produce output should observe the following rules:
 	//   - If r.Time is the zero time, ignore the time.
+	//   - If r.PC is zero, ignore it.
 	//   - If an Attr's key is the empty string and the value is not a group,
 	//     ignore the Attr.
 	//   - If a group's key is empty, inline the group's Attrs.
@@ -1392,6 +1390,7 @@ type Handler interface {
 	// WithAttrs returns a new Handler whose attributes consist of
 	// both the receiver's attributes and the arguments.
 	// The Handler owns the slice: it may retain, modify or discard it.
+	// [Logger.With] will resolve the Attrs.
 	WithAttrs(attrs []Attr) Handler
 
 	// WithGroup returns a new Handler with the given group appended to
@@ -1424,6 +1423,9 @@ type Handler interface {
     Any of the Handler's methods may be called concurrently with itself or
     with other methods. It is the responsibility of the Handler to manage this
     concurrency.
+
+    Users of the slog package should not invoke Handler methods directly.
+    They should use the methods of Logger instead.
 
 type HandlerOptions struct {
 	// When AddSource is true, the handler adds a ("source", "file:line")
@@ -1666,13 +1668,11 @@ func (l *Logger) DebugCtx(ctx context.Context, msg string, args ...any)
 func (l *Logger) Enabled(ctx context.Context, level Level) bool
     Enabled reports whether l emits log records at the given context and level.
 
-func (l *Logger) Error(msg string, err error, args ...any)
-    Error logs at LevelError. If err is non-nil, Error adds Any(ErrorKey,
-    err) before the list of attributes.
+func (l *Logger) Error(msg string, args ...any)
+    Error logs at LevelError.
 
-func (l *Logger) ErrorCtx(ctx context.Context, msg string, err error, args ...any)
-    ErrorCtx logs at LevelError with the given context. If err is non-nil,
-    it adds Any(ErrorKey, err) before the list of attributes.
+func (l *Logger) ErrorCtx(ctx context.Context, msg string, args ...any)
+    ErrorCtx logs at LevelError with the given context.
 
 func (l *Logger) Handler() Handler
     Handler returns l's Handler.
