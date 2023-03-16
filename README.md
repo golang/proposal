@@ -103,7 +103,7 @@ Language changes should follow the proposal process described here.
 As explained in the blog entry, language change proposals should
 
 - address an important issue for many people,
-- have minimal impact on everybody else, and
+- have a minimal effect on everybody else, and
 - come with a clear and well-understood solution.
 
 Proposals should follow the [Go 2 template](go2-language-changes.md).
