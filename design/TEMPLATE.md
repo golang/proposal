@@ -6,7 +6,7 @@ Author(s): [Author Name, Co-Author Name]
 
 Last updated: [Date]
 
-Discussion at https://golang.org/issue/NNNNN.
+Discussion at https://go.dev/issue/NNNNN.
 
 ## Abstract
 
@@ -27,12 +27,12 @@ Discussion at https://golang.org/issue/NNNNN.
 ## Compatibility
 
 [A discussion of the change with regard to the
-[compatibility guidelines](https://golang.org/doc/go1compat).]
+[compatibility guidelines](https://go.dev/doc/go1compat).]
 
 ## Implementation
 
 [A description of the steps in the implementation, who will do them, and when.
-This should include a discussion of how the work fits into [Go's release cycle](https://golang.org/wiki/Go-Release-Cycle).]
+This should include a discussion of how the work fits into [Go's release cycle](https://go.dev/wiki/Go-Release-Cycle).]
 
 ## Open issues (if applicable)
 
