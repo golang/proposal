@@ -2,7 +2,7 @@
 
 Author: Richard Hansen <rhansen@rhansen.org>
 
-Last updated: 2023-05-10
+Last updated: 2023-06-08
 
 Discussion at https://go.dev/issue/48815.
 
@@ -74,9 +74,9 @@ type customMutator interface {
 	// previously returned from a call to MarshalBinary.
 	UnmarshalBinary([]byte) error
 	// Mutate pseudo-randomly transforms the customMutator's value. The mutation
-	// must be deterministic: every call to Mutate with the same starting value
-	// and seed must result in the same transformed value.
-	Mutate(seed int64) error
+	// must be repeatable: every call to Mutate with the same starting value and
+	// seed must result in the same transformed value.
+	Mutate(ctx context.Context, seed int64) error
 }
 ```
 
@@ -106,7 +106,7 @@ type fuzzInput struct{ Word string }
 
 func (v *fuzzInput) MarshalBinary() ([]byte, error) { return json.Marshal(v) }
 func (v *fuzzInput) UnmarshalBinary(d []byte) error { return json.Unmarshal(d, v) }
-func (v *fuzzInput) Mutate(seed int64) error {
+func (v *fuzzInput) Mutate(ctx context.Context, seed int64) error {
 	v.Word = loremipsum.NewWithSeed(seed).Word()
 	return nil
 }
@@ -129,6 +129,29 @@ custom("*example.com/mod/pkg_test.fuzzInput", []byte("{\"Word\":\"lorem\"}"))
 ```
 
 ## Rationale
+
+### Private interface
+
+The `customMutator` interface is not exported for a few reasons:
+
+  * Exporting is not strictly required because it does not appear anywhere
+    outside of internal logic.
+  * It can be easily exported in the future if needed. The opposite is not true:
+    un-exporting requires a major version change.
+  * [YAGNI](https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it): Users are
+    unlikely to want to declare anything with that type. One possible exception
+    is a compile-time type check such as the following:
+
+    ```go
+    var _ testing.CustomMutator = (*myType)(nil)
+    ```
+
+    Such a check is unlikely to have much value: the code is likely being
+    compiled because tests are about to run, and `testing.F.Fuzz`'s runtime
+    check will immediately catch the bug.
+  * Exporting now would add friction to extending `testing.F.Fuzz` again in the
+    future. Should the new interface be exported even if doing so doesn't add
+    much value beyond consistency?
 
 ### `MarshalBinary`, `UnmarshalBinary` methods
 
@@ -171,31 +194,41 @@ The `seed` parameter is an `int64`, not an unsigned integer type as is common
 for holding random bits, because that is what
 [`math/rand.NewSource`](https://pkg.go.dev/math/rand#NewSource) takes.
 
-The `Mutate` method must be deterministic to avoid violating [an assumption in
-the coordinator–worker
+The `Mutate` method must be repeatable to avoid violating [an assumption in the
+coordinator–worker
 protocol](https://github.com/golang/go/blob/0a9875c5c809fa70ae6662b8a38f5f86f648badd/src/internal/fuzz/worker.go#L702-L705).
 This may be relaxed in the future by revising the protocol.
 
-`Mutate` is expected to always succeed. Always returning `nil` helps ensure
-repeatability, which is necessary for the coordinator–worker protocol assumption
-linked above. Despite this, `Mutate` returns an error for a couple of reasons:
+Some alternatives for the `Mutate` method were considered:
 
-  * It discourages the use of `panic`. Panicking is problematic for the reasons
-    described in the `MarshalBinary` rationale above.
+  * `Mutate()`: Simplest, but the lack of a seed parameter makes it difficult
+    to satisfy the repeatability requirement.
+  * `Mutate(seed int64)`: Simple. Naturally hints to developers that the method
+    is expected to be fast, repeatable, and error-free, which increases the
+    effectiveness of fuzzing. Adding a context parameter or error return value
+    (or both) might be YAGNI, but their absence makes complex mutation
+    operations more difficult to implement. The lack of an error return value
+    encourages the use of `panic`, which is problematic for the reasons
+    discussed in the `MarshalBinary` rationale above.
+  * `Mutate(seed int64) error`: The error return value discourages the use of
+    `panic`, and enables better dev UX when debugging complex mutation
+    operations.
+  * `Mutate(ctx context.Context, seed int64) error`: The context makes this more
+    future-proof by enabling advanced techniques once the repeatability
+    requirement is removed. For example, `Mutate` could send an RPC to a service
+    that feeds automatic crash report data to fuzzing tasks to increase the
+    likelihood of encountering an interesting value. The context parameter and
+    error return value might be YAGNI, but the added implementation complexity
+    and developer cognitive load is believed to be minor enough to not worry
+    about it (they can be ignored in most use cases).
+  * Accept both `Mutate(seed int64)` and `Mutate(ctx context.Context, seed
+    int64) error`: The second of the two can be added later after accumulating
+    additional feedback from developers. Supporting both might result in
+    unnecessary complexity.
 
-  * It may enable advanced use cases when combined with a future removal of the
-    determinism requirement. A hypothetical example: The `Mutate` method could
-    call out to a service that coordinates multiple fuzzing tasks to avoid
-    duplicated effort or employ advanced techniques for exploring the input
-    space. Such queries could regularly fail; enabling the coordinator to
-    gracefully handle the errors improves UX.
-
-Alternatively, the error return value could be omitted for now, and `F.Fuzz`
-extended again in the future to accept another custom input type whose `Mutate`
-method does return an error. This was rejected because the end result is
-unnecessarily messy for little immediate benefit, and any existing custom input
-types that call `panic` would have to be updated to take advantage of the
-improved error handling.
+Because mutation operations on custom types are expected to be somewhat complex
+(otherwise a basic type would probably suffice), the `Mutate(ctx
+context.Context, seed int64) error` option is believed to be the best choice.
 
 ### Minimization
 
@@ -226,25 +259,8 @@ No changes in behavior are expected with existing code and seed corpus files.
 
 See https://go.dev/cl/493304 for an initial attempt.
 
-For the initial implementation, a worker will simply panic if one of the custom
+For the initial implementation, a worker can simply panic if one of the custom
 type's methods returns an error. A future change can improve UX by plumbing the
 error.
 
 No particular Go release is targeted.
-
-## Open issues
-
-  * What is the best way to obtain a stable, globally unique, and marshalable
-    identifier from a `reflect.Type`? The `reflect.Type.String` method does not
-    guarantee global uniqueness. See https://go.dev/cl/493304 for an initial
-    attempt.
-
-  * Should `MarshalBinary` not return an error, forcing devs to call `panic` on
-    error? We can always add support for a returned error in the future if
-    desired.
-
-  * Should `Mutate` not return an error, forcing devs to call `panic` on error?
-    We can always add support for a returned error in the future if desired.
-
-  * Should `Mutate` take a `context.Context` in case it wants to be cancelable?
-    (Maybe it wants to send RPCs, or otherwise do something expensive.)
