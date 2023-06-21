@@ -285,6 +285,17 @@ without progressing through the Active or Likely Decline stages.
 If it seems like there is still general interest from others, the proposal
 may also be kept open and the discussion continued.
 
+#### Declined as Obsolete
+
+If a proposal is obsoleted by changes to Go that have been made
+since the proposal was filed, the proposal review group may decline
+the proposal as obsolete without progressing through the Active or
+Likely Decline stages.
+
+If it seems like there is still general interest from others,
+or that discussion may lead to a different, non-obsolete proposal,
+the proposal may also be kept open and the discussion continued.
+
 #### Hold
 
 If discussion of a proposal requires design revisions or additional information
