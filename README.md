@@ -309,15 +309,28 @@ proposal back to the Active column for consideration at the next proposal review
 The goal of the proposal process is to reach general consensus about the outcome
 in a timely manner.
 
-If general consensus cannot be reached,
-the proposal review group decides the next step
-by reviewing and discussing the issue and
-reaching a consensus among themselves.
+If proposal review cannot identify a general consensus
+in the discussion of the issue on the issue tracker,
+the usual result is that the proposal is declined.
+It can happen that proposal review may not identify a
+general consensus and yet it is clear that the proposal
+should not be outright declined.
+As one example, there may be a consensus that some solution
+to a problem is important, but no consensus on which of
+two competing solutions should be adopted.
 
-If even consensus among the proposal review group
-cannot be reached (which would be exceedingly unusual),
-the arbiter ([rsc@](mailto:rsc@golang.org))
-reviews the discussion and decides the next step.
+If the proposal review group cannot identify a consensus
+nor a next step for the proposal, the decision about the path forward
+passes to the Go architects (currently [gri@](mailto:gri@golang.org),
+[iant@](mailto:iant@golang.org), and [rsc@](mailto:rsc@golang.org)),
+who review the discussion and aim to reach a consensus among themselves.
+If so, they document the decision and its rationale on the issue.
+
+If consensus among the architects cannot be reached,
+which is even more unusual,
+the arbiter (currently [rsc@](mailto:rsc@golang.org))
+reviews the discussion and decides the next step,
+documenting the decision and its rationale on the issue.
 
 ## Help
 
