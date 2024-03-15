@@ -68,9 +68,16 @@ implementation work proceeds in the same way as any other contribution.
 
 The proposal process should be used for any notable change or addition to the
 language, libraries and tools.
-“Notable” includes API changes in the main repo and all golang.org/x repos,
-as well as command-line changes to the `go` command.
-It also includes visible behavior changes in existing functionality.
+“Notable” includes (but is not limited to):
+
+- API changes in the main repo and all golang.org/x repos.
+- Command-line changes to the `go` command.
+- Any visible behavior changes that need a [GODEBUG setting](https://go.dev/doc/godebug) for compatibility.
+- Any other visible behavior changes in existing functionality.
+- Adoption or use of new protocols, protocol versions, cryptographic algorithms, and the like,
+  even in an implementation.
+  Such changes are externally visible and require discussion and probably a GODEBUG setting.
+
 Since proposals begin (and will often end) with the filing of an issue, even
 small changes can go through the proposal process if appropriate.
 Deciding what is appropriate is matter of judgment we will refine through
