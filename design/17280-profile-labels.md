@@ -14,7 +14,7 @@ function in different contexts when looking at profiles.
 
 ## Background
 
-[Proposal #16093](golang.org/issue/16093) proposes to generate profiles in the
+[Proposal #16093](http://golang.org/issue/16093) proposes to generate profiles in the
 gzipped profile proto format that's now the standard format pprof expects
 profiles to be in.
 This format supports adding labels to profile records, but currently the Go
