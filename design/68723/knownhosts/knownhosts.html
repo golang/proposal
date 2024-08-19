@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="doc2go">
+    <title>knownhosts</title>
+    <style>
+      body {
+        margin: 1em 2em;
+        font-family: Helvetica, sans-serif;
+        background-color: #f8f8f8;
+        font-size: 1em;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        margin-top: 0.3em;
+        margin-bottom: 0.3em;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-weight: 500;
+      }
+
+      h2 {
+        font-size: 1.75em
+      }
+
+      h3 {
+        font-size: 1.5em
+      }
+
+      h4 {
+        font-size: 1.33em
+      }
+
+      h5 {
+        font-size: 1em
+      }
+
+      a {
+        text-decoration: none;
+        color: #0366a5;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      a.permalink {
+        display: none;
+      }
+
+      a.permalink:hover {
+        text-decoration: none;
+      }
+
+      *:hover>a.permalink {
+        display: inline;
+      }
+
+      nav {
+        padding: 1em;
+        background-color: #eee;
+        border-radius: 0.5em;
+        display: flex;
+        flex-wrap: wrap;
+      }
+
+      nav .navbar-right {
+        margin-left: auto;
+      }
+
+      /* Remove first level of nesting for a package's index section. */
+      #pkg-index+ul,
+      #pkg-examples+ul {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      code,
+      kbd,
+      pre {
+        font-family: Consolas, monospace;
+      }
+
+      pre {
+        color: #222;
+        overflow-x: auto;
+        border: 1px solid #ccc;
+        border-radius: 0.5em;
+        background-color: #eee;
+        padding: 0.75em;
+        font-size: 0.9em;
+      }
+
+      details.example>summary {
+        color: #0366a5;
+        cursor: pointer;
+      }
+
+      details.deprecated>summary {
+        list-style: none;
+      }
+
+      span.deprecated-tag {
+        color: #eee;
+        background-color: #999;
+        padding: 0.125rem 0.3rem;
+        border-radius: 0.3rem;
+        font-size: 0.7rem;
+        vertical-align: middle;
+        cursor: pointer;
+      }
+
+      #search {
+        margin: 0.3em 0;
+      }
+
+      #generated-by-footer {
+        font-size: x-small;
+      }
+
+      /* Background */
+      .bg {
+        background-color: #ffffff;
+      }
+
+      /* PreWrapper */
+      .chroma {
+        background-color: #ffffff;
+      }
+
+      /* Error */
+      .chroma .err {
+        color: #a61717;
+        background-color: #e3d2d2
+      }
+
+      /* LineLink */
+      .chroma .lnlinks {
+        outline: none;
+        text-decoration: none;
+        color: inherit
+      }
+
+      /* LineTableTD */
+      .chroma .lntd {
+        vertical-align: top;
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+
+      /* LineTable */
+      .chroma .lntable {
+        border-spacing: 0;
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+
+      /* LineHighlight */
+      .chroma .hl {
+        background-color: #e5e5e5
+      }
+
+      /* LineNumbersTable */
+      .chroma .lnt {
+        white-space: pre;
+        -webkit-user-select: none;
+        user-select: none;
+        margin-right: 0.4em;
+        padding: 0 0.4em 0 0.4em;
+        color: #7f7f7f
+      }
+
+      /* LineNumbers */
+      .chroma .ln {
+        white-space: pre;
+        -webkit-user-select: none;
+        user-select: none;
+        margin-right: 0.4em;
+        padding: 0 0.4em 0 0.4em;
+        color: #7f7f7f
+      }
+
+      /* Line */
+      .chroma .line {
+        display: flex;
+      }
+
+      /* Keyword */
+      .chroma .k {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* KeywordConstant */
+      .chroma .kc {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* KeywordDeclaration */
+      .chroma .kd {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* KeywordNamespace */
+      .chroma .kn {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* KeywordPseudo */
+      .chroma .kp {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* KeywordReserved */
+      .chroma .kr {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* KeywordType */
+      .chroma .kt {
+        color: #445588;
+        font-weight: bold
+      }
+
+      /* NameAttribute */
+      .chroma .na {
+        color: #008080
+      }
+
+      /* NameBuiltin */
+      .chroma .nb {
+        color: #0086b3
+      }
+
+      /* NameBuiltinPseudo */
+      .chroma .bp {
+        color: #999999
+      }
+
+      /* NameClass */
+      .chroma .nc {
+        color: #445588;
+        font-weight: bold
+      }
+
+      /* NameConstant */
+      .chroma .no {
+        color: #008080
+      }
+
+      /* NameDecorator */
+      .chroma .nd {
+        color: #3c5d5d;
+        font-weight: bold
+      }
+
+      /* NameEntity */
+      .chroma .ni {
+        color: #800080
+      }
+
+      /* NameException */
+      .chroma .ne {
+        color: #990000;
+        font-weight: bold
+      }
+
+      /* NameFunction */
+      .chroma .nf {
+        color: #990000;
+        font-weight: bold
+      }
+
+      /* NameLabel */
+      .chroma .nl {
+        color: #990000;
+        font-weight: bold
+      }
+
+      /* NameNamespace */
+      .chroma .nn {
+        color: #555555
+      }
+
+      /* NameTag */
+      .chroma .nt {
+        color: #000080
+      }
+
+      /* NameVariable */
+      .chroma .nv {
+        color: #008080
+      }
+
+      /* NameVariableClass */
+      .chroma .vc {
+        color: #008080
+      }
+
+      /* NameVariableGlobal */
+      .chroma .vg {
+        color: #008080
+      }
+
+      /* NameVariableInstance */
+      .chroma .vi {
+        color: #008080
+      }
+
+      /* LiteralString */
+      .chroma .s {
+        color: #dd1144
+      }
+
+      /* LiteralStringAffix */
+      .chroma .sa {
+        color: #dd1144
+      }
+
+      /* LiteralStringBacktick */
+      .chroma .sb {
+        color: #dd1144
+      }
+
+      /* LiteralStringChar */
+      .chroma .sc {
+        color: #dd1144
+      }
+
+      /* LiteralStringDelimiter */
+      .chroma .dl {
+        color: #dd1144
+      }
+
+      /* LiteralStringDoc */
+      .chroma .sd {
+        color: #dd1144
+      }
+
+      /* LiteralStringDouble */
+      .chroma .s2 {
+        color: #dd1144
+      }
+
+      /* LiteralStringEscape */
+      .chroma .se {
+        color: #dd1144
+      }
+
+      /* LiteralStringHeredoc */
+      .chroma .sh {
+        color: #dd1144
+      }
+
+      /* LiteralStringInterpol */
+      .chroma .si {
+        color: #dd1144
+      }
+
+      /* LiteralStringOther */
+      .chroma .sx {
+        color: #dd1144
+      }
+
+      /* LiteralStringRegex */
+      .chroma .sr {
+        color: #009926
+      }
+
+      /* LiteralStringSingle */
+      .chroma .s1 {
+        color: #dd1144
+      }
+
+      /* LiteralStringSymbol */
+      .chroma .ss {
+        color: #990073
+      }
+
+      /* LiteralNumber */
+      .chroma .m {
+        color: #009999
+      }
+
+      /* LiteralNumberBin */
+      .chroma .mb {
+        color: #009999
+      }
+
+      /* LiteralNumberFloat */
+      .chroma .mf {
+        color: #009999
+      }
+
+      /* LiteralNumberHex */
+      .chroma .mh {
+        color: #009999
+      }
+
+      /* LiteralNumberInteger */
+      .chroma .mi {
+        color: #009999
+      }
+
+      /* LiteralNumberIntegerLong */
+      .chroma .il {
+        color: #009999
+      }
+
+      /* LiteralNumberOct */
+      .chroma .mo {
+        color: #009999
+      }
+
+      /* Operator */
+      .chroma .o {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* OperatorWord */
+      .chroma .ow {
+        color: #000000;
+        font-weight: bold
+      }
+
+      /* Comment */
+      .chroma .c {
+        color: #999988;
+        font-style: italic
+      }
+
+      /* CommentHashbang */
+      .chroma .ch {
+        color: #999988;
+        font-style: italic
+      }
+
+      /* CommentMultiline */
+      .chroma .cm {
+        color: #999988;
+        font-style: italic
+      }
+
+      /* CommentSingle */
+      .chroma .c1 {
+        color: #999988;
+        font-style: italic
+      }
+
+      /* CommentSpecial */
+      .chroma .cs {
+        color: #999999;
+        font-weight: bold;
+        font-style: italic
+      }
+
+      /* CommentPreproc */
+      .chroma .cp {
+        color: #999999;
+        font-weight: bold;
+        font-style: italic
+      }
+
+      /* CommentPreprocFile */
+      .chroma .cpf {
+        color: #999999;
+        font-weight: bold;
+        font-style: italic
+      }
+
+      /* GenericDeleted */
+      .chroma .gd {
+        color: #000000;
+        background-color: #ffdddd
+      }
+
+      /* GenericEmph */
+      .chroma .ge {
+        color: #000000;
+        font-style: italic
+      }
+
+      /* GenericError */
+      .chroma .gr {
+        color: #aa0000
+      }
+
+      /* GenericHeading */
+      .chroma .gh {
+        color: #999999
+      }
+
+      /* GenericInserted */
+      .chroma .gi {
+        color: #000000;
+        background-color: #ddffdd
+      }
+
+      /* GenericOutput */
+      .chroma .go {
+        color: #888888
+      }
+
+      /* GenericPrompt */
+      .chroma .gp {
+        color: #555555
+      }
+
+      /* GenericStrong */
+      .chroma .gs {
+        font-weight: bold
+      }
+
+      /* GenericSubheading */
+      .chroma .gu {
+        color: #aaaaaa
+      }
+
+      /* GenericTraceback */
+      .chroma .gt {
+        color: #aa0000
+      }
+
+      /* GenericUnderline */
+      .chroma .gl {
+        text-decoration: underline
+      }
+
+      /* TextWhitespace */
+      .chroma .w {
+        color: #bbbbbb
+      }
+    </style>
+</head>
+  <body>
+    <main><h2 id="pkg-overview">package knownhosts</h2>
+<pre class="chroma"><span class="kn">import</span> <span class="s">&#34;golang.org/x/crypto/ssh/knownhosts&#34;</span></pre>
+<p>Package knownhosts implements a parser for the OpenSSH known_hosts
+host key database, and provides utility functions for writing
+OpenSSH compliant known_hosts files.
+<h3 id="pkg-index">Index</h3>
+<ul>
+  <li><a href="#HashHostname">func HashHostname(hostname string) string</a></li>
+  <li><a href="#Line">func Line(addresses []string, key ssh.PublicKey) string</a></li>
+  <li><a href="#New">func New(files ...string) (ssh.HostKeyCallback, error)</a></li>
+  <li><a href="#Normalize">func Normalize(address string) string</a></li>
+  <li>
+      <a href="#KeyError">type KeyError</a>
+      <ul>
+          <li><a href="#KeyError.Error">func (u *KeyError) Error() string</a></li>
+          </ul>
+      </li>
+  <li>
+      <a href="#KnownKey">type KnownKey</a>
+      <ul>
+          <li><a href="#KnownKey.String">func (k *KnownKey) String() string</a></li>
+          </ul>
+      </li>
+  <li>
+      <a href="#RevokedError">type RevokedError</a>
+      <ul>
+          <li><a href="#RevokedError.Error">func (r *RevokedError) Error() string</a></li>
+          </ul>
+      </li>
+  </ul><h3 id="pkg-functions">Functions</h3>
+  <h3 id="HashHostname">func HashHostname</h3>
+    <pre class="chroma"><span class="kd">func</span> <span class="nf">HashHostname</span><span class="p">(</span><span class="nx">hostname</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">)</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a></pre>
+    <p>HashHostname hashes the given hostname. The hostname is not
+normalized before hashing.
+<h3 id="Line">func Line</h3>
+    <pre class="chroma"><span class="kd">func</span> <span class="nf">Line</span><span class="p">(</span><span class="nx">addresses</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">,</span> <span class="nx">key</span> <a href=".."><span class="nx">ssh</span></a><span class="p">.</span><a href="..#PublicKey"><span class="nx">PublicKey</span></a><span class="p">)</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a></pre>
+    <p>Line returns a line to add append to the known_hosts files.
+<h3 id="New">func New</h3>
+    <pre class="chroma"><span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">files</span> <span class="o">...</span><a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">)</span> <span class="p">(</span><a href=".."><span class="nx">ssh</span></a><span class="p">.</span><a href="..#HostKeyCallback"><span class="nx">HostKeyCallback</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
+    <p>New creates a host key callback from the given OpenSSH host key
+files. The returned callback is for use in
+ssh.ClientConfig.HostKeyCallback. By preference, the key check
+operates on the hostname if available, i.e. if a server changes its
+IP address, the host key check will still succeed, even though a
+record of the new IP address is not available.
+<h3 id="Normalize">func Normalize</h3>
+    <pre class="chroma"><span class="kd">func</span> <span class="nf">Normalize</span><span class="p">(</span><span class="nx">address</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">)</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a></pre>
+    <p>Normalize normalizes an address into the form used in known_hosts
+<h3 id="pkg-types">Types</h3>
+  <h3 id="KeyError">type KeyError</h3>
+    <pre class="chroma"><span class="kd">type</span> <span class="nx">KeyError</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// Want holds the accepted host keys. For each key algorithm,
+</span><span class="c1"></span>	<span class="c1">// there can be one hostkey.  If Want is empty, the host is
+</span><span class="c1"></span>	<span class="c1">// unknown. If Want is non-empty, there was a mismatch, which
+</span><span class="c1"></span>	<span class="c1">// can signify a MITM attack.
+</span><span class="c1"></span>	<span id="KeyError.Want"><span class="nx">Want</span></span> <span class="p">[]</span><a href="#KnownKey"><span class="nx">KnownKey</span></a>
+<span class="p">}</span></pre>
+    <p>KeyError is returned if we did not find the key in the host key
+database, or there was a mismatch.  Typically, in batch
+applications, this should be interpreted as failure. Interactive
+applications can offer an interactive prompt to the user.
+<h4 id="KeyError.Error">func (*KeyError) Error</h4>
+  <pre class="chroma"><span class="kd">func</span> <span class="p">(</span><span class="nx">u</span> <span class="o">*</span><a href="#KeyError"><span class="nx">KeyError</span></a><span class="p">)</span> <span class="nf">Error</span><span class="p">()</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a></pre>
+  <h3 id="KnownKey">type KnownKey</h3>
+    <pre class="chroma"><span class="kd">type</span> <span class="nx">KnownKey</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span id="KnownKey.Key"><span class="nx">Key</span></span>      <a href=".."><span class="nx">ssh</span></a><span class="p">.</span><a href="..#PublicKey"><span class="nx">PublicKey</span></a>
+	<span id="KnownKey.Filename"><span class="nx">Filename</span></span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a>
+	<span id="KnownKey.Line"><span class="nx">Line</span></span>     <a href="https://pkg.go.dev/builtin#int"><span class="kt">int</span></a>
+<span class="p">}</span></pre>
+    <p>KnownKey represents a key declared in a known_hosts file.
+<h4 id="KnownKey.String">func (*KnownKey) String</h4>
+  <pre class="chroma"><span class="kd">func</span> <span class="p">(</span><span class="nx">k</span> <span class="o">*</span><a href="#KnownKey"><span class="nx">KnownKey</span></a><span class="p">)</span> <span class="nf">String</span><span class="p">()</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a></pre>
+  <h3 id="RevokedError">type RevokedError</h3>
+    <pre class="chroma"><span class="kd">type</span> <span class="nx">RevokedError</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span id="RevokedError.Revoked"><span class="nx">Revoked</span></span> <a href="#KnownKey"><span class="nx">KnownKey</span></a>
+<span class="p">}</span></pre>
+    <p>RevokedError is returned if we found a key that was revoked.
+<h4 id="RevokedError.Error">func (*RevokedError) Error</h4>
+  <pre class="chroma"><span class="kd">func</span> <span class="p">(</span><span class="nx">r</span> <span class="o">*</span><a href="#RevokedError"><span class="nx">RevokedError</span></a><span class="p">)</span> <span class="nf">Error</span><span class="p">()</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a></pre>
+  </main>
+    <hr>
+    <footer>
+      <small id="generated-by-footer">
+        Generated with <a href="https://abhinav.github.io/doc2go/">doc2go</a>
+      </small>
+    </footer>
+    <script type="text/javascript">
+      // If the page was opened with an anchor (e.g. #foo),
+      // and the destination is a <details> element, open it.
+      function openDetailsAnchor() {
+        let hash = window.location.hash
+        if (!hash) {
+          return
+        }
+        let el = document.getElementById(hash.slice(1)) // remove leading '#'
+        if (!el) {
+          return
+        }
+
+        let details = el.closest("details")
+        while (details) {
+          details.open = true
+          details = details.parentElement.closest("details")
+        }
+
+        // New elements may have appeared.
+        // Set hash again to scroll to the right place.
+        window.location.hash = hash;
+        return false;
+      }
+
+      window.addEventListener('hashchange', openDetailsAnchor)
+
+      window.addEventListener('load', () => {
+        document.querySelectorAll("h2, h3, h4, h5, h6").forEach((el) => {
+          if (!el.id) {
+            return
+          }
+          el.innerHTML += ' <a class="permalink" href="#' + el.id + '">&para;</a>'
+        })
+
+        document.querySelectorAll("details.example > summary").forEach((el) => {
+          let id = el.parentElement.id;
+          if (!id) {
+            return
+          }
+          el.innerHTML += ' <a class="permalink" href="#' + id + '">&para;</a>'
+        })
+
+        openDetailsAnchor()
+      })
+    </script>
+  </body>
+</html>
