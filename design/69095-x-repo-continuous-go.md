@@ -1,6 +1,7 @@
 # Proposal: all, x/build/cmd/relui: automate go directive maintenance in golang.org/x repositories
 
 Author(s): Dmitri Shuralyov
+
 Thanks to: Russ Cox, Michael Pratt, Robert Findley, Hana Kim, Cody Oss, Tim King, Carlos Amedee, and others for input
 
 Last updated: 2024-08-27
