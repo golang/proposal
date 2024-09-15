@@ -379,6 +379,47 @@ type ExtendedAgent interface {
 }
 ```
 
+### Add PrivateKeySigner
+
+`PrivateKeySigner` is a `Signer` that can also return the associated `crypto.Signer`.
+This means `ParseRawPrivateKey` and `ParseRawPrivateKeyWithPassphrase` can be private now because `ParsePrivateKey` and `ParsePrivateKeyWithPassphrase` return both a `Signer` and a `crypto.Signer`.
+
+```go
+// PrivateKeySigner is a [ssh.Signer] that can also return the associated
+// [crypto.Signer].
+type PrivateKeySigner struct {
+    Signer
+}
+
+func (k *PrivateKeySigner) CryptoSigner() crypto.Signer
+
+func ParsePrivateKey(pemBytes []byte) (*PrivateKeySigner, error)
+
+func ParsePrivateKeyWithPassphrase(pemBytes, passphrase []byte) (*PrivateKeySigner, error)
+```
+
+### Add MarshalPrivateKeyOptions
+
+Instead of passing options as function parameters to `MarshalPrivateKey` add a struct for options.
+
+```go
+// MarshalPrivateKeyOptions defines the available options to Marshal a private
+// key in OpenSSH format.
+type MarshalPrivateKeyOptions struct {
+    Comment    string
+    Passphrase string
+    SaltRounds int
+}
+```
+
+And change `MarshalPrivateKey` like this.
+
+```go
+func MarshalPrivateKey(key crypto.PrivateKey, options MarshalPrivateKeyOptions) (*pem.Block, error)
+```
+
+This way we can remove `MarshalPrivateKeyWithPassphrase` because the passphrase is now an option. We can easily add support for other options, for example making salt rounds confgurable, see [golang/go#68700](https://github.com/golang/go/issues/68700).
+
 ### Deprecated API and algorithms removal
 
 We'll remove DSA support, see [here](https://lists.mindrot.org/pipermail/openssh-unix-announce/2024-January/000156.html) for DSA status in OpenSSH, it is already disabled by default and will be removed in January, 2025.
