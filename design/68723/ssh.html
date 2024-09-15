@@ -573,10 +573,7 @@ so its API may be changed when pressing needs arise.
   <li><a href="#FingerprintSHA256">func FingerprintSHA256(pubKey PublicKey) string</a></li>
   <li><a href="#Marshal">func Marshal(msg interface{}) []byte</a></li>
   <li><a href="#MarshalAuthorizedKey">func MarshalAuthorizedKey(key PublicKey) []byte</a></li>
-  <li><a href="#MarshalPrivateKey">func MarshalPrivateKey(key crypto.PrivateKey, comment string) (*pem.Block, error)</a></li>
-  <li><a href="#MarshalPrivateKeyWithPassphrase">func MarshalPrivateKeyWithPassphrase(key crypto.PrivateKey, comment string, passphrase []byte) (*pem.Block, error)</a></li>
-  <li><a href="#ParseRawPrivateKey">func ParseRawPrivateKey(pemBytes []byte) (crypto.Signer, error)</a></li>
-  <li><a href="#ParseRawPrivateKeyWithPassphrase">func ParseRawPrivateKeyWithPassphrase(pemBytes, passphrase []byte) (crypto.Signer, error)</a></li>
+  <li><a href="#MarshalPrivateKey">func MarshalPrivateKey(key crypto.PrivateKey, options MarshalPrivateKeyOptions) (*pem.Block, error)</a></li>
   <li><a href="#Unmarshal">func Unmarshal(data []byte, out interface{}) error</a></li>
   <li>
       <a href="#Algorithms">type Algorithms</a>
@@ -737,6 +734,9 @@ so its API may be changed when pressing needs arise.
       <a href="#KeyboardInteractiveChallenge">type KeyboardInteractiveChallenge</a>
       </li>
   <li>
+      <a href="#MarshalPrivateKeyOptions">type MarshalPrivateKeyOptions</a>
+      </li>
+  <li>
       <a href="#NewChannel">type NewChannel</a>
       <ul>
           <li><a href="#NewChannel.Accept">func (c *NewChannel) Accept() (*Channel, error)</a></li>
@@ -765,6 +765,14 @@ so its API may be changed when pressing needs arise.
       </li>
   <li>
       <a href="#Permissions">type Permissions</a>
+      </li>
+  <li>
+      <a href="#PrivateKeySigner">type PrivateKeySigner</a>
+      <ul>
+          <li><a href="#ParsePrivateKey">func ParsePrivateKey(pemBytes []byte) (*PrivateKeySigner, error)</a></li>
+          <li><a href="#ParsePrivateKeyWithPassphrase">func ParsePrivateKeyWithPassphrase(pemBytes, passphrase []byte) (*PrivateKeySigner, error)</a></li>
+          <li><a href="#PrivateKeySigner.CryptoSigner">func (k *PrivateKeySigner) CryptoSigner() crypto.Signer</a></li>
+          </ul>
       </li>
   <li>
       <a href="#PublicKey">type PublicKey</a>
@@ -855,8 +863,6 @@ so its API may be changed when pressing needs arise.
           <li><a href="#NewCertSigner">func NewCertSigner(cert *Certificate, signer Signer) (Signer, error)</a></li>
           <li><a href="#NewSigner">func NewSigner(signer crypto.Signer) (Signer, error)</a></li>
           <li><a href="#NewSignerWithAlgorithms">func NewSignerWithAlgorithms(signer Signer, algorithms []string) (Signer, error)</a></li>
-          <li><a href="#ParsePrivateKey">func ParsePrivateKey(pemBytes []byte) (Signer, error)</a></li>
-          <li><a href="#ParsePrivateKeyWithPassphrase">func ParsePrivateKeyWithPassphrase(pemBytes, passphrase []byte) (Signer, error)</a></li>
           </ul>
       </li>
   <li>
@@ -1068,23 +1074,9 @@ number is prepended to the result. If the last of member has the
     <p>MarshalAuthorizedKey serializes key for inclusion in an OpenSSH
 authorized_keys file. The return value ends with newline.
 <h3 id="MarshalPrivateKey">func MarshalPrivateKey</h3>
-    <pre class="chroma"><span class="kd">func</span> <span class="nf">MarshalPrivateKey</span><span class="p">(</span><span class="nx">key</span> <a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#PrivateKey"><span class="nx">PrivateKey</span></a><span class="p">,</span> <span class="nx">comment</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">)</span> <span class="p">(</span><span class="o">*</span><a href="https://pkg.go.dev/encoding/pem"><span class="nx">pem</span></a><span class="p">.</span><a href="https://pkg.go.dev/encoding/pem#Block"><span class="nx">Block</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
+    <pre class="chroma"><span class="kd">func</span> <span class="nf">MarshalPrivateKey</span><span class="p">(</span><span class="nx">key</span> <a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#PrivateKey"><span class="nx">PrivateKey</span></a><span class="p">,</span> <span class="nx">options</span> <a href="#MarshalPrivateKeyOptions"><span class="nx">MarshalPrivateKeyOptions</span></a><span class="p">)</span> <span class="p">(</span><span class="o">*</span><a href="https://pkg.go.dev/encoding/pem"><span class="nx">pem</span></a><span class="p">.</span><a href="https://pkg.go.dev/encoding/pem#Block"><span class="nx">Block</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
     <p>MarshalPrivateKey returns a PEM block with the private key serialized in the
 OpenSSH format.
-<h3 id="MarshalPrivateKeyWithPassphrase">func MarshalPrivateKeyWithPassphrase</h3>
-    <pre class="chroma"><span class="kd">func</span> <span class="nf">MarshalPrivateKeyWithPassphrase</span><span class="p">(</span><span class="nx">key</span> <a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#PrivateKey"><span class="nx">PrivateKey</span></a><span class="p">,</span> <span class="nx">comment</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">,</span> <span class="nx">passphrase</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><span class="o">*</span><a href="https://pkg.go.dev/encoding/pem"><span class="nx">pem</span></a><span class="p">.</span><a href="https://pkg.go.dev/encoding/pem#Block"><span class="nx">Block</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
-    <p>MarshalPrivateKeyWithPassphrase returns a PEM block holding the encrypted
-private key serialized in the OpenSSH format.
-<h3 id="ParseRawPrivateKey">func ParseRawPrivateKey</h3>
-    <pre class="chroma"><span class="kd">func</span> <span class="nf">ParseRawPrivateKey</span><span class="p">(</span><span class="nx">pemBytes</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#Signer"><span class="nx">Signer</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
-    <p>ParseRawPrivateKey returns a private key from a PEM encoded private key. It supports
-RSA, ECDSA, and Ed25519 private keys in PKCS#1, PKCS#8, OpenSSL, and OpenSSH
-formats. If the private key is encrypted, it will return a PassphraseMissingError.
-<h3 id="ParseRawPrivateKeyWithPassphrase">func ParseRawPrivateKeyWithPassphrase</h3>
-    <pre class="chroma"><span class="kd">func</span> <span class="nf">ParseRawPrivateKeyWithPassphrase</span><span class="p">(</span><span class="nx">pemBytes</span><span class="p">,</span> <span class="nx">passphrase</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#Signer"><span class="nx">Signer</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
-    <p>ParseRawPrivateKeyWithPassphrase returns a private key decrypted with
-passphrase from a PEM encoded private key. If the passphrase is wrong, it
-will return x509.IncorrectPasswordError.
 <h3 id="Unmarshal">func Unmarshal</h3>
     <pre class="chroma"><span class="kd">func</span> <span class="nf">Unmarshal</span><span class="p">(</span><span class="nx">data</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">,</span> <span class="nx">out</span> <span class="kd">interface</span><span class="p">{})</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a></pre>
     <p>Unmarshal parses data in SSH wire format into a structure. The out
@@ -1860,6 +1852,14 @@ successful authentication, the server may send a challenge with no
 questions, for which the name and instruction messages should be
 printed.  RFC 4256 section 3.3 details how the UI should behave for
 both CLI and GUI environments.
+<h3 id="MarshalPrivateKeyOptions">type MarshalPrivateKeyOptions</h3>
+    <pre class="chroma"><span class="kd">type</span> <span class="nx">MarshalPrivateKeyOptions</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span id="MarshalPrivateKeyOptions.Comment"><span class="nx">Comment</span></span>    <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a>
+	<span id="MarshalPrivateKeyOptions.Passphrase"><span class="nx">Passphrase</span></span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a>
+	<span id="MarshalPrivateKeyOptions.SaltRounds"><span class="nx">SaltRounds</span></span> <a href="https://pkg.go.dev/builtin#int"><span class="kt">int</span></a>
+<span class="p">}</span></pre>
+    <p>MarshalPrivateKeyOptions defines the available options to Marshal a private
+key in OpenSSH format.
 <h3 id="NewChannel">type NewChannel</h3>
     <pre class="chroma"><span class="kd">type</span> <span class="nx">NewChannel</span> <span class="kd">struct</span> <span class="p">{</span>
 	<span class="c1">// contains filtered or unexported fields
@@ -1945,7 +1945,27 @@ specific to a user or a specific authentication method for a user.
 The Permissions value for a successful authentication attempt is
 available in ServerConn, so it can be used to pass information from
 the user-authentication phase to the application layer.
-<h3 id="PublicKey">type PublicKey</h3>
+<h3 id="PrivateKeySigner">type PrivateKeySigner</h3>
+    <pre class="chroma"><span class="kd">type</span> <span class="nx">PrivateKeySigner</span> <span class="kd">struct</span> <span class="p">{</span>
+	<a href="#Signer"><span class="nx">Signer</span></a>
+	<span class="c1">// contains filtered or unexported fields
+</span><span class="c1"></span><span class="p">}</span></pre>
+    <p>PrivateKeySigner is a <a href="#Signer">ssh.Signer</a> that can also return the associated
+<a href="https://pkg.go.dev/crypto#Signer">crypto.Signer</a>.
+<h4 id="ParsePrivateKey">func ParsePrivateKey</h4>
+  <pre class="chroma"><span class="kd">func</span> <span class="nf">ParsePrivateKey</span><span class="p">(</span><span class="nx">pemBytes</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><span class="o">*</span><a href="#PrivateKeySigner"><span class="nx">PrivateKeySigner</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
+  <p>ParsePrivateKey returns a <a href="#PrivateKeySigner">ssh.PrivateKeySigner</a> from a PEM encoded private
+key. It supports RSA, ECDSA, and Ed25519 private keys in PKCS#1, PKCS#8,
+OpenSSL, and OpenSSH formats. If the private key is encrypted, it will return
+a PassphraseMissingError.
+<h4 id="ParsePrivateKeyWithPassphrase">func ParsePrivateKeyWithPassphrase</h4>
+  <pre class="chroma"><span class="kd">func</span> <span class="nf">ParsePrivateKeyWithPassphrase</span><span class="p">(</span><span class="nx">pemBytes</span><span class="p">,</span> <span class="nx">passphrase</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><span class="o">*</span><a href="#PrivateKeySigner"><span class="nx">PrivateKeySigner</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
+  <p>ParsePrivateKeyWithPassphrase returns a <a href="#PrivateKeySigner">ssh.PrivateKeySigner</a> from a PEM
+encoded private key and passphrase. It supports the same keys as
+<a href="#ParsePrivateKey">ssh.ParsePrivateKey</a>.
+<h4 id="PrivateKeySigner.CryptoSigner">func (*PrivateKeySigner) CryptoSigner</h4>
+  <pre class="chroma"><span class="kd">func</span> <span class="p">(</span><span class="nx">k</span> <span class="o">*</span><a href="#PrivateKeySigner"><span class="nx">PrivateKeySigner</span></a><span class="p">)</span> <span class="nf">CryptoSigner</span><span class="p">()</span> <a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#Signer"><span class="nx">Signer</span></a></pre>
+  <h3 id="PublicKey">type PublicKey</h3>
     <pre class="chroma"><span class="kd">type</span> <span class="nx">PublicKey</span> <span class="kd">interface</span> <span class="p">{</span>
 	<span class="c1">// Type returns the key format name, e.g. &#34;ssh-rsa&#34;.
 </span><span class="c1"></span>	<span id="PublicKey.Type"><span class="nf">Type</span></span><span class="p">()</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a>
@@ -2713,16 +2733,6 @@ modules.
 algorithms. The algorithms must be set in preference order. The list must not
 be empty, and it must not include certificate types. An error is returned if
 the specified algorithms are incompatible with the public key type.
-<h4 id="ParsePrivateKey">func ParsePrivateKey</h4>
-  <pre class="chroma"><span class="kd">func</span> <span class="nf">ParsePrivateKey</span><span class="p">(</span><span class="nx">pemBytes</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><a href="#Signer"><span class="nx">Signer</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
-  <p>ParsePrivateKey returns a Signer from a PEM encoded private key. It supports
-the same keys as ParseRawPrivateKey. If the private key is encrypted, it
-will return a PassphraseMissingError.
-<h4 id="ParsePrivateKeyWithPassphrase">func ParsePrivateKeyWithPassphrase</h4>
-  <pre class="chroma"><span class="kd">func</span> <span class="nf">ParsePrivateKeyWithPassphrase</span><span class="p">(</span><span class="nx">pemBytes</span><span class="p">,</span> <span class="nx">passphrase</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><a href="#Signer"><span class="nx">Signer</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
-  <p>ParsePrivateKeyWithPassphrase returns a Signer from a PEM encoded private
-key and passphrase. It supports the same keys as
-ParseRawPrivateKeyWithPassphrase.
 <h3 id="TerminalModes">type TerminalModes</h3>
     <pre class="chroma"><span class="kd">type</span> <span class="nx">TerminalModes</span> <span class="kd">map</span><span class="p">[</span><a href="https://pkg.go.dev/builtin#uint8"><span class="kt">uint8</span></a><span class="p">]</span><a href="https://pkg.go.dev/builtin#uint32"><span class="kt">uint32</span></a></pre>
     <h3 id="Waitmsg">type Waitmsg</h3>
