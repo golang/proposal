@@ -1965,6 +1965,9 @@ encoded private key and passphrase. It supports the same keys as
 <a href="#ParsePrivateKey">ssh.ParsePrivateKey</a>.
 <h4 id="PrivateKeySigner.CryptoSigner">func (*PrivateKeySigner) CryptoSigner</h4>
   <pre class="chroma"><span class="kd">func</span> <span class="p">(</span><span class="nx">k</span> <span class="o">*</span><a href="#PrivateKeySigner"><span class="nx">PrivateKeySigner</span></a><span class="p">)</span> <span class="nf">CryptoSigner</span><span class="p">()</span> <a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#Signer"><span class="nx">Signer</span></a></pre>
+  <p>CryptoSigner returns the private key associated with the Signer. It returns a
+    *rsa.PrivateKey, an *ecdsa.PrivateKey or an ed25519.PrivateKey (not a pointer).
+    Note: in v1 ed25519.PrivateKey was returned as a pointer.
   <h3 id="PublicKey">type PublicKey</h3>
     <pre class="chroma"><span class="kd">type</span> <span class="nx">PublicKey</span> <span class="kd">interface</span> <span class="p">{</span>
 	<span class="c1">// Type returns the key format name, e.g. &#34;ssh-rsa&#34;.
