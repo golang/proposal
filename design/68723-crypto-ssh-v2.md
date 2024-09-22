@@ -425,6 +425,10 @@ func MarshalPrivateKey(key crypto.PrivateKey, options MarshalPrivateKeyOptions) 
 
 This way we can remove `MarshalPrivateKeyWithPassphrase` because the passphrase is now an option. We can easily add support for other options, for example making salt rounds confgurable, see [golang/go#68700](https://github.com/golang/go/issues/68700).
 
+### NewPublicKey
+
+Change the `NewPublicKey` signature to accept `crypto.PublicKey` instead of an empty interface. All public keys in the standard library implement this interface.
+
 ### Deprecated API and algorithms removal
 
 We'll remove DSA support, see [here](https://lists.mindrot.org/pipermail/openssh-unix-announce/2024-January/000156.html) for DSA status in OpenSSH, it is already disabled by default and will be removed in January, 2025.

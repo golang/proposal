@@ -777,7 +777,7 @@ so its API may be changed when pressing needs arise.
   <li>
       <a href="#PublicKey">type PublicKey</a>
       <ul>
-          <li><a href="#NewPublicKey">func NewPublicKey(key interface{}) (PublicKey, error)</a></li>
+          <li><a href="#NewPublicKey">func NewPublicKey(key crypto.PublicKey) (PublicKey, error)</a></li>
           <li><a href="#ParseAuthorizedKey">func ParseAuthorizedKey(in []byte) (out PublicKey, comment string, options []string, rest []byte, err error)</a></li>
           <li><a href="#ParseKnownHosts">func ParseKnownHosts(in []byte) (marker string, hosts []string, pubKey PublicKey, comment string, rest []byte, ...)</a></li>
           <li><a href="#ParsePublicKey">func ParsePublicKey(in []byte) (out PublicKey, err error)</a></li>
@@ -1986,10 +1986,10 @@ encoded private key and passphrase. It supports the same keys as
     <p>PublicKey represents a public key using an unspecified algorithm.
 <p>Some PublicKeys provided by this package also implement CryptoPublicKey.
 <h4 id="NewPublicKey">func NewPublicKey</h4>
-  <pre class="chroma"><span class="kd">func</span> <span class="nf">NewPublicKey</span><span class="p">(</span><span class="nx">key</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">(</span><a href="#PublicKey"><span class="nx">PublicKey</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
-  <p>NewPublicKey takes an *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey,
-or ed25519.PublicKey returns a corresponding PublicKey instance.
-ECDSA keys must use P-256, P-384 or P-521.
+<pre class="chroma"><span class="kd">func</span> <span class="nf">NewPublicKey</span><span class="p">(</span><span class="nx">key</span> <a href="https://pkg.go.dev/crypto"><span class="nx">crypto</span></a><span class="p">.</span><a href="https://pkg.go.dev/crypto#PublicKey"><span class="nx">PublicKey</span></a><span class="p">)</span> <span class="p">(</span><a href="#PublicKey"><span class="nx">PublicKey</span></a><span class="p">,</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
+  <p>NewPublicKey takes an *rsa.PublicKey, *ecdsa.PublicKey, or ed25519.PublicKey
+returns a corresponding PublicKey instance. ECDSA keys must use P-256, P-384
+or P-521.
 <h4 id="ParseAuthorizedKey">func ParseAuthorizedKey</h4>
   <pre class="chroma"><span class="kd">func</span> <span class="nf">ParseAuthorizedKey</span><span class="p">(</span><span class="nx">in</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">)</span> <span class="p">(</span><span class="nx">out</span> <a href="#PublicKey"><span class="nx">PublicKey</span></a><span class="p">,</span> <span class="nx">comment</span> <a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">,</span> <span class="nx">options</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#string"><span class="kt">string</span></a><span class="p">,</span> <span class="nx">rest</span> <span class="p">[]</span><a href="https://pkg.go.dev/builtin#byte"><span class="kt">byte</span></a><span class="p">,</span> <span class="nx">err</span> <a href="https://pkg.go.dev/builtin#error"><span class="kt">error</span></a><span class="p">)</span></pre>
   <p>ParseAuthorizedKey parses a public key from an authorized_keys
