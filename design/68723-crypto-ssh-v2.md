@@ -391,12 +391,17 @@ type PrivateKeySigner struct {
     Signer
 }
 
+// CryptoSigner returns the private key associated with the Signer. It returns a
+// *rsa.PrivateKey, an *ecdsa.PrivateKey or an ed25519.PrivateKey (not a pointer).
+// Note: in v1 ed25519.PrivateKey was returned as a pointer.
 func (k *PrivateKeySigner) CryptoSigner() crypto.Signer
 
 func ParsePrivateKey(pemBytes []byte) (*PrivateKeySigner, error)
 
 func ParsePrivateKeyWithPassphrase(pemBytes, passphrase []byte) (*PrivateKeySigner, error)
 ```
+
+Differently from v1, `CryptoSigner` returns ed25519.PrivateKey as value and not as pointer, see [golang/go#51974](https://github.com/golang/go/issues/51974).
 
 ### Add MarshalPrivateKeyOptions
 
