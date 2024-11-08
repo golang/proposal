@@ -226,7 +226,8 @@ Then, `region.Do` calls the function that was passed to it.
 
 The special allocation path allocates all memory in a special part of the heap.
 Memory allocated this way is referred to as "**blue**" (**Bounded-Lifetime
-Unshared** memory, **Eagerly** reclaimed, for lovers of tortured acronyms).
+Unshared** memory, **Eagerly** reclaimed, for fellow lovers of tortured
+acronyms).
 (Subtlety: "blueness" is relative to the goroutine that allocated the memory.)
 
 In the `g`, we keep track of every span that was created as part of the blue
@@ -339,10 +340,10 @@ When an object is marked, the (N+1 mod 2)'th bit is simultaneously cleared.
 The GC will scan blocks using the object start bitmap to find the start of the
 object, and thus the object header.
 It marks and scans all reachable objects in blocks, even those objects that are
-still blue have not escaped.
+still blue.
 It also marks any lines containing marked objects.
-When the GC marks an object whose escape bits are not set, it leaves the escape
-bits alone.
+When the GC marks an object whose fade bits are not set, it leaves the fade bits
+alone.
 
 #### Sweeping
 
@@ -350,7 +351,7 @@ There are two ways in which objects in region blocks may have their memory made
 available for reuse.
 The first is based on the mark bits, which we'll call "full sweeping" since it's
 very close in semantics to the existing sweeper.
-The second is based on the escape bits, which we'll call "eager sweeping."
+The second is based on the fade bits, which we'll call "eager sweeping."
 
 Full sweeping of all blocks is performed each GC cycle.
 Lines that have not been marked are made available for allocation by installing
@@ -365,7 +366,7 @@ Eager sweeping of region blocks is performed when the function passed to
 Lines that do not overlap with any faded words, as indicated by the bitmap, are
 made available for allocation.
 Note that we may free blue objects that were marked.
-This is mostly fine: if the object never escaped, we can be certain that the
+This is mostly fine: if the object never faded, we can be certain that the
 object is dead when `f` returns.
 The only hazard is if the GC queues a pointer to blue memory that is later
 freed.
@@ -946,7 +947,7 @@ Note that such a profile would likely be larger than a typical heap profile,
 because one would want to group stacks by the number of GC cycles survived by
 the allocations made there.
 
-### Allocating tracing
+### Allocation tracing
 
 With a little bit of extra tooling, it would be possible to give very precise
 suggestions on where memory regions might be applicable (that is, where memory
@@ -1143,9 +1144,7 @@ Overall, it's just not quite the right fit.
 ### Immix
 
 This design borrows heavily from "[Immix: A Mark-Region Garbage Collector
-with](https://www.steveblackburn.org/pubs/papers/immix-pldi-2008.pdf)
-
-[Space Efficiency, Fast Collection, and Mutator
+with Space Efficiency, Fast Collection, and Mutator
 Performance](https://www.steveblackburn.org/pubs/papers/immix-pldi-2008.pdf)"
 (Blackburn, 2008), since it offers a mostly non-moving bump-pointer allocator
 design.
