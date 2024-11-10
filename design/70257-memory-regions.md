@@ -189,7 +189,7 @@ region.Do(func() {
 	y := make([]int, 10)
 	z := make(map[string]string)
 	*w = use(x, y, z)
-	keep = *w // w is unbound from the region.
+	keep = w // w is unbound from the region.
 }) // x, y, and z's memory is eagerly cleaned up, w is not.
 ```
 
@@ -434,7 +434,7 @@ func findRegionBlock(ptr unsafe.Pointer) *regionBlock {
 	// Check if the pointer lies inside of a region arena.
 	arenaIdx := uintptr(ptr)/heapArenaBytes
 	if mheap_.isRegionArena[arenaIdx/8]&(uint8(1)<<(arenaIdx%8)) == 0 {
-		return nil, 0
+		return nil
 	}
 	// Find the base of the block, where the fade bitmap, among other things, lives.
 	base := uintptr(ptr) &^ (8192-1)
