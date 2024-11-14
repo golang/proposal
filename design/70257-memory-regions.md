@@ -597,6 +597,19 @@ the best, worst, and middling cases.
 - _CR_ = Relative cost of mark/sweep of region objects (expected >1)
 - _PF_ = Pointer density (per byte) of faded objects
 
+| ΔCPU time \= |  |
+| :---- | :---- |
+|    immixAllocCPU(*OR* \* *AO*, *BR* \* *AB*) | Objects in a region are bump-pointer allocated |
+| \+ heapAllocCPU((1 \- *OR*) \* *AO*, (1 \- *BR*) \* *AB*) | Cost of allocating non-region-managed objects |
+| − heapAllocCPU(*AO*, *AB*) | Gain over heap-allocating all objects |
+| \+ total GC time \* (1 \- *BR*) | Cost of mark/sweep of non-region objects |
+| \+ total GC time \* *BR* \* (*BF* \+ *BS*) \* *CR* | Cost of mark/sweep of faded region objects |
+| − total GC time | Gain over mark/sweeping all objects |
+| \+ wbTestTime \* \# of pointer writes \[ \* *OR* \] | Cost of write barrier test (upper bound) \[[scaled](#minor-model-deviation)\] |
+| \+ fadeCPU(*AO* \* *OR* \* *OF*,  *PF* \* *AB* \* *BR* \* *BF*) | Cost of fading objects (write barrier slow path) |
+| \+ regionCleanupCPU(*AB* \* *BR*) | Cost of eagerly sweeping a region when it ends |
+| − TODO Cache benefit of prompt reuse |  |
+
 _BS_ is defined a little strangely, but can be considered as a proxy for average
 region lifetime.
 
