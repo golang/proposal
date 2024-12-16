@@ -13,9 +13,9 @@ This document describes the process for proposing, documenting, and
 implementing changes to the Go project.
 
 To learn more about Go's origins and development process, see the talks
-[How Go Was Made](https://talks.golang.org/2015/how-go-was-made.slide),
-[The Evolution of Go](https://talks.golang.org/2015/gophercon-goevolution.slide),
-and [Go, Open Source, Community](https://blog.golang.org/open-source)
+[How Go Was Made](https://go.dev/talks/2015/how-go-was-made.slide),
+[The Evolution of Go](https://go.dev/talks/2015/gophercon-goevolution.slide),
+and [Go, Open Source, Community](https://go.dev/blog/open-source)
 from GopherCon 2015.
 
 ## The Proposal Process
@@ -23,7 +23,7 @@ from GopherCon 2015.
 The proposal process is the process for reviewing a proposal and reaching
 a decision about whether to accept or decline the proposal.
 
-1. The proposal author [creates a brief issue](https://golang.org/issue/new) describing the proposal.\
+1. The proposal author [creates a brief issue](https://go.dev/issue/new) describing the proposal.\
    Note: There is no need for a design document at this point.\
    Note: A non-proposal issue can be turned into a proposal by simply adding the proposal label.\
    Note: [Language changes](#language-changes) should follow a separate [template](go2-language-changes.md)
@@ -97,7 +97,7 @@ Again, if in doubt, file a proposal.
 
 Programs written for Go version 1.x must continue to compile and work with
 future versions of Go 1.
-The [Go 1 compatibility document](https://golang.org/doc/go1compat) describes
+The [Go 1 compatibility document](https://go.dev/doc/go1compat) describes
 the promise we have made to Go users for the future of Go 1.x.
 Any proposed change must not break this promise.
 
@@ -105,7 +105,7 @@ Any proposed change must not break this promise.
 
 In 2018 we started a Go 2 process during which we may change the
 language, as described on [the Go
-blog](https://blog.golang.org/go2-here-we-come).
+blog](https://go.dev/blog/go2-here-we-come).
 Language changes should follow the proposal process described here.
 As explained in the blog entry, language change proposals should
 
@@ -114,8 +114,8 @@ As explained in the blog entry, language change proposals should
 - come with a clear and well-understood solution.
 
 Proposals should follow the [Go 2 template](go2-language-changes.md).
-See the [Go 2 review minutes](https://golang.org/issue/33892)
-and the [release notes](https://golang.org/doc/devel/release.html) for
+See the [Go 2 review minutes](https://go.dev/issue/33892)
+and the [release notes](https://go.dev/doc/devel/release) for
 examples of recent language changes.
 
 ### Design Documents
@@ -126,7 +126,7 @@ As noted above, some (but not all) proposals need to be elaborated in a design d
 where `NNNN` is the GitHub issue number and `shortname` is a short name
 (a few dash-separated words at most).
 Clone this repository with `git clone https://go.googlesource.com/proposal`
-and follow the usual [Gerrit workflow for Go](https://golang.org/doc/contribute.html#Code_review).
+and follow the usual [Gerrit workflow for Go](https://go.dev/doc/contribute#review).
 
 - The design doc should follow [the template](design/TEMPLATE.md).
 
@@ -137,7 +137,7 @@ New design doc authors may be paired with a design doc "shepherd" to help work o
 
 - For ease of review with Gerrit, design documents should be wrapped around the
 80 column mark.
-[Each sentence should start on a new line](http://rhodesmill.org/brandon/2012/one-sentence-per-line/)
+[Each sentence should start on a new line](https://rhodesmill.org/brandon/2012/one-sentence-per-line/)
 so that comments can be made accurately and the diff kept shorter.
   - In Emacs, loading `fill.el` from this directory will make `fill-paragraph` format text this way.
 
@@ -172,7 +172,7 @@ consensus has been reached and the process can be
 advanced to the next step (by marking the proposal accepted
 or declined or by asking for a design doc).
 
-Minutes are posted to [golang.org/s/proposal-minutes](https://golang.org/s/proposal-minutes)
+Minutes are posted to [go.dev/s/proposal-minutes](https://go.dev/s/proposal-minutes)
 after the conclusion of the weekly meeting, so that anyone
 interested in which proposals are under active consideration
 can follow that issue.
@@ -200,7 +200,7 @@ to be moved to Active.
 Holding proposals in Incoming until attention can be devoted to them
 (at which they move to Active, and then onward) ensures that
 progress is made moving active proposals out to Accepted or Declined,
-so we avoid [receive livelock](http://www.news.cs.nyu.edu/~jinyang/sp09/readings/mogul96usenix.pdf),
+so we avoid [receive livelock](https://www.news.cs.nyu.edu/~jinyang/sp09/readings/mogul96usenix.pdf),
 in which accepting new work prevents finishing old work.
 
 #### Active
@@ -347,4 +347,4 @@ to the [golang-dev mailing list](https://groups.google.com/group/golang-dev).
 delay while their message is held for moderation.)
 
 To learn about contributing to Go in general, see the
-[contribution guidelines](https://golang.org/doc/contribute.html).
+[contribution guidelines](https://go.dev/doc/contribute).
