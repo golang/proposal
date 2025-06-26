@@ -23,6 +23,11 @@ from GopherCon 2015.
 The proposal process is the process for reviewing a proposal and reaching
 a decision about whether to accept or decline the proposal.
 
+
+
+
+
+
 1. The proposal author [creates a brief issue](https://go.dev/issue/new) describing the proposal.\
    Note: There is no need for a design document at this point.\
    Note: A non-proposal issue can be turned into a proposal by simply adding the proposal label.\
