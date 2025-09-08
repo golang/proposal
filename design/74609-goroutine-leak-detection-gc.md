@@ -128,12 +128,13 @@ All uses of these fields have been updated with the methods provided by the `may
 When a goroutine leak detection GC cycle starts, it sets all maybe-traceable pointers in `*sudog` objects as untraceable.
 Once the cycle concludes, it resets all the pointers to being traceable.
 
-### Soft dependency on [#27993](https://go.dev/issue/27993)
+### Soft dependency on [go.dev/issue/27993](https://go.dev/issue/27993)
 In the current implementation of the GC, there is a check for whether
-marking phase must be restarted due to [#27993](https://go.dev/issue/27993).
+marking phase must be restarted due to
+[go.dev/issue/27993](https://go.dev/issue/27993).
 We extend that checkpoint with additional logic: (1) to find
 additional eventually-runnable goroutines, or (2) to mark goroutines as
 leaked, both of which provide another reason to restart
 the marking phase.
-Even if issue #27993 is resolved, the checkpoint must be preserved
+Even if #27993 is resolved, the checkpoint must be preserved
 for goroutine leak detection.
