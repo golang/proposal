@@ -115,17 +115,31 @@ A maybe-traceable pointer has one of three states:
 
 1) **Unset:** both `.vp` and `.vu` are zero values.
 This is homologous to `nil`.
-2) **Traceable:** both `.vp` and `.vu` are set, where both point to the same address.
-3) **Untraceable:** `.vu` is set to the address that is referenced, but `.vp` is set to `nil`, such that the GC does not automatically trace it when scanning the object embedding the maybe-traceable pointer.
+2) **Traceable:** both `.vp` and `.vu` are set, where both point to the
+same address.
+3) **Untraceable:** `.vu` is set to the address that is referenced, but
+`.vp` is set
+to `nil`, such that the GC does not automatically trace it when
+scanning the object embedding the maybe-traceable pointer.
 
-Maybe-traceable pointers are then provided with a set of methods for setting and unsetting them, that guarantee certain invariants at runtime, e.g., that if `.vp` and `.vu` are set, they point to the same address.
+Maybe-traceable pointers are then provided with a set of methods for
+setting and unsetting them, that guarantee certain invariants at
+runtime, e.g., that if `.vp` and `.vu` are set, they point to the
+same address.
 
-The use of maybe-traceable pointers is only required for `*sudog` objects, specifically for the `.elem` and `.hchan` fields.
-This prevents the GC from inadvertendly marking channels that have not yet been deemed reachable in memory via eventually runnable goroutines.
-This may occur because `*sudog` objects are globally reachable: via the list of goroutine objects (`*g`) at `allgs`, and via the treap forest of semaphore-related `*sudog`s at `semtable`.
+The use of maybe-traceable pointers is only required for `*sudog`
+objects, specifically for the `.elem` and `.hchan` fields.
+This prevents the GC from inadvertendly marking channels that have
+not yet been deemed reachable in memory via eventually runnable
+goroutines.
+This may occur because `*sudog` objects are globally reachable: via
+the list of goroutine objects (`*g`) at `allgs`, and via the treap
+forest of semaphore-related `*sudog`s at `semtable`.
 
-All uses of these fields have been updated with the methods provided by the `maybeTraceablePtr` type.
-When a goroutine leak detection GC cycle starts, it sets all maybe-traceable pointers in `*sudog` objects as untraceable.
+All uses of these fields have been updated with the methods provided
+by the `maybeTraceablePtr` type.
+When a goroutine leak detection GC cycle starts, it sets all
+maybe-traceable pointers in `*sudog` objects as untraceable.
 Once the cycle concludes, it resets all the pointers to being traceable.
 
 ### Soft dependency on [go.dev/issue/27993](https://go.dev/issue/27993)
