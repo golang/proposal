@@ -822,7 +822,6 @@ The
 
 Declaring that `T` satisfies the
 [`Equatable`](https://developer.apple.com/documentation/swift/equatable) protocol makes the use of `==` in the function body valid.
-`Equatable` appears to be a built-in in Swift, not possible to define otherwise.
 
 Like Rust, Swift avoids Java’s and C#'s curiously recurring interface pattern for direct self-reference by introducing a `Self` type.
 For example, the protocol for having an `Equals` method is:
