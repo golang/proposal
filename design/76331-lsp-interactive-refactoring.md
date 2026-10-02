@@ -71,9 +71,11 @@ export interface InteractiveParams {
 	// `id` rather than their array index. The list must not contain duplicate IDs,
 	// and each answer's ID must correspond to a field ID defined in `formFields`.
 	//
-	// The client must include answers for all required fields (where `required`
-	// is true). Answers for optional fields (where `required` is false)
-	// may be omitted if no answer was provided, or included if an answer is available.
+	// The client must include an answer for every field in `formFields`. If the
+	// user provides no answer for an optional field (where `required` is false),
+	// the client must include an answer whose value is null. This allows the
+	// server to distinguish a question the user chose not to answer (null)
+	// from a question that has not been presented to the user (absent).
 	formAnswers?: FormAnswer[];
 }
 
@@ -90,6 +92,8 @@ export interface FormField {
 	type: FormFieldType;
 
 	// Required specifies whether an answer is absolutely required for this field.
+	// The user may leave an optional field unanswered, in which case the client
+	// answers it with a null value. See `InteractiveParams.formAnswers`.
 	required: boolean;
 
 	// Default specifies an optional initial value for the answer.
@@ -107,7 +111,8 @@ export interface FormAnswer {
 	// The ID of the FormField being answered.
 	id: string;
 
-	// The user's answer value.
+	// The user's answer value, or null if the user provided no answer for an
+	// optional field.
 	value: any;
 }
 ```
