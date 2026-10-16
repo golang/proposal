@@ -14,10 +14,6 @@ It includes a new package, `go/doc/comment`, exposing a parsed syntax tree for
 doc comments, and it includes changes to `go/printer` and therefore `gofmt`
 to format doc comments in a standard way.
 
-<style>
-th, td { vertical-align: top; }
-</style>
-
 For example, existing lists reformat from the display on the left to the one on the right:
 
 <table>
