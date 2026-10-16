@@ -2,7 +2,7 @@
 
 Author(s): Hongxiang Jiang (hxjiang@golang.org)
 
-Thanks to: Alan Donovan, Brian Wilkerson, Danny Tuppeny, Hana Kim, Madeline Kalil, Peter Weinberger, Robert Findley.
+Thanks to: Alan Donovan, Alex Putman, Brian Wilkerson, Danny Tuppeny, Hana Kim, Madeline Kalil, Peter Weinberger, Robert Findley.
 
 Last updated: 16 July 2026
 
